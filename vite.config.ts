@@ -3,6 +3,12 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   root: "client",
+  server: {
+    // IPv4 so WSL / devcontainer port forwarding reaches it.
+    host: "127.0.0.1",
+    // Forward API calls to the Zig server (`pnpm dev:server`).
+    proxy: { "/api": "http://127.0.0.1:8080" },
+  },
   build: {
     // Output to the repo root, where the Zig server serves it from.
     outDir: "../dist",

@@ -4,10 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "pnpm run \"/^dev:(client|css|api)$/\"",
+    "dev:client": "vite",
+    "dev:css": "panda --watch",
+    "dev:api": "cd server && STATIC_DIR=client/public zig build run",
     "dev:server": "cd server && zig build run",
-    "build": "vite build && cd server && zig build -Doptimize=ReleaseSafe",
+    "build": "pnpm build:client && pnpm build:server",
+    "build:client": "panda && vite build",
+    "build:server": "cd server && zig build -Doptimize=ReleaseSafe",
     "start": "./server/zig-out/bin/server",
-    "preview": "vite build && cd server && zig build run",
+    "preview": "pnpm build:client && cd server && zig build run",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "vitest",
@@ -15,9 +21,13 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
-    "fmt:check": "oxfmt --check"
+    "fmt:check": "oxfmt --check",
+    "prepare": "panda codegen"
   },
   "devDependencies": {
+    "@pandacss/dev": "2.0.0",
+    "@pandacss/preset-base": "2.0.0",
+    "@pandacss/preset-panda": "2.0.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "oxfmt": "^0.71.0",
     "oxlint": "^1.86.0",
