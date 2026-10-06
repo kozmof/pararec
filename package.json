@@ -2,6 +2,9 @@
   "name": "workspace",
   "version": "1.0.0",
   "description": "",
+  "keywords": [],
+  "license": "MIT",
+  "author": "Kozo Oeda",
   "main": "index.js",
   "scripts": {
     "test": "vitest",
@@ -10,13 +13,10 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check"
   },
-  "keywords": [],
-  "author": "Kozo Oeda",
-  "license": "MIT",
-  "packageManager": "pnpm@10.17.1",
   "devDependencies": {
     "oxfmt": "^0.71.0",
     "oxlint": "^1.86.0",
     "vitest": "^5.0.2"
-  }
+  },
+  "packageManager": "pnpm@10.17.1"
 }
