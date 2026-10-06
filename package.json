@@ -1,21 +1,30 @@
 {
   "name": "workspace",
-  "version": "1.0.0",
-  "description": "",
-  "keywords": [],
-  "license": "MIT",
-  "author": "Kozo Oeda",
-  "main": "index.js",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
   "scripts": {
+    "dev:server": "cd server && zig build run",
+    "build": "vite build && cd server && zig build -Doptimize=ReleaseSafe",
+    "start": "./server/zig-out/bin/server",
+    "preview": "vite build && cd server && zig build run",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "vitest",
+    "test:server": "cd server && zig build test",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "oxfmt": "^0.71.0",
     "oxlint": "^1.86.0",
+    "svelte": "^5.56.1",
+    "svelte-check": "^4.6.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
     "vitest": "^5.0.2"
   },
   "packageManager": "pnpm@10.17.1"
