@@ -1,0 +1,5 @@
+.devcontainer
+.npm-cache
+.pnpm-store
+
+node_modules/
