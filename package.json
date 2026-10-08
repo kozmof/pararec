@@ -14,7 +14,7 @@
     "preview": "pnpm build && pnpm start",
     "check": "svelte-check --workspace client --tsconfig ../tsconfig.json --config ../svelte.config.js",
     "check:watch": "svelte-check --workspace client --tsconfig ../tsconfig.json --config ../svelte.config.js --watch",
-    "test": "vitest",
+    "test": "TMPDIR=/tmp vitest",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
@@ -24,8 +24,8 @@
     "build:local": "cd local && zig build -Doptimize=ReleaseSafe",
     "test:local": "cd local && zig build test",
     "test:api": "pnpm build:local && node --test tests/api.test.mjs",
-    "test:e2e": "playwright test",
-    "test:unit": "vitest run"
+    "test:e2e": "TMPDIR=/tmp playwright test",
+    "test:unit": "TMPDIR=/tmp vitest run"
   },
   "dependencies": {
     "@kozmof/reed": "^4.0.1"
@@ -36,7 +36,11 @@
     "@pandacss/preset-panda": "2.0.0",
     "@playwright/test": "^1.63.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/svelte": "^5.4.2",
+    "@testing-library/user-event": "^14.6.7",
     "@types/node": "^26.6.3",
+    "jsdom": "^30.1.1",
     "oxfmt": "^0.71.0",
     "oxlint": "^1.86.0",
     "svelte": "^5.56.1",

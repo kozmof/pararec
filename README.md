@@ -1,6 +1,6 @@
 # Pararec
 
-Pararec is a two-column editor for nested notes. The local document server is implemented. The client currently shows a connection check while the editor is being built.
+Pararec is a two-column editor for nested notes. The local document server is implemented. The client includes an isolated text editor demo while the document view is being built.
 
 ## Setup
 
@@ -21,7 +21,7 @@ Serve one document from the repository root.
 ./local/zig-out/bin/pararec serve document.json
 ```
 
-Open `http://127.0.0.1:4545`. A missing document returns `404` until the first successful creation request. The editor and its save controls are not implemented yet.
+Open `http://127.0.0.1:4545`. A missing document returns `404` until the first successful creation request. The document view and its save controls are not implemented yet.
 
 Choose another port or static directory when needed.
 
@@ -38,6 +38,8 @@ pnpm dev
 ```
 
 Open `http://127.0.0.1:5173`. Vite forwards `/api` requests to the local server on port 4545. The server lives in `local/`. The client build is written to `dist/`.
+
+Open `http://127.0.0.1:5173/#/editor-demo` to edit one fixture note. The demo supports selection, clipboard operations, IME composition, and undo/redo. Changes stay in memory and reset when leaving the demo. Text uses fixed-height lines without soft wrapping at this stage.
 
 ## Test
 
