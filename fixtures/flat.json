@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "root": [
+    {
+      "id": "flat-1",
+      "left": [
+        {
+          "id": "flat-1-left",
+          "text": ""
+        }
+      ],
+      "right": {
+        "id": "flat-1-right",
+        "text": "First note",
+        "children": []
+      }
+    },
+    {
+      "id": "flat-2",
+      "left": [
+        {
+          "id": "flat-2-left",
+          "text": ""
+        }
+      ],
+      "right": {
+        "id": "flat-2-right",
+        "text": "Second note",
+        "children": []
+      }
+    }
+  ]
+}

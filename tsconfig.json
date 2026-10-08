@@ -4,7 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["svelte", "vite/client"],
+    "types": ["svelte", "vite/client", "node"],
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "allowJs": true,
@@ -21,6 +21,9 @@
     "client/src/**/*.js",
     "client/src/**/*.svelte",
     "vite.config.ts",
-    "svelte.config.js"
+    "svelte.config.js",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "tests/e2e/**/*.ts"
   ]
 }

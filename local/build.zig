@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const exe = b.addExecutable(.{
-        .name = "server",
+        .name = "pararec",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
@@ -14,10 +14,8 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(exe);
 
-    const run_step = b.step("run", "Run the server");
+    const run_step = b.step("run", "Run the local server");
     const run_cmd = b.addRunArtifact(exe);
-    // Run from the repo root so the default static dir (`dist`) resolves.
-    run_cmd.setCwd(b.path(".."));
     run_step.dependOn(&run_cmd.step);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {

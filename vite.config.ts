@@ -6,8 +6,22 @@ export default defineConfig({
   server: {
     // IPv4 so WSL / devcontainer port forwarding reaches it.
     host: "127.0.0.1",
-    // Forward API calls to the Zig server (`pnpm dev:server`).
-    proxy: { "/api": "http://127.0.0.1:8080" },
+    // Forward API calls to the Zig server (`pnpm dev:local`).
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:4545",
+        changeOrigin: true,
+        configure(proxy) {
+          proxy.on("proxyReq", (request, incoming) => {
+            const origin = incoming.headers.origin;
+            // Preserve foreign or missing origins so the local server can reject them.
+            if (origin === "http://127.0.0.1:5173" || origin === "http://localhost:5173") {
+              request.setHeader("origin", "http://127.0.0.1:4545");
+            }
+          });
+        },
+      },
+    },
   },
   build: {
     // Output to the repo root, where the Zig server serves it from.

@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "root": [
+    {
+      "id": "root",
+      "left": [
+        {
+          "id": "root-left",
+          "text": ""
+        }
+      ],
+      "right": {
+        "id": "root-right",
+        "text": "Root note",
+        "children": [
+          {
+            "id": "child",
+            "left": [
+              {
+                "id": "child-left",
+                "text": ""
+              }
+            ],
+            "right": {
+              "id": "child-right",
+              "text": "Child note",
+              "children": [
+                {
+                  "id": "grandchild",
+                  "left": [
+                    {
+                      "id": "grandchild-left",
+                      "text": ""
+                    }
+                  ],
+                  "right": {
+                    "id": "grandchild-right",
+                    "text": "Grandchild note",
+                    "children": []
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

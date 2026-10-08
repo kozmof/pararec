@@ -13,3 +13,11 @@ tmp/
 
 # Panda
 styled-system
+
+# Local documents and browser test output
+/document.json
+/document.json.bak
+/playwright-report/
+/test-results/
+/.playwright-cache/
+/.pnpm-data/

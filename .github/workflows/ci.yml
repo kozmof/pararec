@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: pnpm
+      - name: Install Zig 0.16.0
+        run: |
+          curl --fail --location https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz --output /tmp/zig.tar.xz
+          mkdir -p "$RUNNER_TEMP/zig"
+          tar -xJf /tmp/zig.tar.xz --strip-components=1 -C "$RUNNER_TEMP/zig"
+          echo "$RUNNER_TEMP/zig" >> "$GITHUB_PATH"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm lint
+      - run: pnpm test:local
+      - run: pnpm test:unit
+      - run: pnpm test:api
+      - run: pnpm build:client
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: test-results/

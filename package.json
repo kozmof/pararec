@@ -7,28 +7,36 @@
     "dev": "pnpm run \"/^dev:(client|css|api)$/\"",
     "dev:client": "vite",
     "dev:css": "panda --watch",
-    "dev:api": "cd server && STATIC_DIR=client/public zig build run",
-    "dev:server": "cd server && zig build run",
-    "build": "pnpm build:client && pnpm build:server",
+    "dev:api": "cd local && zig build run -- serve ../document.json --static ../client/public",
+    "build": "pnpm build:client && pnpm build:local",
     "build:client": "panda && vite build",
-    "build:server": "cd server && zig build -Doptimize=ReleaseSafe",
-    "start": "./server/zig-out/bin/server",
-    "preview": "pnpm build:client && cd server && zig build run",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
+    "start": "./local/zig-out/bin/pararec serve document.json",
+    "preview": "pnpm build && pnpm start",
+    "check": "svelte-check --workspace client --tsconfig ../tsconfig.json --config ../svelte.config.js",
+    "check:watch": "svelte-check --workspace client --tsconfig ../tsconfig.json --config ../svelte.config.js --watch",
     "test": "vitest",
-    "test:server": "cd server && zig build test",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "prepare": "panda codegen"
+    "prepare": "panda codegen",
+    "dev:local": "cd local && zig build run -- serve ../document.json --static ../client/public",
+    "build:local": "cd local && zig build -Doptimize=ReleaseSafe",
+    "test:local": "cd local && zig build test",
+    "test:api": "pnpm build:local && node --test tests/api.test.mjs",
+    "test:e2e": "playwright test",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@kozmof/reed": "^4.0.1"
   },
   "devDependencies": {
     "@pandacss/dev": "2.0.0",
     "@pandacss/preset-base": "2.0.0",
     "@pandacss/preset-panda": "2.0.0",
+    "@playwright/test": "^1.63.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@types/node": "^26.6.3",
     "oxfmt": "^0.71.0",
     "oxlint": "^1.86.0",
     "svelte": "^5.56.1",
@@ -37,8 +45,5 @@
     "vite": "^8.0.16",
     "vitest": "^5.0.2"
   },
-  "packageManager": "pnpm@10.17.1",
-  "dependencies": {
-    "@kozmof/reed": "^4.0.1"
-  }
+  "packageManager": "pnpm@10.17.1"
 }
