@@ -2,7 +2,7 @@
   import type { Action } from "svelte/action";
   import { css } from "../../../../styled-system/css";
 
-  let { line, text, top, padding = 12, rowHeight = 20, preedit = "", column = 0, register }: {
+  let { line, text, top, padding = 12, rowHeight = 20, preedit = "", column = 0, register, flow = false }: {
     line: number;
     text: string;
     top: number;
@@ -11,14 +11,15 @@
     preedit?: string;
     column?: number;
     register: Action<HTMLDivElement, number>;
+    flow?: boolean;
   } = $props();
 </script>
 
 <div
   use:register={line}
-  class={css({ position: "absolute", left: "0", right: "0", whiteSpace: "pre-wrap", overflowWrap: "anywhere", zIndex: "1" })}
+  class={css({ position: flow ? "relative" : "absolute", left: "0", right: "0", whiteSpace: "pre-wrap", overflowWrap: "anywhere", zIndex: "1" })}
   data-line={line}
-  style:top={`${top}px`}
+  style:top={flow ? undefined : `${top}px`}
   style:line-height={`${rowHeight}px`}
   style:min-height={`${rowHeight}px`}
   style:padding-left={`${padding}px`}

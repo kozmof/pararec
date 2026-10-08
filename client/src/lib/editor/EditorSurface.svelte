@@ -11,7 +11,7 @@
   } from "./geometry.js";
 
   import { arithmeticMeasurer, domLineMeasurer } from "./line-measurer.js";
-  import { moveVisualRow, visualRowEdge, rowAt } from "./visual-navigation.js";
+  import { moveVisualRow, visualRowEdge, visualCaret, rowAt } from "./visual-navigation.js";
   import EditorLine from "./EditorLine.svelte";
   import {
     MeasuredLayout, estimateLineHeight, captureScrollAnchor, anchorScrollTop,
@@ -29,6 +29,7 @@
     autoHeight = false,
     onHeight,
     onKeydown,
+    initialMeasurements,
   }: {
     doc: EditorDocument;
     /** Where the caret is, in (line, column) characters. */
@@ -41,6 +42,7 @@
     /** Render every line and let the page own scrolling. */
     autoHeight?: boolean;
     onHeight?: (height: number) => void;
+    initialMeasurements?: { width: number; heights: number[] };
     /**
      * Offer each key to the host first. A true result skips default handling, allowing Vim
      * mode without coupling the surface to it.
@@ -59,7 +61,7 @@
   let sinkEl: HTMLTextAreaElement | undefined = $state();
   let scrollTop = $state(0);
   let viewportHeight = $state(400);
-  let viewportWidth = $state(600);
+  let viewportWidth = $state(untrack(() => initialMeasurements?.width || 600));
   let focused = $state(false);
   let layoutVersion = $state(0);
   let resizeObserver: ResizeObserver | null = null;
@@ -97,10 +99,14 @@
   const measure = domLineMeasurer((line) => lineEls[line] ?? null);
   const layout = $derived.by(() => {
     const currentDoc = doc;
-    return untrack(() => new MeasuredLayout(currentDoc.lineCount, line =>
-      estimateLineHeight(currentDoc.lineText(line), viewportWidth - PAD_X * 2,
-        FONT_SIZE * 0.6, LINE_HEIGHT),
-    ));
+    return untrack(() => {
+      const measured = new MeasuredLayout(currentDoc.lineCount, line =>
+        estimateLineHeight(currentDoc.lineText(line), viewportWidth - PAD_X * 2, FONT_SIZE * 0.6, LINE_HEIGHT));
+      initialMeasurements?.heights.forEach((height, line) => {
+        if (line < currentDoc.lineCount && height > 0 && Number.isFinite(height)) measured.setHeight(line, height);
+      });
+      return measured;
+    });
   });
 
   function scrollAnchor(): ScrollAnchor | null {
@@ -176,7 +182,7 @@
     if (scrollEl) {
       resizeObserver.observe(scrollEl);
       if (scrollEl.clientHeight > 0) viewportHeight = scrollEl.clientHeight;
-      if (scrollEl.clientWidth > 0) {
+      if (scrollEl.clientWidth > 0 && scrollEl.clientWidth !== viewportWidth) {
         viewportWidth = scrollEl.clientWidth;
         layout.resetEstimates();
         layoutVersion++;
@@ -300,6 +306,27 @@
   export function focus(): void {
     sinkEl?.focus();
   }
+  export function atBoundary(direction: "up" | "down" | "left" | "right"): boolean {
+    if (selection) return false;
+    if (direction === "left") return caret.line === 0 && caret.column === 0;
+    if (direction === "right") return caret.line === doc.lineCount - 1 && caret.column === doc.lineText(caret.line).length;
+    const geometry = navigationMeasure();
+    const point = geometry.columnToPoint(caret.line, caret.column, caret.affinity);
+    const rows = geometry.visualRows(caret.line);
+    const row = rowAt(rows, point.y);
+    return direction === "up" ? caret.line === 0 && row === 0 : caret.line === doc.lineCount - 1 && row === rows.length - 1;
+  }
+  export function horizontalGoal(): number {
+    return goalX ?? navigationMeasure().columnToPoint(caret.line, caret.column, caret.affinity).x;
+  }
+  export function placeAtEdge(edge: "start" | "end", x?: number): void {
+    const line = edge === "start" ? 0 : doc.lineCount - 1;
+    const geometry = navigationMeasure();
+    const rows = geometry.visualRows(line);
+    setCaret(x === undefined ? { line, column: edge === "start" ? 0 : doc.lineText(line).length }
+      : visualCaret(line, x, edge === "start" ? rows[0].top : rows.at(-1)!.top, geometry), false, true);
+    goalX = x;
+  }
 
   function setCaret(next: Caret, extend: boolean, keepGoal = false): void {
     if (!keepGoal) goalX = undefined;
@@ -365,7 +392,7 @@
     // reaching the board.
     //
     // During composition, leave input to the browser and IME. Commit text at compositionend.
-    if (composing) return;
+    if (composing) { event.stopPropagation(); return; }
     if (!["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Shift", "Control", "Meta", "Alt"].includes(event.key))
       goalX = undefined;
 

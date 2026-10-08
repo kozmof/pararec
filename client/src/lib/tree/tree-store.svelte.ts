@@ -24,4 +24,22 @@ export class TreeStore {
     this.#revision++;
     return result.inverse;
   }
+  /** Validate every step before publishing a compound structure action once. */
+  applyMany(ops: Op[]): Op[] {
+    if (!ops.length) return [];
+    const before = this.schema;
+    let staged = before;
+    const stagedIndex = new Map(this.index);
+    const inverses: Op[] = [];
+    for (const op of ops) {
+      const result = applyOp(staged, op, stagedIndex);
+      updateIndex(stagedIndex, staged.root, result.schema.root);
+      staged = result.schema;
+      inverses.unshift(result.inverse);
+    }
+    updateIndex(this.index, before.root, staged.root);
+    this.#schema = staged;
+    this.#revision++;
+    return inverses;
+  }
 }

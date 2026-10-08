@@ -142,3 +142,13 @@ describe("measured surface", () => {
     expect(screen.queryByTestId("editor-selection")).toBeNull();
   });
 });
+
+it("starts focused layout from the measured preview heights", async () => {
+  const { surface } = mount("日本語\nsecond", {
+    autoHeight: true,
+    initialMeasurements: { width: 200, heights: [60, 40] },
+  });
+  await settled();
+  expect(surface.style.height).toBe("116px");
+  expect(line(1).style.top).toBe("68px");
+});

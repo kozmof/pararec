@@ -16,16 +16,16 @@ test("nested levels support mouse, keyboard, reload, and browser history", async
   await child.focus();
   await page.keyboard.press("ControlOrMeta+.");
   await expect(page).toHaveURL(/#\/c\/root\/child$/);
-  await expect(grandchild).toBeFocused();
+  await expect(grandchild.getByTestId("editor-sink")).toBeFocused();
   await page.keyboard.press("ControlOrMeta+,");
-  await expect(child).toBeFocused();
+  await expect(child.getByTestId("editor-sink")).toBeFocused();
   await page.keyboard.press("ControlOrMeta+,");
   await expect(root).toBeVisible();
-  await expect(child).toBeFocused();
+  await expect(child.getByTestId("editor-sink")).toBeFocused();
   await page.getByRole("button", { name: "Open children of Child note" }).click();
-  await expect(grandchild).toBeFocused();
+  await expect(grandchild.getByTestId("editor-sink")).toBeFocused();
   await page.reload();
-  await expect(grandchild).toBeFocused();
+  await expect(grandchild.getByTestId("editor-sink")).toBeFocused();
   await page.goBack();
   await expect(root).toBeVisible();
   await expect(child).toBeVisible();
@@ -50,5 +50,5 @@ test("invalid ancestor chains are truncated and empty levels accept Enter", asyn
   const add = page.getByRole("button", { name: "Add row" });
   await expect(add).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("textbox", { name: "Right note" })).toBeFocused();
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
 });

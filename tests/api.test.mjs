@@ -256,3 +256,74 @@ test("document API over real sockets", async (t) => {
     assert.equal((await put(empty, { "if-none-match": "*" })).status, 200);
   });
 });
+
+// Transpile the pure client modules so this socket test exercises the shipped commands.
+test("structure-generated snapshots are accepted by the local server", async () => {
+  const ts = (await import("typescript")).default;
+  const { pathToFileURL } = await import("node:url");
+  const moduleRoot = path.join(directory, "commands");
+  await mkdir(moduleRoot);
+  await writeFile(path.join(moduleRoot, "package.json"), '{"type":"module"}');
+  for (const source of [
+    "client/src/schema.ts",
+    "client/src/lib/tree/index.ts",
+    "client/src/lib/tree/ops.ts",
+    "client/src/lib/tree/navigation.ts",
+    "client/src/lib/tree/structure.ts",
+    "client/src/lib/editor/graphemes.ts",
+  ]) {
+    const output = path.join(moduleRoot, source.replace(/\.ts$/, ".js"));
+    await mkdir(path.dirname(output), { recursive: true });
+    await writeFile(
+      output,
+      ts.transpileModule(await readFile(source, "utf8"), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+      }).outputText,
+    );
+  }
+  const load = (relative) => import(pathToFileURL(path.join(moduleRoot, relative)).href);
+  const { structureAction } = await load("client/src/lib/tree/structure.js");
+  const { applyOp, createContainer } = await load("client/src/lib/tree/ops.js");
+  const { buildIndex } = await load("client/src/lib/tree/index.js");
+  let schema = JSON.parse(await readFile("fixtures/flat.json", "utf8"));
+  let tag = (await request()).headers.etag;
+  async function save() {
+    const response = await put(schema, { "if-match": tag });
+    assert.equal(response.status, 200, response.body);
+    tag = response.headers.etag;
+    assert.deepEqual(JSON.parse((await request()).body), schema);
+    assert.deepEqual(JSON.parse(await readFile(documentPath, "utf8")), schema);
+  }
+  async function command(id, type, caret = { line: 0, column: 0 }, path = []) {
+    const action = structureAction(schema, buildIndex(schema), path, id, caret, type);
+    assert.ok(action, `${type} should produce an action`);
+    for (const op of action.ops) schema = applyOp(schema, op).schema;
+    await save();
+    return action;
+  }
+  await save();
+  schema = applyOp(schema, { type: "setText", id: "flat-1-left", text: "日本\n👩‍🚀tail" }).schema;
+  const split = await command("flat-1-left", "split", { line: 1, column: 5 });
+  await command(split.focus.contentId, "join");
+  const sibling = await command("flat-1-right", "newSibling", { line: 0, column: 6 });
+  const child = await command(sibling.focus.contentId, "newChild");
+  await command(child.focus.contentId, "newChild");
+  await command("flat-1-right", "moveDown");
+  await command("flat-1-right", "moveUp");
+  schema = applyOp(schema, {
+    type: "insertContent",
+    containerId: "flat-1",
+    index: 1,
+    content: { id: "extra-left", text: "extra" },
+  }).schema;
+  await command("extra-left", "moveDown");
+  await command("extra-left", "moveUp");
+  const emptyRow = createContainer();
+  schema = applyOp(schema, {
+    type: "insertContainer",
+    parentId: null,
+    index: schema.root.length,
+    container: emptyRow,
+  }).schema;
+  await command(emptyRow.right.id, "deleteContainer");
+});
