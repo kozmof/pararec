@@ -16,7 +16,7 @@
 
 <div
   use:register={line}
-  class={css({ position: "absolute", left: "0", right: "0", whiteSpace: "pre", zIndex: "1" })}
+  class={css({ position: "absolute", left: "0", right: "0", whiteSpace: "pre-wrap", overflowWrap: "anywhere", zIndex: "1" })}
   data-line={line}
   style:top={`${top}px`}
   style:line-height={`${rowHeight}px`}

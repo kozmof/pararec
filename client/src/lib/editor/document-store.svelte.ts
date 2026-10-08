@@ -1,6 +1,7 @@
 import { history, position, query, rendering, scan, store } from "@kozmof/reed";
 import { GraphemeCache, normalizeLineBreaks } from "./graphemes.js";
 import { compareLines, contentLineChange, type LineChange } from "./document-change.js";
+import type { CaretAffinity } from "./line-measurer.js";
 import type { SelectionRange, DocumentAction as ReedAction } from "@kozmof/reed";
 
 type DocumentState = ReturnType<ReturnType<typeof store.createDocumentStore>["getSnapshot"]>;
@@ -22,6 +23,8 @@ export type Caret = {
   line: number;
   /** 0-indexed column, counted in characters rather than bytes. */
   column: number;
+  /** The visual side of an offset shared by two wrapped rows. */
+  affinity?: CaretAffinity;
 };
 
 export type VisibleLine = {
@@ -242,12 +245,13 @@ export class EditorDocument {
   /**
    * Clamp the caret to its line and snap backward to a grapheme boundary.
    */
-  clamp({ line, column }: Caret): Caret {
+  clamp({ line, column, affinity }: Caret): Caret {
     const lastLine = Math.max(0, this.lineCount - 1);
     const safeLine = Math.min(Math.max(0, line), lastLine);
     return {
       line: safeLine,
       column: this.#graphemes.snap(safeLine, this.lineText(safeLine), column),
+      ...(affinity ? { affinity } : {}),
     };
   }
 

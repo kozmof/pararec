@@ -10,7 +10,8 @@
     visibleRange,
   } from "./geometry.js";
 
-  import { domLineMeasurer } from "./line-measurer.js";
+  import { arithmeticMeasurer, domLineMeasurer } from "./line-measurer.js";
+  import { moveVisualRow, visualRowEdge, rowAt } from "./visual-navigation.js";
   import EditorLine from "./EditorLine.svelte";
   import {
     MeasuredLayout, estimateLineHeight, captureScrollAnchor, anchorScrollTop,
@@ -47,7 +48,7 @@
     onKeydown?: (event: KeyboardEvent) => boolean;
   } = $props();
 
-  /** Base line height for the fixed layout. */
+  /** Height of each visual row. */
   const LINE_HEIGHT = 20;
   const FONT_SIZE = 12.5;
   const PAD_X = 12;
@@ -62,12 +63,15 @@
   let focused = $state(false);
   let layoutVersion = $state(0);
   let resizeObserver: ResizeObserver | null = null;
+  let goalX: number | undefined;
+  let pendingCaretScroll = false;
 
   /**
    * Track rendered line elements for event-time measurement. The `lineEl` action adds entries
    * and removes them when lines leave the DOM. This map does not drive rendering.
    */
   const lineEls: Record<number, HTMLDivElement | undefined> = {};
+  const rowStarts = new Map<number, { text: string; width: number; rows: { top: number; column: number }[] }>();
 
   function lineEl(node: HTMLDivElement, lineNumber: number) {
     lineEls[lineNumber] = node;
@@ -76,6 +80,7 @@
       destroy() {
         resizeObserver?.unobserve(node);
         delete lineEls[lineNumber];
+        rowStarts.delete(lineNumber);
       },
     };
   }
@@ -94,7 +99,7 @@
     const currentDoc = doc;
     return untrack(() => new MeasuredLayout(currentDoc.lineCount, line =>
       estimateLineHeight(currentDoc.lineText(line), viewportWidth - PAD_X * 2,
-        FONT_SIZE * 0.6, LINE_HEIGHT, false),
+        FONT_SIZE * 0.6, LINE_HEIGHT),
     ));
   });
 
@@ -136,13 +141,17 @@
   onMount(() => {
     resizeObserver = new ResizeObserver(entries => {
       const anchor = scrollAnchor();
+      const cached = anchor ? rowStarts.get(anchor.line) : undefined;
+      const oldRow = anchor && cached ? cached.rows[rowAt(cached.rows.map(row => ({ ...row, height: LINE_HEIGHT })), anchor.offset)] : undefined;
       let changed = false;
+      let rewrapped = false;
       const root = entries.find(entry => entry.target === scrollEl);
       if (root) {
         const width = root.contentRect.width;
         if (width > 0 && width !== viewportWidth) {
           viewportWidth = width;
           layout.resetEstimates();
+          rewrapped = true;
           changed = true;
         }
         if (root.contentRect.height > 0) viewportHeight = root.contentRect.height;
@@ -158,12 +167,20 @@
       if (changed) {
         layoutVersion++;
         measurementVersion++;
+        if (rewrapped && anchor && oldRow && lineEls[anchor.line]?.textContent === cached?.text) {
+          anchor.offset = measure.columnToPoint(anchor.line, oldRow.column).y + anchor.offset - oldRow.top;
+        }
         restoreScroll(anchor);
       }
     });
     if (scrollEl) {
       resizeObserver.observe(scrollEl);
       if (scrollEl.clientHeight > 0) viewportHeight = scrollEl.clientHeight;
+      if (scrollEl.clientWidth > 0) {
+        viewportWidth = scrollEl.clientWidth;
+        layout.resetEstimates();
+        layoutVersion++;
+      }
     }
     for (const element of Object.values(lineEls)) if (element) resizeObserver.observe(element);
     return () => {
@@ -196,6 +213,7 @@
   // Read geometry after Svelte has updated the spans, including composition text.
   $effect(() => {
     void lines;
+    void viewportWidth;
     void caret;
     void anchor;
     void preedit;
@@ -212,12 +230,24 @@
         const height = element?.getBoundingClientRect().height ?? 0;
         if (height > 0 && line < layout.lineCount)
           changed = layout.setHeight(line, height) || changed;
+        if (element && height > 0) {
+          const text = element.textContent ?? "";
+          const cached = rowStarts.get(line);
+          if (!cached || cached.text !== text || cached.width !== viewportWidth) {
+            rowStarts.set(line, { text, width: viewportWidth, rows: measure.visualRows(line).map(row => ({
+              top: row.top, column: measure.pointToColumn(line, 0, row.top),
+            })) });
+          }
+        }
       }
       if (changed) {
         layoutVersion++;
         restoreScroll(anchor);
       }
       measurementVersion++;
+      if (pendingCaretScroll && lineEls[caret.line]) {
+        pendingCaretScroll = !ensureCaretVisible();
+      }
     });
     return () => {
       active = false;
@@ -262,7 +292,7 @@
     if (caret.column >= text.length) return FONT_SIZE * 0.6;
     return Math.max(
       2,
-      measure.columnToPoint(caret.line, caret.column + 1).x -
+      measure.columnToPoint(caret.line, doc.columnAfter(caret.line, caret.column), "upstream").x -
         measure.columnToPoint(caret.line, caret.column).x,
     );
   });
@@ -271,7 +301,8 @@
     sinkEl?.focus();
   }
 
-  function setCaret(next: Caret, extend: boolean): void {
+  function setCaret(next: Caret, extend: boolean, keepGoal = false): void {
+    if (!keepGoal) goalX = undefined;
     const clamped = doc.clamp(next);
     if (extend) anchor ??= caret;
     else anchor = null;
@@ -298,6 +329,7 @@
   }
 
   function insertText(text: string): void {
+    goalX = undefined;
     const span = selected();
     caret = span ? doc.replace(span.start, span.end, text, caret) : doc.insert(caret, text);
     collapse();
@@ -306,6 +338,19 @@
   // ── Keyboard ──────────────────────────────────────────────────
   function moveTo(next: Caret, extend: boolean): void {
     setCaret(next, extend);
+  }
+
+  function navigationMeasure() {
+    // jsdom and hidden surfaces have no rendered geometry. Keep logical movement usable
+    // there; browser input uses the measured proportional text and wrapped rows.
+    return (lineEls[caret.line]?.getBoundingClientRect().height ?? 0) > 0
+      ? measure : arithmeticMeasurer(line => doc.lineText(line), FONT_SIZE * 0.6, LINE_HEIGHT);
+  }
+
+  function moveVertical(direction: -1 | 1, extend: boolean): void {
+    const moved = moveVisualRow(caret, direction, doc.lineCount, navigationMeasure(), goalX);
+    goalX = moved.goalX;
+    setCaret(moved.caret, extend, true);
   }
 
   function pageLine(direction: -1 | 1): number {
@@ -321,6 +366,8 @@
     //
     // During composition, leave input to the browser and IME. Commit text at compositionend.
     if (composing) return;
+    if (!["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Shift", "Control", "Meta", "Alt"].includes(event.key))
+      goalX = undefined;
 
     if (onKeydown?.(event)) {
       event.preventDefault();
@@ -389,11 +436,11 @@
       }
       case "ArrowUp":
         event.preventDefault();
-        moveTo({ line: caret.line - 1, column: caret.column }, extend);
+        moveVertical(-1, extend);
         return;
       case "ArrowDown":
         event.preventDefault();
-        moveTo({ line: caret.line + 1, column: caret.column }, extend);
+        moveVertical(1, extend);
         return;
       case "PageUp":
         event.preventDefault();
@@ -411,11 +458,11 @@
         return;
       case "Home":
         event.preventDefault();
-        moveTo({ line: caret.line, column: 0 }, extend);
+        moveTo(visualRowEdge(caret, "start", navigationMeasure()), extend);
         return;
       case "End":
         event.preventDefault();
-        moveTo({ line: caret.line, column: doc.lineText(caret.line).length }, extend);
+        moveTo(visualRowEdge(caret, "end", navigationMeasure()), extend);
         return;
     }
 
@@ -474,6 +521,7 @@
   // Keep composition text in the input sink and display the preedit inline. Update the
   // document only when composition commits.
   function handleCompositionStart(): void {
+    goalX = undefined;
     composing = true;
     preedit = "";
     compositionSelection = selected();
@@ -503,6 +551,7 @@
   }
 
   function handleBlur(): void {
+    goalX = undefined;
     focused = false;
     composing = false;
     preedit = "";
@@ -607,20 +656,31 @@
 
   // Follow caret changes without depending on reactive scroll state. Read the element's
   // current viewport directly so manual scrolling does not trigger a jump back to the caret.
+  function ensureCaretVisible(): boolean {
+    if (!scrollEl || autoHeight || readonly || scrollEl.clientHeight === 0) return true;
+    const mounted = lineEls[caret.line];
+    const point = mounted ? measure.columnToPoint(caret.line, caret.column, caret.affinity)
+      : arithmeticMeasurer(line => doc.lineText(line), FONT_SIZE * 0.6, LINE_HEIGHT,
+          Math.max(FONT_SIZE * 0.6, viewportWidth - PAD_X * 2))
+          .columnToPoint(caret.line, caret.column, caret.affinity);
+    const top = PAD_Y + layout.top(caret.line) + point.y;
+    const viewTop = scrollEl.scrollTop;
+    if (top < viewTop) scrollEl.scrollTop = top;
+    else if (top + LINE_HEIGHT > viewTop + scrollEl.clientHeight)
+      scrollEl.scrollTop = top + LINE_HEIGHT - scrollEl.clientHeight;
+    scrollTop = scrollEl.scrollTop;
+    const sizer = scrollEl.firstElementChild as HTMLElement | null;
+    return !!mounted && parseFloat(sizer?.style.height ?? "0") === layout.totalHeight + PAD_Y * 2;
+  }
+
   $effect(() => {
-    const currentCaret = caret;
-    const currentLayout = layout;
+    void caret.line;
+    void caret.column;
+    void caret.affinity;
+    void layout;
     if (autoHeight || readonly) return;
     untrack(() => {
-      const top = currentLayout.top(currentCaret.line);
-      const height = currentLayout.height(currentCaret.line);
-      if (!scrollEl) return;
-      const viewTop = scrollEl.scrollTop;
-      const viewHeight = scrollEl.clientHeight;
-      if (viewHeight === 0) return;
-      if (top < viewTop) scrollEl.scrollTop = top;
-      else if (top + height > viewTop + viewHeight)
-        scrollEl.scrollTop = top + height - viewHeight;
+      pendingCaretScroll = !ensureCaretVisible();
     });
   });
 </script>
@@ -692,7 +752,7 @@
         style:top={`${caretXY.y + PAD_Y}px`}
         style:left={`${caretXY.x + PAD_X}px`}
         style:width={`${caretWidth}px`}
-        style:height={`${layout.height(caret.line)}px`}
+        style:height={`${LINE_HEIGHT}px`}
         data-testid="editor-cursor"
       ></div>
     {/if}

@@ -1,10 +1,11 @@
 export type Point = { x: number; y: number };
 export type Rect = { top: number; left: number; width: number | null; height: number };
 export type VisualRow = { top: number; height: number };
+export type CaretAffinity = "upstream" | "downstream";
 
 /** Measurements relative to the line's text origin, excluding padding. */
 export interface LineMeasurer {
-  columnToPoint(line: number, column: number): Point;
+  columnToPoint(line: number, column: number, affinity?: CaretAffinity): Point;
   pointToColumn(line: number, x: number, y: number): number;
   rangeRects(line: number, from: number, to: number | null): Rect[];
   visualRows(line: number): VisualRow[];
@@ -24,9 +25,12 @@ export function arithmeticMeasurer(
     : Number.MAX_SAFE_INTEGER;
   const length = (line: number) => lineText(line).length;
   const rows = (line: number) => Math.max(1, Math.ceil(length(line) / columns));
-  const point = (line: number, column: number): Point => {
+  const point = (line: number, column: number, affinity: CaretAffinity = "downstream"): Point => {
     const at = Math.min(length(line), Math.max(0, column));
-    const row = Math.min(rows(line) - 1, Math.floor(at / columns));
+    const row = Math.min(
+      rows(line) - 1,
+      Math.floor(at / columns) - (affinity === "upstream" && at > 0 && at % columns === 0 ? 1 : 0),
+    );
     return { x: (at - row * columns) * cellWidth, y: row * rowHeight };
   };
   return {
@@ -131,8 +135,20 @@ export function domLineMeasurer(lineElement: (line: number) => HTMLElement | nul
       y: initial?.top ?? box.top ?? 0,
     };
     const height = parseFloat(style.lineHeight) || 20;
-    const point = (column: number): Point => {
-      const rect = rectangles(range(column, column))[0];
+    const point = (column: number, affinity: CaretAffinity = "downstream"): Point => {
+      const at = Math.min(length, Math.max(0, column));
+      const previous = rectangles(range(Math.max(0, at - 1), at)).at(-1);
+      const next = rectangles(range(at, Math.min(length, at + 1)))[0];
+      // A collapsed Range can choose either side of a wrap. Adjacent character rectangles
+      // identify the two visual positions without changing the document offset.
+      if (at > 0 && at < length && previous && next && next.top - previous.top > 1) {
+        const chosen = affinity === "upstream" ? previous : next;
+        return {
+          x: (affinity === "upstream" ? chosen.left + chosen.width : chosen.left) - origin.x,
+          y: chosen.top - origin.y,
+        };
+      }
+      const rect = rectangles(range(at, at))[0];
       return rect
         ? { x: rect.left - origin.x, y: (rect.top ?? origin.y) - origin.y }
         : { x: 0, y: 0 };
@@ -147,8 +163,8 @@ export function domLineMeasurer(lineElement: (line: number) => HTMLElement | nul
   }
 
   return {
-    columnToPoint(line, column) {
-      return context(line)?.point(column) ?? { x: 0, y: 0 };
+    columnToPoint(line, column, affinity) {
+      return context(line)?.point(column, affinity) ?? { x: 0, y: 0 };
     },
     visualRows(line) {
       return context(line)?.rows() ?? [{ top: 0, height: 20 }];
@@ -167,16 +183,16 @@ export function domLineMeasurer(lineElement: (line: number) => HTMLElement | nul
         ) => { offsetNode: Node; offset: number } | null;
         caretRangeFromPoint?: (x: number, y: number) => Range | null;
       };
-      const screenX = ctx.origin.x + x,
-        screenY = ctx.origin.y + y;
-      const hit = doc.caretPositionFromPoint?.(screenX, screenY);
-      const native = hit ? columnOf(hit.offsetNode, hit.offset) : null;
-      if (native !== null) return native;
-      const hitRange = doc.caretRangeFromPoint?.(screenX, screenY);
-      const webkit = hitRange ? columnOf(hitRange.startContainer, hitRange.startOffset) : null;
-      if (webkit !== null) return webkit;
       const rows = ctx.rows();
       const row = rows.filter((row) => row.top <= y).at(-1) ?? rows[0];
+      const screenX = ctx.origin.x + x,
+        screenY = ctx.origin.y + row.top + row.height / 2;
+      const hit = Number.isFinite(x) ? doc.caretPositionFromPoint?.(screenX, screenY) : null;
+      const native = hit ? columnOf(hit.offsetNode, hit.offset) : null;
+      if (native !== null) return native;
+      const hitRange = Number.isFinite(x) ? doc.caretRangeFromPoint?.(screenX, screenY) : null;
+      const webkit = hitRange ? columnOf(hitRange.startContainer, hitRange.startOffset) : null;
+      if (webkit !== null) return webkit;
       let low = 0,
         high = ctx.length;
       while (low < high) {
@@ -186,7 +202,7 @@ export function domLineMeasurer(lineElement: (line: number) => HTMLElement | nul
         else high = mid - 1;
       }
       const here = ctx.point(low),
-        next = ctx.point(Math.min(ctx.length, low + 1));
+        next = ctx.point(Math.min(ctx.length, low + 1), "upstream");
       return low < ctx.length && next.y === row.top && (here.y < row.top || x - here.x > next.x - x)
         ? low + 1
         : low;

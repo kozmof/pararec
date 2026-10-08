@@ -1,5 +1,34 @@
 import { expect, test } from "@playwright/test";
 
+test("Japanese text wraps with visual-row navigation and selection", async ({ page }) => {
+  await page.setViewportSize({ width: 500, height: 700 });
+  await page.goto("/#/editor-demo");
+  const sink = page.getByTestId("editor-sink");
+  const line = page.locator('[data-line="0"]');
+  const text = "日本語の長い文章と English 👩‍🚀 を折り返して編集します。".repeat(8);
+  await sink.focus();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.insertText(text);
+  await expect(line).toHaveText(text);
+  await expect.poll(async () => (await line.boundingBox())!.height).toBeGreaterThan(40);
+  await page.keyboard.press("ControlOrMeta+Home");
+  const start = (await sink.boundingBox())!;
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(async () => Math.round((await sink.boundingBox())!.y - start.y)).toBe(20);
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Shift+ArrowDown");
+  await expect.poll(() => page.getByTestId("editor-selection").count()).toBeGreaterThan(0);
+  await page.keyboard.press("ControlOrMeta+a");
+  await expect.poll(() => page.getByTestId("editor-selection").count()).toBeGreaterThan(2);
+  const before = (await line.boundingBox())!.height;
+  await page.setViewportSize({ width: 350, height: 700 });
+  await expect.poll(async () => (await line.boundingBox())!.height).toBeGreaterThan(before);
+  await expect(line).toHaveText(text);
+  expect(
+    await page.getByTestId("editor-surface").evaluate((el) => el.scrollWidth <= el.clientWidth),
+  ).toBe(true);
+});
+
 test("editor demo supports text, selection, undo, and redo", async ({ page }) => {
   await page.goto("/#/editor-demo");
   await expect(page.getByRole("heading", { name: "Editor demo" })).toBeVisible();

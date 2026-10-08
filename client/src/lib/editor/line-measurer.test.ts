@@ -110,14 +110,27 @@ function spans(wrapped = false) {
     const from = column(this.startContainer, this.startOffset),
       to = column(this.endContainer, this.endOffset);
     if (from === to) return [this.getBoundingClientRect()] as unknown as DOMRectList;
-    return (wrapped
-      ? [rect(0, 0, 20), rect(20, 0, 20), rect(0, 20, 20)]
-      : [this.getBoundingClientRect()]) as unknown as DOMRectList;
+    if (!wrapped) return [this.getBoundingClientRect()] as unknown as DOMRectList;
+    const result: DOMRect[] = [];
+    for (let at = from; at < to;) {
+      const end = Math.min(to, (Math.floor(at / 2) + 1) * 2);
+      const start = point(at);
+      result.push(rect(start.x, start.y, (end - at) * 10));
+      at = end;
+    }
+    return result as unknown as DOMRectList;
   });
   return { el, nodes, measure: domLineMeasurer(() => el) };
 }
 
 describe("span DOM measurer", () => {
+  it("distinguishes both sides of a wrap and hits the previous row's end", () => {
+    const { measure } = spans(true);
+    expect(measure.columnToPoint(0, 4)).toEqual({ x: 0, y: 20 });
+    expect(measure.columnToPoint(0, 4, "upstream")).toEqual({ x: 40, y: 0 });
+    expect(measure.pointToColumn(0, Infinity, 0)).toBe(4);
+    expect(measure.pointToColumn(0, 0, 20)).toBe(4);
+  });
   it("measures pre-edit text and the suffix using their displayed columns", () => {
     const { el, measure } = spans();
     el.children[1].setAttribute("data-preedit", "");
@@ -153,7 +166,7 @@ describe("span DOM measurer", () => {
     Object.defineProperty(document, "caretPositionFromPoint", { configurable: true, value: hit });
     try {
       expect(measure.pointToColumn(0, 30, 0)).toBe(3);
-      expect(hit).toHaveBeenCalledWith(142, 50);
+      expect(hit).toHaveBeenCalledWith(142, 60);
     } finally {
       Reflect.deleteProperty(document, "caretPositionFromPoint");
     }

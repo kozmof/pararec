@@ -1,6 +1,7 @@
 import { domLineMeasurer, type LineMeasurer as PointMeasurer } from "./line-measurer.js";
 import type { Caret } from "./document-store.svelte.js";
 import { FixedLayout, type VerticalLayout } from "./vertical-layout.js";
+import { visualCaret } from "./visual-navigation.js";
 
 /**
  * Horizontal measurement interface retained for the unchanged imported tests.
@@ -49,13 +50,13 @@ function verticalLayout(
 
 /** Where a caret sits, in pixels relative to the top-left of the scrolled content. */
 export function caretPoint(
-  { line, column }: Caret,
+  { line, column, affinity }: Caret,
   layout: VerticalLayout | number,
   measure: LineMeasurer | PointMeasurer,
 ): { x: number; y: number } {
   const point =
     "columnToPoint" in measure
-      ? measure.columnToPoint(line, column)
+      ? measure.columnToPoint(line, column, affinity)
       : { x: measure.columnToX(line, column), y: 0 };
   return { x: point.x, y: verticalLayout(layout).top(line) + point.y };
 }
@@ -72,14 +73,14 @@ export function pointToCaret(
   measure: LineMeasurer | PointMeasurer,
 ): Caret {
   const line = Math.min(verticalLayout(layout, lineCount).lineAt(y), Math.max(0, lineCount - 1));
-  const column =
-    "pointToColumn" in measure
-      ? measure.pointToColumn(
-          line,
-          Math.max(0, x),
-          Math.max(0, y - verticalLayout(layout).top(line)),
-        )
-      : measure.xToColumn(line, Math.max(0, x));
+  if ("pointToColumn" in measure)
+    return visualCaret(
+      line,
+      Math.max(0, x),
+      Math.max(0, y - verticalLayout(layout).top(line)),
+      measure,
+    );
+  const column = measure.xToColumn(line, Math.max(0, x));
   return { line, column };
 }
 
