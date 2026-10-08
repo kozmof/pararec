@@ -16,6 +16,15 @@ export class TreeStore {
   get revision(): number {
     return this.#revision;
   }
+  /** Restore a previously validated immutable app snapshot and rebuild its index. */
+  restore(schema: Schema): void {
+    parseSchema(schema);
+    const index = buildIndex(schema);
+    this.index.clear();
+    for (const [id, entry] of index) this.index.set(id, entry);
+    this.#schema = schema;
+    this.#revision++;
+  }
   apply(op: Op): Op {
     const before = this.schema;
     const result = applyOp(before, op, this.index);

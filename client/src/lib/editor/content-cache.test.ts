@@ -57,3 +57,33 @@ it("disposes removed Contents and rebuilds stale documents after snapshot-like t
   expect(dispose).toHaveBeenCalledTimes(3);
   expect(() => cache.get("l")).toThrow();
 });
+
+it("keeps snapshot undo valid after more than 50 editor stores have been evicted", async () => {
+  const { AppHistory } = await import("../history/history.svelte.js");
+  const store = new TreeStore({
+    version: 1,
+    root: Array.from({ length: 60 }, (_, i) => ({
+      id: `row${i}`,
+      left: [{ id: `l${i}`, text: "" }],
+      right: { id: `r${i}`, text: "original", children: [] },
+    })),
+  });
+  const history = new AppHistory();
+  cache = new ContentCache(store, (edit) => {
+    history.record(
+      { schema: edit!.before, path: [], focus: null },
+      { schema: edit!.after, path: [], focus: null },
+    );
+  });
+  cache.get("r0").insert({ line: 0, column: 0 }, "!");
+  for (let i = 1; i < 60; i++) cache.get(`r${i}`);
+  expect(cache.size).toBe(50);
+  cache.dispose();
+  store.restore(history.undo()!.schema);
+  cache = new ContentCache(store, () => {});
+  expect(cache.get("r0").text()).toBe("original");
+  cache.dispose();
+  store.restore(history.redo()!.schema);
+  cache = new ContentCache(store, () => {});
+  expect(cache.get("r0").text()).toBe("!original");
+});

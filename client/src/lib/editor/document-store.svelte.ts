@@ -15,6 +15,16 @@ export type DocumentEdit = {
   change: LineChange;
   kind: "edit" | "transaction" | "composition" | "undo" | "redo";
   group: number;
+  beforeCaret?: Caret;
+  afterCaret?: Caret;
+  intent?: "insert" | "backspace" | "delete" | "replace";
+  groupable?: boolean;
+};
+type EditContext = {
+  beforeCaret: Caret;
+  afterByte: number;
+  intent: NonNullable<DocumentEdit["intent"]>;
+  groupable: boolean;
 };
 
 /** A caret or a selection end, in the coordinates the render layer draws in. */
@@ -67,6 +77,8 @@ export class EditorDocument {
   #group = 0;
   #clockOffset = 0;
   #editListeners = new Set<(edit: DocumentEdit) => void>();
+  #editContext: EditContext | null = null;
+  #transactionCarets: Pick<DocumentEdit, "beforeCaret" | "afterCaret"> | null = null;
   lastChange = $state.raw<LineChange | null>(null);
 
   /**
@@ -138,7 +150,28 @@ export class EditorDocument {
     kind: DocumentEdit["kind"],
   ): void {
     this.lastChange = change;
-    const edit: DocumentEdit = { before, after, change, kind, group: this.#group };
+    const context = this.#editContext;
+    const carets =
+      kind === "transaction" || kind === "composition"
+        ? this.#transactionCarets
+        : context
+          ? {
+              beforeCaret: context.beforeCaret,
+              afterCaret: rendering.positionToLineColumn(
+                after,
+                position.byteOffset(context.afterByte),
+              ) ?? { line: 0, column: 0 },
+            }
+          : null;
+    const edit: DocumentEdit = {
+      before,
+      after,
+      change,
+      kind,
+      group: this.#group,
+      ...carets,
+      ...(context ? { intent: context.intent, groupable: context.groupable } : {}),
+    };
     // Subscription changes during delivery apply to the next notification.
     const listeners = Array.from(this.#editListeners);
     for (const listener of listeners) listener(edit);
@@ -160,8 +193,25 @@ export class EditorDocument {
     this.#clockOffset += UNDO_GROUP_MS + 1;
   }
 
-  #dispatch(action: Extract<ReedAction, { type: "INSERT" | "DELETE" | "REPLACE" }>): void {
-    this.#store.dispatch({ ...action, timestamp: Date.now() + this.#clockOffset });
+  #dispatch(
+    action: Extract<ReedAction, { type: "INSERT" | "DELETE" | "REPLACE" }>,
+    context: EditContext,
+  ): void {
+    const previous = this.#editContext;
+    this.#editContext = context;
+    try {
+      this.#store.dispatch({ ...action, timestamp: Date.now() + this.#clockOffset });
+      if (this.#transactionDepth)
+        this.#transactionCarets = {
+          beforeCaret: this.#transactionCarets?.beforeCaret ?? context.beforeCaret,
+          afterCaret: rendering.positionToLineColumn(
+            this.#store.getSnapshot(),
+            position.byteOffset(context.afterByte),
+          ) ?? { line: 0, column: 0 },
+        };
+    } finally {
+      this.#editContext = previous;
+    }
   }
 
   /** Batch publication and emit one app action. Reed's native undo entries stay separate. */
@@ -173,7 +223,10 @@ export class EditorDocument {
       throw new TypeError("EditorDocument.transact requires a synchronous callback");
     const before = this.state;
     const outer = this.#transactionDepth === 0;
-    if (outer) this.closeHistoryGroup();
+    if (outer) {
+      this.closeHistoryGroup();
+      this.#transactionCarets = null;
+    }
     this.#transactionDepth++;
     let committed = false;
     try {
@@ -190,6 +243,7 @@ export class EditorDocument {
             if (change) this.#publish(before, after, change, kind);
           }
         } finally {
+          this.#transactionCarets = null;
           this.closeHistoryGroup();
         }
       }
@@ -303,6 +357,12 @@ export class EditorDocument {
     const start = this.#byteOffset(at);
     this.#dispatch(
       store.DocumentActions.insert(position.byteOffset(start), text, this.#selectionAt(start)),
+      {
+        beforeCaret: this.clamp(at),
+        afterByte: start + byteLength(text),
+        intent: "insert",
+        groupable: !text.includes("\n"),
+      },
     );
     return this.#caretAt(start + byteLength(text));
   }
@@ -322,6 +382,12 @@ export class EditorDocument {
         position.byteOffset(to),
         this.#selectionAt(this.#byteOffset(caretBefore)),
       ),
+      {
+        beforeCaret: this.clamp(caretBefore),
+        afterByte: from,
+        intent: this.#byteOffset(caretBefore) === to ? "backspace" : "delete",
+        groupable: true,
+      },
     );
     return this.#caretAt(from);
   }
@@ -341,6 +407,12 @@ export class EditorDocument {
         text,
         this.#selectionAt(this.#byteOffset(caretBefore)),
       ),
+      {
+        beforeCaret: this.clamp(caretBefore),
+        afterByte: from + byteLength(text),
+        intent: "replace",
+        groupable: false,
+      },
     );
     return this.#caretAt(from + byteLength(text));
   }

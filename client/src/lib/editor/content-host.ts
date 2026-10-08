@@ -24,5 +24,6 @@ export interface ContentHost {
   blur(id: string): void;
   boundary(direction: Boundary, goalX: number): void;
   command(command: Command, caret?: Caret): void;
+  caret(id: string, caret: Caret): void;
 }
 export const CONTENT_HOST = Symbol("content-host");

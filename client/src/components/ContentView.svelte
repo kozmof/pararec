@@ -36,7 +36,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 <div class="content" data-content-id={content.id} tabindex="0" role="group" aria-label={label} onfocus={event => { capture(event.currentTarget); host.focus(content.id); }} onfocusout={blur} onmousedown={mousedown}>
   {#if editing}
-    <ContentEditor doc={host.cache.get(content.id)} entry={host.entry} {side} onBoundary={host.boundary} onCommand={host.command} {initialMeasurements} />
+    <ContentEditor doc={host.cache.get(content.id)} entry={host.entry} {side} onBoundary={host.boundary} onCommand={host.command} onCaret={caret => host.caret(content.id, caret)} {initialMeasurements} />
   {:else}
     <div class={css({ fontFamily: "mono", fontSize: "12.5px", color: "ink.black", paddingTop: "8px", paddingBottom: "8px" })}>
       {#each content.text.split("\n") as text, line}

@@ -316,3 +316,185 @@ it("keeps structure shortcuts inside the IME until composition commits", async (
   expect(disk.root[0].right.text).toBe("日本First note");
   expect(disk.root[0].right.children).toEqual([]);
 });
+
+it("undoes a typing group and restores its caret on redo", async () => {
+  await opened();
+  await key("a");
+  await key("b");
+  await key("c");
+  await key("z", { ctrlKey: true });
+  expect(content("flat-1-right")).toHaveTextContent("First note");
+  expect(content("flat-1-right")).not.toHaveTextContent("abc");
+  await key("z", { ctrlKey: true, shiftKey: true });
+  await key("!");
+  await save();
+  expect(disk.root[0].right.text).toBe("abc!First note");
+});
+
+it("undoes text, row movement, and text as three separate actions", async () => {
+  await opened();
+  await key("X");
+  await key("ArrowDown", { altKey: true });
+  await key("Y");
+  await key("z", { ctrlKey: true });
+  expect(content("flat-1-right")).toHaveTextContent("XFirst note");
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk.root.map((row) => row.id)).toEqual(["flat-1", "flat-2"]);
+  expect(disk.root[0].right.text).toBe("XFirst note");
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk).toEqual(original);
+  await key("y", { ctrlKey: true });
+  await key("y", { ctrlKey: true });
+  await key("y", { ctrlKey: true });
+  await save();
+  expect(disk.root.map((row) => row.id)).toEqual(["flat-2", "flat-1"]);
+  expect(disk.root[1].right.text).toBe("XYFirst note");
+});
+
+it("restores both halves and the caret when undoing a split", async () => {
+  await opened();
+  for (let i = 0; i < 6; i++) await key("ArrowRight");
+  await key("Enter", { altKey: true });
+  await key("z", { ctrlKey: true });
+  await key("!");
+  await save();
+  expect(disk.root).toHaveLength(2);
+  expect(disk.root[0].right.text).toBe("First !note");
+  expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+});
+
+it("undoes a composition independently from adjacent typing", async () => {
+  await opened();
+  await key("X");
+  const sink = screen.getByTestId("editor-sink");
+  await fireEvent.compositionStart(sink);
+  await fireEvent.compositionUpdate(sink, { data: "にほん" });
+  await fireEvent.compositionEnd(sink, { data: "日本" });
+  await key("Y");
+  await key("z", { ctrlKey: true });
+  expect(content("flat-1-right")).toHaveTextContent("X日本First note");
+  await key("z", { ctrlKey: true });
+  expect(content("flat-1-right")).toHaveTextContent("XFirst note");
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk).toEqual(original);
+});
+
+it("clears history when a conflict reload replaces the document", async () => {
+  await opened();
+  await key("X");
+  conflict = true;
+  await key("s", { ctrlKey: true });
+  await screen.findByRole("dialog", { name: "File changed on disk" });
+  disk.root[0].right.text = "External";
+  conflict = false;
+  await fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  await key("z", { ctrlKey: true });
+  expect(content("flat-1-right")).toHaveTextContent("External");
+  expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+});
+
+it("undoes empty-level creation and redoes it from Add row", async () => {
+  disk.root = [];
+  render(Pad);
+  const add = await screen.findByRole("button", { name: "Add row" });
+  await fireEvent.click(add);
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  await key("z", { ctrlKey: true });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add row" })).toHaveFocus());
+  await fireEvent.keyDown(screen.getByRole("button", { name: "Add row" }), {
+    key: "z",
+    ctrlKey: true,
+    shiftKey: true,
+  });
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  await key("!");
+  await save();
+  expect(disk.root[0].right.text).toBe("!");
+});
+
+it("returns to the recorded level when undoing after navigating away", async () => {
+  await opened();
+  await key("Enter", { ctrlKey: true });
+  await key("Enter", { ctrlKey: true });
+  await waitFor(() => expect(window.location.hash).toMatch(/^#\/c\/flat-1\//));
+  const recorded = window.location.hash;
+  await key("X");
+  await key(",", { ctrlKey: true });
+  await waitFor(() => expect(window.location.hash).toBe("#/c/flat-1"));
+  await key("z", { ctrlKey: true });
+  await waitFor(() => expect(window.location.hash).toBe(recorded));
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  await key("!");
+  await save();
+  expect(disk.root[0].right.children[0].right.children[0].right.text).toBe("!");
+});
+
+it("saves an undone snapshot and loads it on remount", async () => {
+  const view = render(Pad);
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  await key("X");
+  await save();
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk).toEqual(original);
+  view.unmount();
+  await opened();
+  expect(content("flat-1-right")).toHaveTextContent("First note");
+  expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+});
+
+it("starts a new typing group after undo and discards the old redo", async () => {
+  await opened();
+  await key("a");
+  await key("b");
+  await key("z", { ctrlKey: true });
+  await key("X");
+  await key("Y");
+  expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk).toEqual(original);
+});
+
+it("undoes a left-note join as one action with both original ids", async () => {
+  disk.root[0].left = [
+    { id: "flat-1-left", text: "first" },
+    { id: "other-left", text: "second" },
+  ];
+  await opened();
+  await fireEvent.focus(content("other-left"));
+  await waitFor(() =>
+    expect(content("other-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
+  await key("Backspace");
+  await key("z", { ctrlKey: true });
+  await waitFor(() =>
+    expect(content("other-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
+  await key("!");
+  await save();
+  expect(disk.root[0].left).toEqual([
+    { id: "flat-1-left", text: "first" },
+    { id: "other-left", text: "!second" },
+  ]);
+});
+
+it("keeps paste separate from adjacent typing", async () => {
+  await opened();
+  await key("X");
+  await fireEvent.paste(screen.getByTestId("editor-sink"), {
+    clipboardData: { getData: () => "paste" },
+  });
+  await key("Y");
+  await key("z", { ctrlKey: true });
+  expect(content("flat-1-right")).toHaveTextContent("XpasteFirst note");
+  await key("z", { ctrlKey: true });
+  expect(content("flat-1-right")).toHaveTextContent("XFirst note");
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk).toEqual(original);
+});

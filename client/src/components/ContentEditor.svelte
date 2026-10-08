@@ -4,7 +4,7 @@
   import { sameCaret } from "../lib/editor/document-store.svelte.js";
   import type { EditorDocument, Caret } from "../lib/editor/document-store.svelte.js";
   import type { Entry, Boundary, Command } from "../lib/editor/content-host.js";
-  let { doc, entry, onBoundary, onCommand, onKeydown, onHeight, initialMeasurements, side }: { doc: EditorDocument; entry: Entry; side: "left" | "right"; onBoundary: (direction: Boundary, goalX: number) => void; onCommand: (command: Command, caret?: Caret) => void; onKeydown?: (event: KeyboardEvent) => boolean; onHeight?: (height: number) => void; initialMeasurements?: { width: number; heights: number[] } } = $props();
+  let { doc, entry, onBoundary, onCommand, onKeydown, onHeight, onCaret, initialMeasurements, side }: { doc: EditorDocument; entry: Entry; side: "left" | "right"; onBoundary: (direction: Boundary, goalX: number) => void; onCommand: (command: Command, caret?: Caret) => void; onKeydown?: (event: KeyboardEvent) => boolean; onHeight?: (height: number) => void; onCaret?: (caret: Caret) => void; initialMeasurements?: { width: number; heights: number[] } } = $props();
   const mountedDoc = untrack(() => doc);
   let caret = $state<Caret>({ line: 0, column: 0 });
   let anchor = $state<Caret | null>(null);
@@ -12,6 +12,7 @@
   let active = true;
   function keydown(event: KeyboardEvent): boolean {
     if (event.isComposing) return false;
+    onCaret?.({ ...caret });
     if (onKeydown?.(event)) return true;
     const accel = event.ctrlKey || event.metaKey;
     let command: Command | undefined;
@@ -52,4 +53,4 @@
     return () => { active = false; mountedDoc.closeHistoryGroup(); };
   });
 </script>
-<EditorSurface doc={mountedDoc} bind:caret bind:anchor bind:this={surface} autoHeight onKeydown={keydown} {onHeight} {initialMeasurements} />
+<EditorSurface doc={mountedDoc} bind:caret bind:anchor bind:this={surface} autoHeight onKeydown={keydown} {onHeight} {onCaret} {initialMeasurements} />

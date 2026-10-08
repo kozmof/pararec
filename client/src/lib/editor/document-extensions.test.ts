@@ -232,3 +232,37 @@ describe("app transaction notifications", () => {
     expect(doc.text()).toBe("");
   });
 });
+
+it("publishes exact caret metadata for ambiguous repeated text and UTF-8 insertion", () => {
+  const doc = document("aaaa"),
+    edits: DocumentEdit[] = [];
+  doc.subscribeEdits((edit) => edits.push(edit));
+  doc.insert({ line: 0, column: 0 }, "a");
+  expect(edits[0]).toMatchObject({
+    beforeCaret: { line: 0, column: 0 },
+    afterCaret: { line: 0, column: 1 },
+    intent: "insert",
+    groupable: true,
+  });
+  doc.insert({ line: 0, column: 1 }, "日本\n👩‍🚀");
+  expect(edits[1]).toMatchObject({
+    beforeCaret: { line: 0, column: 1 },
+    afterCaret: { line: 1, column: 5 },
+    groupable: false,
+  });
+});
+it("publishes the first and last caret of a compound transaction once", () => {
+  const doc = document("abc"),
+    edits: DocumentEdit[] = [];
+  doc.subscribeEdits((edit) => edits.push(edit));
+  doc.transact(() => {
+    doc.insert({ line: 0, column: 1 }, "日本");
+    doc.delete({ line: 0, column: 3 }, { line: 0, column: 4 }, { line: 0, column: 4 });
+  });
+  expect(edits).toHaveLength(1);
+  expect(edits[0]).toMatchObject({
+    kind: "transaction",
+    beforeCaret: { line: 0, column: 1 },
+    afterCaret: { line: 0, column: 3 },
+  });
+});

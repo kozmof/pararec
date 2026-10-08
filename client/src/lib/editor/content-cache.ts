@@ -1,10 +1,15 @@
 import type { TreeStore } from "../tree/tree-store.svelte.js";
-import { EditorDocument } from "./document-store.svelte.js";
+import type { Schema } from "../../schema.js";
+import { EditorDocument, type DocumentEdit } from "./document-store.svelte.js";
+export type ContentChange = { contentId: string; before: Schema; after: Schema } & Pick<
+  DocumentEdit,
+  "beforeCaret" | "afterCaret" | "kind" | "group" | "intent" | "groupable"
+>;
 export class ContentCache {
   #stores = new Map<string, EditorDocument>();
   constructor(
     private tree: TreeStore,
-    private changed: () => void,
+    private changed: (edit?: ContentChange) => void,
     private limit = 50,
   ) {}
   get size() {
@@ -24,10 +29,21 @@ export class ContentCache {
     if (!doc) {
       doc = new EditorDocument(text);
       const current = doc;
-      doc.subscribeEdits(() => {
+      doc.subscribeEdits((edit) => {
         if (this.#stores.get(id) !== current || !this.tree.index.has(id)) return;
+        const before = this.tree.schema;
         this.tree.apply({ type: "setText", id, text: current.text() });
-        this.changed();
+        this.changed({
+          contentId: id,
+          before,
+          after: this.tree.schema,
+          beforeCaret: edit.beforeCaret,
+          afterCaret: edit.afterCaret,
+          kind: edit.kind,
+          group: edit.group,
+          intent: edit.intent,
+          groupable: edit.groupable,
+        });
       });
     }
     this.#stores.delete(id);

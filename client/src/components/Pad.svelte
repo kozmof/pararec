@@ -9,7 +9,8 @@
   import { loadDocument, type LoadedDocument } from "../lib/api/document.js";
   import { SaveSession } from "../lib/api/save-session.svelte.js";
   import { IndexedRecovery, type RecoverySnapshot } from "../lib/api/recovery.js";
-  import { ContentCache } from "../lib/editor/content-cache.js";
+  import { AppHistory, type AppSnapshot, type FocusSnapshot } from "../lib/history/history.svelte.js";
+  import { ContentCache, type ContentChange } from "../lib/editor/content-cache.js";
   import { CONTENT_HOST, type ContentHost, type Entry, type Boundary, type Command } from "../lib/editor/content-host.js";
   import ContainerRow from "./ContainerRow.svelte";
   import Breadcrumb from "./Breadcrumb.svelte";
@@ -29,6 +30,8 @@
   let pad: HTMLElement;
   let addButton = $state<HTMLButtonElement>();
   const recovery = new IndexedRecovery();
+  const history = new AppHistory();
+  let liveCaret: Caret | null = null;
   const focusByLevel = new Map<string, string>();
   let active = true;
   let controller: AbortController;
@@ -45,19 +48,44 @@
   const parent = $derived(ancestors.at(-1));
   setContext<ContentHost>(CONTENT_HOST, {
     get focused() { return focused; }, get cache() { return cache!; }, get entry() { return entry; }, get disabled() { return disabled; },
-    focus: remember, blur, boundary, command,
+    focus: remember, blur, boundary, command, caret: reportCaret,
   });
   function modal(node: HTMLDialogElement) {
     let mounted = true;
     void tick().then(() => { if (!mounted) return; if (typeof node.showModal === "function") node.showModal(); else node.open = true; node.querySelector<HTMLButtonElement>("button")?.focus(); });
     return { destroy() { mounted = false; if (node.open && typeof node.close === "function") node.close(); } };
   }
-  function changed() {
+  function focusSnapshot(contentId = focused, place?: Entry): FocusSnapshot | null {
+    if (!tree || !contentId) return null;
+    const row = tree.index.get(contentId);
+    if (!row || row.side === "container") return null;
+    const text = row.side === "right" ? row.container.right.text : row.container.left[row.index].text;
+    const target = place ?? (liveCaret ? { kind: "caret", ...liveCaret } as Entry : entry);
+    const lines = text.split("\n");
+    return { contentId, ...(target.kind === "caret" ? { line: target.line, column: target.column, ...(target.affinity ? { affinity: target.affinity } : {}) } : target.edge === "end" ? { line: lines.length - 1, column: lines.at(-1)!.length } : { line: 0, column: 0 }) };
+  }
+  function snapshot(focus = focusSnapshot()): AppSnapshot { return { schema: tree!.schema, path: [...path], focus }; }
+  function reportCaret(id: string, caret: Caret) {
+    if (id !== focused) return;
+    if (liveCaret && (liveCaret.line !== caret.line || liveCaret.column !== caret.column || liveCaret.affinity !== caret.affinity)) history.closeGroup();
+    liveCaret = { ...caret };
+  }
+  function changed(edit?: ContentChange) {
+    if (edit) {
+      const beforeCaret = edit.beforeCaret ?? liveCaret ?? { line: 0, column: 0 };
+      const afterCaret = edit.afterCaret ?? beforeCaret;
+      history.record({ schema: edit.before, path: [...path], focus: { contentId: edit.contentId, ...beforeCaret } },
+        { schema: edit.after, path: [...path], focus: { contentId: edit.contentId, ...afterCaret } },
+        edit.kind === "edit" && edit.groupable && edit.intent && edit.intent !== "replace" ? { contentId: edit.contentId, intent: edit.intent, group: edit.group } : undefined);
+      liveCaret = { ...afterCaret };
+    }
     if (!tree || !session) return;
     seenSchema = tree.schema;
     session.changed(tree.schema);
   }
   function install(loaded: LoadedDocument) {
+    history.clear();
+    liveCaret = null;
     cache?.dispose();
     session?.dispose();
     tree = new TreeStore(loaded.schema);
@@ -71,12 +99,13 @@
   }
   function remember(id: string, nextEntry?: Entry) {
     if (disabled || !tree?.index.has(id)) return;
-    if (focused !== id) entry = nextEntry ?? { kind: "edge", edge: "start" };
+    if (focused !== id) { history.closeGroup(); liveCaret = null; entry = nextEntry ?? { kind: "edge", edge: "start" }; }
     focused = id;
     focusByLevel.set(pathHash(path), id);
   }
   function blur(id: string) {
     if (focused !== id) return;
+    history.closeGroup(); liveCaret = null;
     if (tree?.index.has(id)) cache?.get(id).closeHistoryGroup();
     focused = null;
     void session?.flush();
@@ -136,8 +165,10 @@
   }
   function addRow() {
     if (!tree || rows.length || disabled) return;
+    const before = snapshot();
     const container = createContainer();
     tree.apply({ type: "insertContainer", parentId: path.at(-1) ?? null, index: 0, container });
+    history.record(before, snapshot({ contentId: container.right.id, line: 0, column: 0 }));
     changed();
     void restoreFocus(container.right.id);
   }
@@ -157,6 +188,7 @@
     if (!recoverySnapshot || !tree || !session) return;
     if (!confirmRestore && JSON.stringify(recoverySnapshot.base) !== JSON.stringify(loadedSchema)) { confirmRestore = true; return; }
     const snapshot = recoverySnapshot;
+    history.clear(); liveCaret = null;
     cache?.dispose();
     tree = new TreeStore(snapshot.schema);
     cache = new ContentCache(tree, changed);
@@ -184,18 +216,34 @@
     void restoreFocus(target.dataset.contentId, { kind: "edge", edge: backwards ? "end" : "start", ...((direction === "up" || direction === "down") ? { goalX } : {}) });
   }
   function command(command: Command, caret: Caret = { line: 0, column: 0 }) {
+    if (command === "undo" || command === "redo") {
+      if (disabled || !tree) return;
+      const target = command === "undo" ? history.undo() : history.redo();
+      if (target) {
+        focused = null; liveCaret = null; cache?.dispose();
+        tree.restore(target.schema); cache = new ContentCache(tree, changed);
+        path = validPath(tree.schema, target.path); focusByLevel.clear();
+        const hash = pathHash(path); if (window.location.hash !== hash) window.location.hash = hash;
+        changed();
+        void restoreFocus(target.focus?.contentId, target.focus ? { kind: "caret", ...target.focus } : undefined);
+      }
+      return;
+    }
     if (command === "save") { void session?.flush(); return; }
     if (command === "leave") { if (path.length) navigate(path.slice(0, -1)); return; }
     if (!tree || !focused) return;
     if (["split", "newSibling", "newChild", "join", "deleteContainer", "moveUp", "moveDown"].includes(command)) {
       const action = structureAction(tree.schema, tree.index, path, focused, caret, command as StructureCommand);
       if (!action || disabled) return;
+      const before = snapshot({ contentId: focused, ...caret });
+      history.closeGroup();
       cache?.get(focused).closeHistoryGroup();
       tree.applyMany(action.ops);
       focused = null;
       cache?.dispose();
       cache = new ContentCache(tree, changed);
-      path = action.path;
+      path = action.path; liveCaret = null;
+      history.record(before, snapshot(action.focus ? focusSnapshot(action.focus.contentId, action.focus.entry) : null));
       const hash = pathHash(path);
       if (window.location.hash !== hash) window.location.hash = hash;
       changed();
@@ -206,7 +254,7 @@
     if (command === "enter") { if (current.side === "right" && current.container.right.children.length) enter(current.container.id); }
     else if (command === "otherColumnLeft" && current.side === "right") void restoreFocus(current.container.left[0].id);
     else if (command === "otherColumnRight" && current.side === "left") void restoreFocus(current.container.right.id);
-    // Integrated undo and redo belong to app snapshot history in P11.
+
   }
   $effect(() => {
     if (!tree || loading) return;
@@ -221,6 +269,8 @@
     if (event.isComposing || event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || disabled) return;
     if (event.key === ",") { event.preventDefault(); command("leave"); }
     else if (event.key === ".") { event.preventDefault(); command("enter"); }
+    else if (event.key.toLowerCase() === "z") { event.preventDefault(); command(event.shiftKey ? "redo" : "undo"); }
+    else if (event.key.toLowerCase() === "y") { event.preventDefault(); command("redo"); }
     else if (event.key.toLowerCase() === "s") { event.preventDefault(); command("save"); }
   }
   onMount(() => {
@@ -236,7 +286,7 @@
 </script>
 <svelte:window onkeydown={keydown} />
 <main bind:this={pad}>
-  <header><h1>Pararec</h1><a href="#/editor-demo">Open editor demo</a></header>
+  <header><h1>Pararec</h1><div><button disabled={!history.canUndo || disabled} onclick={() => command("undo")}>Undo</button><button disabled={!history.canRedo || disabled} onclick={() => command("redo")}>Redo</button></div><a href="#/editor-demo">Open editor demo</a></header>
   {#if loading}<p role="status">Loading document…</p>
   {:else if error}<p role="alert">{error}</p><button onclick={load}>Retry</button>
   {:else if tree && session}

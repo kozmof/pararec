@@ -30,6 +30,7 @@
     onHeight,
     onKeydown,
     initialMeasurements,
+    onCaret,
   }: {
     doc: EditorDocument;
     /** Where the caret is, in (line, column) characters. */
@@ -43,6 +44,7 @@
     autoHeight?: boolean;
     onHeight?: (height: number) => void;
     initialMeasurements?: { width: number; heights: number[] };
+    onCaret?: (caret: Caret) => void;
     /**
      * Offer each key to the host first. A true result skips default handling, allowing Vim
      * mode without coupling the surface to it.
@@ -67,6 +69,11 @@
   let resizeObserver: ResizeObserver | null = null;
   let goalX: number | undefined;
   let pendingCaretScroll = false;
+  $effect(() => {
+    const point = { ...caret };
+    const notify = onCaret;
+    untrack(() => notify?.(point));
+  });
 
   /**
    * Track rendered line elements for event-time measurement. The `lineEl` action adds entries
@@ -350,7 +357,9 @@
     if (!span) return false;
     // The live caret is one end of the selection, and which end depends on the direction
     // it was dragged. It is where undo has to put it back to.
+    doc.closeHistoryGroup();
     caret = doc.delete(span.start, span.end, caret);
+    doc.closeHistoryGroup();
     collapse();
     return true;
   }
@@ -606,7 +615,11 @@
     event.preventDefault();
     if (readonly) return;
     const text = event.clipboardData?.getData("text/plain");
-    if (text) insertText(text);
+    if (text) {
+      doc.closeHistoryGroup();
+      insertText(text);
+      doc.closeHistoryGroup();
+    }
   }
 
   function handleCopy(event: ClipboardEvent): void {
