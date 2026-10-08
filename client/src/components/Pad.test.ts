@@ -1,0 +1,139 @@
+import { readFileSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import userEvent from "@testing-library/user-event";
+import { tick } from "svelte";
+import Pad from "./Pad.svelte";
+import { TreeStore } from "../lib/tree/tree-store.svelte.js";
+const fixture = JSON.parse(readFileSync("fixtures/three-levels.json", "utf8"));
+function response(value = fixture) {
+  return new Response(JSON.stringify(value), { headers: { ETag: '"v1"' } });
+}
+function content(id: string) {
+  return document.querySelector(`[data-content-id="${id}"]`) as HTMLElement;
+}
+beforeEach(() => {
+  window.history.replaceState(null, "", "/");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockImplementation(() => Promise.resolve(response())),
+  );
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+async function opened() {
+  render(Pad);
+  await screen.findByTestId("pad-level");
+  await tick();
+}
+async function key(key: string, isComposing = false) {
+  await fireEvent.keyDown(window, { key, ctrlKey: true, isComposing });
+  await tick();
+}
+
+describe("read-only pad", () => {
+  it("shows one level of nested children and badges for deeper levels", async () => {
+    await opened();
+    expect(content("root-right")).toHaveTextContent("Root note");
+    expect(content("child-right")).toHaveTextContent("Child note");
+    expect(content("grandchild-right")).toBeNull();
+    expect(screen.getByRole("button", { name: "Open children of Child note" })).toHaveTextContent(
+      "1 child",
+    );
+    expect(content("root-right")).toHaveAttribute("aria-readonly", "true");
+    expect(screen.queryByTestId("editor-sink")).not.toBeInTheDocument();
+    expect(screen.getByTestId("pad-level")).toHaveAttribute("data-etag", '"v1"');
+  });
+  it("enters visible nested Containers and restores focus through breadcrumbs", async () => {
+    await opened();
+    content("child-right").focus();
+    await fireEvent.click(screen.getByRole("button", { name: "Open children of Child note" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/c/root/child"));
+    await waitFor(() => expect(content("grandchild-right")).toHaveFocus());
+    await fireEvent.click(screen.getByRole("button", { name: /^Root$/ }));
+    await waitFor(() => expect(content("child-right")).toHaveFocus());
+  });
+  it("navigates down and up with Control and suppresses composition keys", async () => {
+    await opened();
+    content("root-right").focus();
+    await key(".", true);
+    expect(window.location.hash).toBe("#/");
+    await key(".");
+    await waitFor(() => expect(content("child-right")).toHaveFocus());
+    await key(".");
+    await waitFor(() => expect(content("grandchild-right")).toHaveFocus());
+    await key(",");
+    await waitFor(() => expect(content("child-right")).toHaveFocus());
+    await key(",");
+    await waitFor(() => expect(content("root-right")).toHaveFocus());
+  });
+  it("opens the deepest valid URL prefix and handles browser hash navigation", async () => {
+    window.history.replaceState(null, "", "#/c/root/child/missing/grandchild");
+    await opened();
+    expect(window.location.hash).toBe("#/c/root/child");
+    expect(content("grandchild-right")).toBeInTheDocument();
+    window.history.replaceState(null, "", "#/c/root");
+    await fireEvent(window, new HashChangeEvent("hashchange"));
+    await waitFor(() => expect(content("child-right")).toHaveFocus());
+  });
+  it("creates a missing document's first row with Enter and focuses its right note", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
+    await opened();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add row" })).toHaveFocus());
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Right note" })).toHaveFocus());
+    expect(document.querySelectorAll("[data-container-id]")).toHaveLength(1);
+    expect(document.querySelectorAll("[data-content-id]")).toHaveLength(2);
+  });
+  it("adds a row to an empty child level", async () => {
+    window.history.replaceState(null, "", "#/c/root/child/grandchild");
+    await opened();
+    await fireEvent.click(screen.getByRole("button", { name: "Add row" }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Right note" })).toHaveFocus());
+    expect(window.location.hash).toBe("#/c/root/child/grandchild");
+    expect(document.querySelectorAll("[data-container-id]")).toHaveLength(1);
+  });
+  it("shows a failed load and retries", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValueOnce(new Error("Offline")).mockResolvedValueOnce(response()),
+    );
+    render(Pad);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Offline");
+    await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await screen.findByTestId("pad-level");
+    expect(content("root-right")).toBeInTheDocument();
+  });
+  it("allows leaving for the isolated editor demo without rewriting its hash", async () => {
+    await opened();
+    window.history.replaceState(null, "", "#/editor-demo");
+    await fireEvent(window, new HashChangeEvent("hashchange"));
+    expect(window.location.hash).toBe("#/editor-demo");
+  });
+  it("aborts pending requests when unmounted", () => {
+    let signal: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url, options) => {
+        signal = options.signal;
+        return new Promise(() => {});
+      }),
+    );
+    const { unmount } = render(Pad);
+    unmount();
+    expect(signal?.aborted).toBe(true);
+  });
+});
+
+it("restores the Add row control after removing the final row", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
+  const apply = vi.spyOn(TreeStore.prototype, "apply");
+  await opened();
+  await fireEvent.click(screen.getByRole("button", { name: "Add row" }));
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "Right note" })).toHaveFocus());
+  const store = apply.mock.contexts[0] as TreeStore;
+  store.apply({ type: "removeContainer", id: store.schema.root[0].id });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add row" })).toHaveFocus());
+});

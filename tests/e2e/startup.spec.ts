@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 test("client connects to the local server through the development proxy", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Svelte + Zig" })).toBeVisible();
-  await expect(page.getByText("Backend status: ok")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pararec" })).toBeVisible();
+  await expect(page.getByTestId("pad-level")).toBeVisible();
 });
 
 test("development proxy preserves document API preconditions", async ({ request }) => {
