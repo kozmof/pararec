@@ -101,3 +101,18 @@ it("keeps the same text row at the viewport top when resizing", async () => {
   await tick();
   expect(surface.scrollTop).toBe(88);
 });
+
+it("gives the native IME a full line box at the caret across wrapping", async () => {
+  doc = new EditorDocument("abcdefghij");
+  render(EditorSurface, { props: { doc, caret: { line: 0, column: 3 } } });
+  const sink = screen.getByTestId("editor-sink");
+  await fireEvent.compositionStart(sink);
+  await fireEvent.compositionUpdate(sink, { data: "日本" });
+  await tick();
+  await tick();
+  expect(sink.style.top).toBe("28px");
+  expect(sink.style.left).toBe("22px");
+  expect(sink.style.height).toBe("20px");
+  expect(sink.style.lineHeight).toBe("20px");
+  expect(sink).toHaveAttribute("wrap", "off");
+});

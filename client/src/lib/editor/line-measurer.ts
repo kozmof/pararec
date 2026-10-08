@@ -123,11 +123,11 @@ export function domLineMeasurer(lineElement: (line: number) => HTMLElement | nul
     const rectangles = (value: Range | null): DOMRect[] => {
       if (!value) return [];
       const rects = value.getClientRects?.();
-      if (rects?.length) return [...rects];
+      if (rects?.length) return [...rects].filter((rect) => rect.height > 0);
       const rect = value.getBoundingClientRect?.();
-      return rect ? [rect] : [];
+      return rect && rect.height > 0 ? [rect] : [];
     };
-    const initial = rectangles(range(0, 0))[0];
+    const initial = rectangles(range(0, 0))[0] ?? rectangles(range(0, Math.min(1, length)))[0];
     const box = el.getBoundingClientRect();
     const style = getComputedStyle(el);
     const origin = {
@@ -149,9 +149,13 @@ export function domLineMeasurer(lineElement: (line: number) => HTMLElement | nul
         };
       }
       const rect = rectangles(range(at, at))[0];
-      return rect
-        ? { x: rect.left - origin.x, y: (rect.top ?? origin.y) - origin.y }
-        : { x: 0, y: 0 };
+      if (rect) return { x: rect.left - origin.x, y: (rect.top ?? origin.y) - origin.y };
+      // Empty collapsed ranges can report the page origin. Adjacent text still supplies
+      // the caret edge, including at decorated span boundaries and at the end of a line.
+      if (next) return { x: next.left - origin.x, y: next.top - origin.y };
+      if (previous)
+        return { x: previous.left + previous.width - origin.x, y: previous.top - origin.y };
+      return { x: 0, y: 0 };
     };
     const rows = (): VisualRow[] => {
       const tops = [

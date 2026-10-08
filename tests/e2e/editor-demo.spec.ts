@@ -81,6 +81,20 @@ test("click placement and the IME sink follow span measurements", async ({ page 
   await page.mouse.click(click.x, click.y);
   await page.keyboard.type("!");
   await expect(line).toHaveText("First! note");
+  const nativeBox = await sink.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const cursor = document.querySelector('[data-testid="editor-cursor"]')!.getBoundingClientRect();
+    return {
+      height: rect.height,
+      width: rect.width,
+      lineHeight: getComputedStyle(el).lineHeight,
+      dx: rect.left - cursor.left,
+      dy: rect.top - cursor.top,
+    };
+  });
+  expect(nativeBox).toMatchObject({ height: 20, width: 2, lineHeight: "20px" });
+  expect(Math.abs(nativeBox.dx)).toBeLessThan(1);
+  expect(Math.abs(nativeBox.dy)).toBeLessThan(1);
   await sink.dispatchEvent("compositionstart", { data: "" });
   await sink.dispatchEvent("compositionupdate", { data: "日本" });
   await expect(line.locator("[data-from]")).toHaveCount(3);
@@ -153,4 +167,48 @@ test("auto-height and read-only modes preserve the text layout", async ({ page }
       })),
     )
     .toEqual({ height: 56, scrollHeight: 56, overflow: "visible" });
+});
+
+test("IME input follows text edges when collapsed caret ranges are empty", async ({ page }) => {
+  await page.goto("/#/editor-demo");
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
+  await page.evaluate(() => {
+    const clientRects = Range.prototype.getClientRects;
+    const boundingRect = Range.prototype.getBoundingClientRect;
+    Range.prototype.getClientRects = function () {
+      return this.collapsed ? ([] as unknown as DOMRectList) : clientRects.call(this);
+    };
+    Range.prototype.getBoundingClientRect = function () {
+      return this.collapsed ? new DOMRect() : boundingRect.call(this);
+    };
+  });
+  await page.keyboard.press("End");
+  await expect
+    .poll(async () =>
+      page.locator('[data-line="0"]').evaluate((el) => {
+        const text = el.querySelector('[data-from="0"]')!.firstChild!;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const expected = range.getBoundingClientRect().right;
+        const actual = document
+          .querySelector('[data-testid="editor-sink"]')!
+          .getBoundingClientRect().left;
+        return Math.abs(expected - actual);
+      }),
+    )
+    .toBeLessThan(2);
+  await page.getByTestId("editor-sink").dispatchEvent("compositionstart");
+  await page.getByTestId("editor-sink").dispatchEvent("compositionupdate", { data: "日本" });
+  await expect
+    .poll(async () =>
+      page.locator("[data-preedit]").evaluate((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const actual = document
+          .querySelector('[data-testid="editor-sink"]')!
+          .getBoundingClientRect().left;
+        return Math.abs(range.getBoundingClientRect().right - actual);
+      }),
+    )
+    .toBeLessThan(2);
 });

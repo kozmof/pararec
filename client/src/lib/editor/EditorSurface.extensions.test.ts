@@ -103,3 +103,21 @@ describe("document extension input", () => {
     expect(doc.text()).toBe("");
   });
 });
+
+it.each([{ isComposing: true }, { keyCode: 229 }, { key: "Process" }])(
+  "leaves native IME processing keys alone before compositionstart (%j)",
+  async (extra) => {
+    const host = vi.fn();
+    const { doc, sink } = mount("hello", { onKeydown: host });
+    const event = new KeyboardEvent("keydown", {
+      key: "a",
+      bubbles: true,
+      cancelable: true,
+      ...extra,
+    });
+    await fireEvent(sink, event);
+    expect(doc.text()).toBe("hello");
+    expect(host).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  },
+);

@@ -401,7 +401,10 @@
     // reaching the board.
     //
     // During composition, leave input to the browser and IME. Commit text at compositionend.
-    if (composing) { event.stopPropagation(); return; }
+    if (composing || event.isComposing || event.key === "Process" || event.keyCode === 229) {
+      event.stopPropagation();
+      return;
+    }
     if (!["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Shift", "Control", "Meta", "Alt"].includes(event.key))
       goalX = undefined;
 
@@ -797,14 +800,13 @@
       ></div>
     {/if}
 
-    <!-- The IME sink. One pixel, invisible, parked at the caret so the candidate window
-         opens where the text will land. It renders nothing and holds no document text. -->
+    <!-- Give the native IME a full line box at the caret so its popup clears the text row.
+         The input stays transparent and holds no document text. -->
     {#if !readonly}<textarea
       bind:this={sinkEl}
       class={css({
         position: "absolute",
-        width: "1px",
-        height: "1px",
+        width: "2px",
         padding: "0",
         border: "none",
         outline: "none",
@@ -817,6 +819,8 @@
       })}
       style:top={`${caretXY.y + PAD_Y}px`}
       style:left={`${caretXY.x + PAD_X}px`}
+      style:height={`${LINE_HEIGHT}px`}
+      style:line-height={`${LINE_HEIGHT}px`}
       onkeydown={handleKeydown}
       oninput={handleInput}
       oncompositionstart={handleCompositionStart}
@@ -830,6 +834,7 @@
       spellcheck="false"
       autocapitalize="off"
       autocomplete="off"
+      wrap="off"
       aria-label="File contents"
       data-testid="editor-sink"
     ></textarea>{/if}

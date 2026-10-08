@@ -197,7 +197,7 @@ describe("domMeasurer", () => {
     Range.prototype.getBoundingClientRect = function (this: Range) {
       const left = 100 + PAD + widthOf(this.startOffset);
       const right = 100 + PAD + widthOf(this.endOffset);
-      return { left, right, width: right - left } as DOMRect;
+      return { left, right, width: right - left, top: 0, height: 20 } as DOMRect;
     };
 
     return { el, widthOf };

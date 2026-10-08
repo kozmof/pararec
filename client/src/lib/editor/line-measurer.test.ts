@@ -208,3 +208,29 @@ describe("span DOM measurer", () => {
     expect(measure.rangeRects(0, 0, null).at(-1)?.width).toBeNull();
   });
 });
+
+it("uses text edges when collapsed ranges return an empty rectangle at the page origin", () => {
+  const { measure } = spans();
+  const original = vi.mocked(Range.prototype.getBoundingClientRect).getMockImplementation()!;
+  vi.spyOn(Range.prototype, "getBoundingClientRect").mockImplementation(function (this: Range) {
+    return this.collapsed
+      ? ({ left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 } as DOMRect)
+      : original.call(this);
+  });
+  expect(measure.columnToPoint(0, 0)).toEqual({ x: 0, y: 0 });
+  expect(measure.columnToPoint(0, 2)).toEqual({ x: 20, y: 0 });
+  expect(measure.columnToPoint(0, 6)).toEqual({ x: 60, y: 0 });
+});
+
+it("keeps wrap affinity when collapsed ranges supply no usable caret rectangle", () => {
+  const { measure } = spans(true);
+  const original = vi.mocked(Range.prototype.getBoundingClientRect).getMockImplementation()!;
+  vi.spyOn(Range.prototype, "getBoundingClientRect").mockImplementation(function (this: Range) {
+    return this.collapsed
+      ? ({ left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 } as DOMRect)
+      : original.call(this);
+  });
+  expect(measure.columnToPoint(0, 4)).toEqual({ x: 0, y: 20 });
+  expect(measure.columnToPoint(0, 4, "upstream")).toEqual({ x: 40, y: 0 });
+  expect(measure.columnToPoint(0, 6)).toEqual({ x: 20, y: 20 });
+});
