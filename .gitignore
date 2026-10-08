@@ -3,6 +3,8 @@
 .pnpm-store
 .zig-global-cache
 .zig-cache
+.codex
+.claude
 
 node_modules/
 zig-out/
