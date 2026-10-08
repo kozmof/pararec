@@ -73,6 +73,7 @@
    */
   let preedit = $state("");
   let composing = $state(false);
+  let compositionSelection: { start: Caret; end: Caret } | null = null;
 
   const measure = domLineMeasurer((line) => lineEls[line] ?? null);
   const layout = $derived(new FixedLayout(doc.lineCount, LINE_HEIGHT));
@@ -175,8 +176,8 @@
   }
 
   function insertText(text: string): void {
-    deleteSelection();
-    caret = doc.insert(caret, text);
+    const span = selected();
+    caret = span ? doc.replace(span.start, span.end, text, caret) : doc.insert(caret, text);
     collapse();
   }
 
@@ -353,7 +354,8 @@
   function handleCompositionStart(): void {
     composing = true;
     preedit = "";
-    if (!readonly) deleteSelection();
+    compositionSelection = selected();
+    doc.closeHistoryGroup();
   }
 
   function handleCompositionUpdate(event: CompositionEvent): void {
@@ -361,13 +363,30 @@
   }
 
   function handleCompositionEnd(event: CompositionEvent): void {
+    if (!composing) return;
     composing = false;
     const composed = event.data ?? "";
     preedit = "";
     if (sinkEl) sinkEl.value = "";
-    // One insert for the whole session, so one undo takes back the word rather than
-    // walking backwards through every candidate that was cycled past on the way to it.
-    if (composed && !readonly) insertText(composed);
+    const span = compositionSelection;
+    compositionSelection = null;
+    // Replace a selection only after commit. Cancelling composition preserves its text.
+    if (composed && !readonly) {
+      doc.transact(() => {
+        caret = span ? doc.replace(span.start, span.end, composed, caret) : doc.insert(caret, composed);
+        collapse();
+      }, "composition");
+    }
+    doc.closeHistoryGroup();
+  }
+
+  function handleBlur(): void {
+    focused = false;
+    composing = false;
+    preedit = "";
+    compositionSelection = null;
+    if (sinkEl) sinkEl.value = "";
+    doc.closeHistoryGroup();
   }
 
   /**
@@ -378,14 +397,14 @@
     if (composing || !sinkEl) return;
     const typed = sinkEl.value;
     sinkEl.value = "";
-    if (typed && !readonly) insertText(typed);
+    if (typed && focused && !readonly) insertText(typed);
   }
 
   function handlePaste(event: ClipboardEvent): void {
     event.preventDefault();
     if (readonly) return;
     const text = event.clipboardData?.getData("text/plain");
-    if (text) insertText(text.replace(/\r\n?/g, "\n"));
+    if (text) insertText(text);
   }
 
   function handleCopy(event: ClipboardEvent): void {
@@ -596,7 +615,7 @@
       oncopy={handleCopy}
       oncut={handleCut}
       onfocus={() => (focused = true)}
-      onblur={() => (focused = false)}
+      onblur={handleBlur}
       spellcheck="false"
       autocapitalize="off"
       autocomplete="off"

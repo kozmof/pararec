@@ -1,8 +1,20 @@
 import { history, position, query, rendering, scan, store } from "@kozmof/reed";
-import type { SelectionRange } from "@kozmof/reed";
+import { GraphemeCache, normalizeLineBreaks } from "./graphemes.js";
+import { compareLines, contentLineChange, type LineChange } from "./document-change.js";
+import type { SelectionRange, DocumentAction as ReedAction } from "@kozmof/reed";
 
 type DocumentState = ReturnType<ReturnType<typeof store.createDocumentStore>["getSnapshot"]>;
-type ReedStore = ReturnType<typeof store.createDocumentStore>;
+type ReedStore = ReturnType<typeof store.createDocumentStoreWithEvents>;
+export type { LineChange } from "./document-change.js";
+
+/** Consume these immediately to record tree snapshots without retaining Reed stores. */
+export type DocumentEdit = {
+  before: DocumentState;
+  after: DocumentState;
+  change: LineChange;
+  kind: "edit" | "transaction" | "composition" | "undo" | "redo";
+  group: number;
+};
 
 /** A caret or a selection end, in the coordinates the render layer draws in. */
 export type Caret = {
@@ -40,14 +52,19 @@ export function sameCaret(a: Caret, b: Caret): boolean {
  * The editor uses line and column coordinates. Columns count UTF-16 code units, while Reed
  * positions are UTF-8 byte offsets. Convert between them here and use Reed's types directly.
  *
- * Keep carets on code-point boundaries. `clamp`, `columnBefore`, and `columnAfter` prevent a
- * column from splitting a surrogate pair. This editor snaps such columns backward to the
- * character's start, matching click placement. Reed's own conversion snaps forward, so the
- * explicit backward snap is still needed.
+ * Keep carets on grapheme boundaries. Combining marks, variation selectors, and emoji
+ * sequences move and delete together. Clicks inside a cluster snap to its start.
  */
 export class EditorDocument {
   #store: ReedStore;
   #unsubscribe: (() => void) | null = null;
+  #eventUnsubscribers: (() => void)[] = [];
+  #graphemes = new GraphemeCache();
+  #transactionDepth = 0;
+  #group = 0;
+  #clockOffset = 0;
+  #editListeners = new Set<(edit: DocumentEdit) => void>();
+  lastChange = $state.raw<LineChange | null>(null);
 
   /**
    * Immutable Reed snapshot, temporarily undefined during construction. Initialize it before
@@ -61,7 +78,7 @@ export class EditorDocument {
    * unavailable so failures identify the missing snapshot directly.
    */
   get state(): DocumentState {
-    const current = this.#current;
+    const current = this.#transactionDepth ? this.#store.getSnapshot() : this.#current;
     if (current === undefined) throw new Error("EditorDocument read before its first snapshot");
     return current;
   }
@@ -73,9 +90,24 @@ export class EditorDocument {
   #dirty = $derived(this.text() !== this.#savedContent);
 
   constructor(content: string) {
-    this.#store = store.createDocumentStore({ content, undoGroupTimeout: UNDO_GROUP_MS });
+    this.#store = store.createDocumentStoreWithEvents({
+      content: normalizeLineBreaks(content),
+      undoGroupTimeout: UNDO_GROUP_MS,
+    });
     this.#current = this.#store.getSnapshot();
     this.#savedContent = this.text();
+    this.#eventUnsubscribers = [
+      this.#store.addEventListener("content-change", (event) => {
+        if (this.#transactionDepth) return;
+        const change = contentLineChange(event);
+        if (change) this.#publish(event.prevState, event.nextState, change, "edit");
+      }),
+      this.#store.addEventListener("history-change", (event) => {
+        if (this.#transactionDepth) return;
+        const change = compareLines(event.prevState, event.nextState);
+        if (change) this.#publish(event.prevState, event.nextState, change, event.direction);
+      }),
+    ];
     this.#unsubscribe = this.#store.subscribe(() => {
       this.#current = this.#store.getSnapshot();
     });
@@ -89,7 +121,76 @@ export class EditorDocument {
   dispose(): void {
     this.#unsubscribe?.();
     this.#unsubscribe = null;
-    this.#store.dispose?.();
+    for (const unsubscribe of this.#eventUnsubscribers) unsubscribe();
+    this.#eventUnsubscribers = [];
+    this.#editListeners.clear();
+    this.#graphemes.clear();
+    this.#store.dispose();
+  }
+
+  #publish(
+    before: DocumentState,
+    after: DocumentState,
+    change: LineChange,
+    kind: DocumentEdit["kind"],
+  ): void {
+    this.lastChange = change;
+    const edit: DocumentEdit = { before, after, change, kind, group: this.#group };
+    // Subscription changes during delivery apply to the next notification.
+    const listeners = Array.from(this.#editListeners);
+    for (const listener of listeners) listener(edit);
+  }
+
+  /** One notification per edit or outer transaction for the app snapshot history. */
+  subscribeEdits(listener: (edit: DocumentEdit) => void): () => void {
+    this.#editListeners.add(listener);
+    return () => {
+      this.#editListeners.delete(listener);
+    };
+  }
+
+  /** Call on blur and before structural actions. Native history keeps earlier entries. */
+  closeHistoryGroup(): void {
+    this.#group++;
+    // Reed has no explicit group delimiter. Advance only its grouping clock beyond the
+    // timeout, retaining real time differences within each subsequent typing group.
+    this.#clockOffset += UNDO_GROUP_MS + 1;
+  }
+
+  #dispatch(action: Extract<ReedAction, { type: "INSERT" | "DELETE" | "REPLACE" }>): void {
+    this.#store.dispatch({ ...action, timestamp: Date.now() + this.#clockOffset });
+  }
+
+  /** Batch publication and emit one app action. Reed's native undo entries stay separate. */
+  transact(
+    fn: (doc: EditorDocument) => void,
+    kind: "transaction" | "composition" = "transaction",
+  ): void {
+    if (Object.prototype.toString.call(fn) === "[object AsyncFunction]")
+      throw new TypeError("EditorDocument.transact requires a synchronous callback");
+    const before = this.state;
+    const outer = this.#transactionDepth === 0;
+    if (outer) this.closeHistoryGroup();
+    this.#transactionDepth++;
+    let committed = false;
+    try {
+      store.withTransaction(this.#store, () => fn(this));
+      committed = true;
+    } finally {
+      this.#transactionDepth--;
+      if (outer) {
+        this.#current = this.#store.getSnapshot();
+        const after = this.state;
+        try {
+          if (committed) {
+            const change = compareLines(before, after);
+            if (change) this.#publish(before, after, change, kind);
+          }
+        } finally {
+          this.closeHistoryGroup();
+        }
+      }
+    }
   }
 
   get lineCount(): number {
@@ -139,46 +240,38 @@ export class EditorDocument {
   }
 
   /**
-   * Clamp the caret to the document, its line, and a character boundary. Move positions
-   * inside a surrogate pair back to the character's start so rendering and Reed edits use
-   * valid boundaries.
+   * Clamp the caret to its line and snap backward to a grapheme boundary.
    */
   clamp({ line, column }: Caret): Caret {
     const lastLine = Math.max(0, this.lineCount - 1);
     const safeLine = Math.min(Math.max(0, line), lastLine);
-    return { line: safeLine, column: snapColumn(this.lineText(safeLine), column) };
+    return {
+      line: safeLine,
+      column: this.#graphemes.snap(safeLine, this.lineText(safeLine), column),
+    };
   }
 
-  /**
-   * Return the column one character before `column` for leftward movement or backspace.
-   * Preserve surrogate pairs.
-   */
+  /** Step backward by one whole grapheme for movement and backspace. */
   columnBefore(line: number, column: number): number {
     const text = this.lineText(line);
-    const at = snapColumn(text, column);
-    if (at <= 0) return 0;
-    return isLowSurrogate(text.charCodeAt(at - 1)) && isHighSurrogate(text.charCodeAt(at - 2))
-      ? at - 2
-      : at - 1;
+    const index = this.#graphemes.index(line, text, column);
+    return this.#graphemes.boundaries(line, text)[Math.max(0, index - 1)];
   }
 
-  /** Move one character forward, paired with {@link columnBefore}. */
+  /** Step forward by one whole grapheme, paired with columnBefore. */
   columnAfter(line: number, column: number): number {
     const text = this.lineText(line);
-    const at = snapColumn(text, column);
-    if (at >= text.length) return text.length;
-    return isHighSurrogate(text.charCodeAt(at)) && isLowSurrogate(text.charCodeAt(at + 1))
-      ? at + 2
-      : at + 1;
+    const boundaries = this.#graphemes.boundaries(line, text);
+    const index = this.#graphemes.index(line, text, column);
+    return boundaries[Math.min(boundaries.length - 1, index + 1)];
   }
 
   #byteOffset({ line, column }: Caret): number {
-    // Snap every caret before resolving its offset so a position inside a surrogate pair
-    // resolves to the character's start consistently.
+    // Resolve byte offsets only at whole grapheme boundaries.
     const offset = rendering.lineColumnToPosition(
       this.state,
       line,
-      snapColumn(this.lineText(line), column),
+      this.#graphemes.snap(line, this.lineText(line), column),
     );
     // Clamp unresolved carets beyond the document to its end.
     return offset ?? this.state.pieceTable.totalLength;
@@ -187,7 +280,7 @@ export class EditorDocument {
   #caretAt(byteOffset: number): Caret {
     // Use the branded byte-offset constructor so Reed's offset type remains checked.
     const at = rendering.positionToLineColumn(this.state, position.byteOffset(byteOffset));
-    return at ?? { line: 0, column: 0 };
+    return at ? this.clamp(at) : { line: 0, column: 0 };
   }
 
   /**
@@ -202,8 +295,9 @@ export class EditorDocument {
 
   /** Inserts `text` at `at`, and answers where the caret ends up. */
   insert(at: Caret, text: string): Caret {
+    text = normalizeLineBreaks(text);
     const start = this.#byteOffset(at);
-    this.#store.dispatch(
+    this.#dispatch(
       store.DocumentActions.insert(position.byteOffset(start), text, this.#selectionAt(start)),
     );
     return this.#caretAt(start + byteLength(text));
@@ -218,7 +312,7 @@ export class EditorDocument {
     const from = this.#byteOffset(start);
     const to = this.#byteOffset(end);
     if (from === to) return start;
-    this.#store.dispatch(
+    this.#dispatch(
       store.DocumentActions.delete(
         position.byteOffset(from),
         position.byteOffset(to),
@@ -233,9 +327,10 @@ export class EditorDocument {
    * `caretBefore` carries the same meaning as on {@link delete}.
    */
   replace(start: Caret, end: Caret, text: string, caretBefore: Caret = start): Caret {
+    text = normalizeLineBreaks(text);
     const from = this.#byteOffset(start);
     const to = this.#byteOffset(end);
-    this.#store.dispatch(
+    this.#dispatch(
       store.DocumentActions.replace(
         position.byteOffset(from),
         position.byteOffset(to),
@@ -257,7 +352,7 @@ export class EditorDocument {
     const bytes = new TextEncoder().encode(whole);
     const charOffset = ({ line, column }: Caret): number => {
       const lineStart = this.#byteOffset({ line, column: 0 });
-      const at = snapColumn(this.lineText(line), column);
+      const at = this.#graphemes.snap(line, this.lineText(line), column);
       return new TextDecoder().decode(bytes.subarray(0, lineStart)).length + at;
     };
     return whole.slice(charOffset(start), charOffset(end));
@@ -271,6 +366,7 @@ export class EditorDocument {
 
   /** Undo one edit and return its recorded caret position, or null when nothing can be undone. */
   undo(): Caret | null {
+    this.closeHistoryGroup();
     if (!this.canUndo) return null;
     this.#store.dispatch(store.DocumentActions.undo());
     return this.selectionCaret();
@@ -278,6 +374,7 @@ export class EditorDocument {
 
   /** Redo one edit and return its caret position, paired with {@link undo}. */
   redo(): Caret | null {
+    this.closeHistoryGroup();
     if (!this.canRedo) return null;
     this.#store.dispatch(store.DocumentActions.redo());
     return this.selectionCaret();
@@ -286,23 +383,4 @@ export class EditorDocument {
 
 function byteLength(text: string): number {
   return new TextEncoder().encode(text).length;
-}
-
-function isHighSurrogate(code: number): boolean {
-  return code >= 0xd800 && code <= 0xdbff;
-}
-
-function isLowSurrogate(code: number): boolean {
-  return code >= 0xdc00 && code <= 0xdfff;
-}
-
-/**
- * Clamp the column to the text and move it backward to the start of a character if it splits
- * a surrogate pair.
- */
-function snapColumn(text: string, column: number): number {
-  const at = Math.min(Math.max(0, column), text.length);
-  return isLowSurrogate(text.charCodeAt(at)) && isHighSurrogate(text.charCodeAt(at - 1))
-    ? at - 1
-    : at;
 }

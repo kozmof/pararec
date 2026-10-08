@@ -74,3 +74,23 @@ test("click placement and the IME sink follow span measurements", async ({ page 
   await sink.dispatchEvent("compositionend", { data: "日本" });
   await expect(line).toHaveText("First!日本 note");
 });
+
+test("grapheme deletion and composition cancellation preserve whole text", async ({ page }) => {
+  await page.goto("/#/editor-demo");
+  const sink = page.getByTestId("editor-sink");
+  const line = page.locator('[data-line="0"]');
+  await sink.focus();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.insertText("a👩‍🚀b");
+  await expect(line).toHaveText("a👩‍🚀b");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("Backspace");
+  await expect(line).toHaveText("ab");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(line).toHaveText("a👩‍🚀b");
+  await page.keyboard.press("ControlOrMeta+a");
+  await sink.dispatchEvent("compositionstart", { data: "" });
+  await sink.dispatchEvent("compositionupdate", { data: "にほん" });
+  await sink.dispatchEvent("compositionend", { data: "" });
+  await expect(line).toHaveText("a👩‍🚀b");
+});

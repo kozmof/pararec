@@ -119,13 +119,12 @@ describe("EditorDocument", () => {
     expect(d.textBetween({ line: 1, column: 0 }, { line: 1, column: 3 })).toBe("two");
   });
 
-  // Verify selection offsets across CRLF line endings rather than assuming one character per
-  // newline.
+  // Loaded line endings are normalized before resolving selection offsets.
   it("reads across CRLF line endings without drifting", () => {
     const d = doc("one\r\ntwo\r\nthree\r\n");
     expect(d.textBetween({ line: 1, column: 0 }, { line: 1, column: 3 })).toBe("two");
     expect(d.textBetween({ line: 2, column: 0 }, { line: 2, column: 5 })).toBe("three");
-    expect(d.textBetween({ line: 0, column: 1 }, { line: 1, column: 2 })).toBe("ne\r\ntw");
+    expect(d.textBetween({ line: 0, column: 1 }, { line: 1, column: 2 })).toBe("ne\ntw");
   });
 
   // A column counts UTF-16 code units, so an astral character takes two of them and the
