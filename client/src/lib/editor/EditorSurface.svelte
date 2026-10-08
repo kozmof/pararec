@@ -1,15 +1,16 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { css, cx } from "../../../../styled-system/css";
   import type { Caret, EditorDocument } from "./document-store.svelte.js";
   import { orderCarets, sameCaret } from "./document-store.svelte.js";
   import {
     caretPoint,
-    domMeasurer,
     pointToCaret,
     selectionRects,
     visibleRange,
   } from "./geometry.js";
 
+  import { domLineMeasurer } from "./line-measurer.js";
   import { FixedLayout } from "./vertical-layout.js";
 
   export type EditorMode = "insert" | "normal";
@@ -73,7 +74,7 @@
   let preedit = $state("");
   let composing = $state(false);
 
-  const measure = domMeasurer((line) => lineEls[line] ?? null);
+  const measure = domLineMeasurer((line) => lineEls[line] ?? null);
   const layout = $derived(new FixedLayout(doc.lineCount, LINE_HEIGHT));
 
   const window_ = $derived(
@@ -84,6 +85,23 @@
   );
   const lines = $derived(doc.visibleLines(window_.startLine, window_.visibleLineCount, 0));
   const contentHeight = $derived(layout.totalHeight);
+  let measurementVersion = $state(0);
+
+  // Read geometry after Svelte has updated the spans, including composition text.
+  $effect(() => {
+    void lines;
+    void caret;
+    void anchor;
+    void preedit;
+    void composing;
+    let active = true;
+    void tick().then(() => {
+      if (active) measurementVersion++;
+    });
+    return () => {
+      active = false;
+    };
+  });
 
   const selection = $derived.by(() => {
     if (!anchor || sameCaret(anchor, caret)) return null;
@@ -93,6 +111,7 @@
   // Recomputed against the document's revision as well as the carets, because the same
   // (line, column) pair sits at a different pixel once the text around it has changed.
   const rects = $derived.by(() => {
+    void measurementVersion;
     void doc.state.revision;
     void lines;
     if (!selection) return [];
@@ -102,20 +121,26 @@
   });
 
   const caretXY = $derived.by(() => {
+    void measurementVersion;
     void doc.state.revision;
     void lines;
-    return caretPoint(caret, layout, measure);
+    const measuredCaret = composing
+      ? { line: caret.line, column: caret.column + preedit.length }
+      : caret;
+    return caretPoint(measuredCaret, layout, measure);
   });
 
   /** Normal-mode block cursor width, matching the current cell. */
   const caretWidth = $derived.by(() => {
+    void measurementVersion;
     void doc.state.revision;
     if (mode !== "normal") return 2;
     const text = doc.lineText(caret.line);
     if (caret.column >= text.length) return FONT_SIZE * 0.6;
     return Math.max(
       2,
-      measure.columnToX(caret.line, caret.column + 1) - measure.columnToX(caret.line, caret.column),
+      measure.columnToPoint(caret.line, caret.column + 1).x -
+        measure.columnToPoint(caret.line, caret.column).x,
     );
   });
 
@@ -513,13 +538,15 @@
         style:padding-left={`${PAD_X}px`}
         style:padding-right={`${PAD_X}px`}
         style:z-index="1"
-      >{#if composing && preedit && line.lineNumber === caret.line}{line.content.slice(
-            0,
-            caret.column,
-          )}<span
+      >{#if composing && preedit && line.lineNumber === caret.line}<span data-from="0"
+          >{line.content.slice(0, caret.column)}</span
+        ><span
             class={css({ textDecoration: "underline", textUnderlineOffset: "2px" })}
+            data-from={caret.column}
             data-preedit>{preedit}</span
-          >{line.content.slice(caret.column)}{:else}{line.content}{/if}</div>
+        ><span data-from={caret.column + preedit.length}
+          >{line.content.slice(caret.column)}</span
+        >{:else}<span data-from="0">{line.content}</span>{/if}</div>
     {/each}
 
     <!-- Cursor: a sibling of the text, never spliced into it, so drawing it cannot move

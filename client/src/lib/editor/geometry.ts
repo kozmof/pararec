@@ -1,9 +1,10 @@
+import { domLineMeasurer, type LineMeasurer as PointMeasurer } from "./line-measurer.js";
 import type { Caret } from "./document-store.svelte.js";
 import { FixedLayout, type VerticalLayout } from "./vertical-layout.js";
 
 /**
- * Rendered line measurement interface. Production uses DOM Range rectangles, while tests
- * provide fixed geometry.
+ * Horizontal measurement interface retained for the unchanged imported tests.
+ * Production uses the point-based LineMeasurer from line-measurer.ts.
  */
 export type LineMeasurer = {
   /** Pixels from the start of the line to the left edge of `column`. */
@@ -50,9 +51,13 @@ function verticalLayout(
 export function caretPoint(
   { line, column }: Caret,
   layout: VerticalLayout | number,
-  measure: LineMeasurer,
+  measure: LineMeasurer | PointMeasurer,
 ): { x: number; y: number } {
-  return { x: measure.columnToX(line, column), y: verticalLayout(layout).top(line) };
+  const point =
+    "columnToPoint" in measure
+      ? measure.columnToPoint(line, column)
+      : { x: measure.columnToX(line, column), y: 0 };
+  return { x: point.x, y: verticalLayout(layout).top(line) + point.y };
 }
 
 /**
@@ -64,10 +69,18 @@ export function pointToCaret(
   y: number,
   layout: VerticalLayout | number,
   lineCount: number,
-  measure: LineMeasurer,
+  measure: LineMeasurer | PointMeasurer,
 ): Caret {
   const line = Math.min(verticalLayout(layout, lineCount).lineAt(y), Math.max(0, lineCount - 1));
-  return { line, column: measure.xToColumn(line, Math.max(0, x)) };
+  const column =
+    "pointToColumn" in measure
+      ? measure.pointToColumn(
+          line,
+          Math.max(0, x),
+          Math.max(0, y - verticalLayout(layout).top(line)),
+        )
+      : measure.xToColumn(line, Math.max(0, x));
+  return { line, column };
 }
 
 export type SelectionRect = {
@@ -86,7 +99,7 @@ export function selectionRects(
   start: Caret,
   end: Caret,
   layout: VerticalLayout | number,
-  measure: LineMeasurer,
+  measure: LineMeasurer | PointMeasurer,
   lineLength: (line: number) => number,
 ): SelectionRect[] {
   if (start.line === end.line && start.column === end.column) return [];
@@ -94,6 +107,14 @@ export function selectionRects(
   const vertical = verticalLayout(layout);
   const rects: SelectionRect[] = [];
   const push = (line: number, fromColumn: number, toColumn: number | null): void => {
+    if ("rangeRects" in measure) {
+      rects.push(
+        ...measure
+          .rangeRects(line, fromColumn, toColumn)
+          .map((rect) => ({ ...rect, top: vertical.top(line) + rect.top })),
+      );
+      return;
+    }
     const left = measure.columnToX(line, fromColumn);
     rects.push({
       top: vertical.top(line),
@@ -118,60 +139,11 @@ export function selectionRects(
   return rects;
 }
 
-/**
- * Measure text with DOM Ranges so proportional fonts, CJK characters, and ligatures use
- * actual layout. Binary-search those measurements to map x coordinates to columns. Each query
- * measures one line.
- */
+/** Legacy horizontal API retained for the imported geometry tests. */
 export function domMeasurer(lineElement: (line: number) => HTMLElement | null): LineMeasurer {
-  const textNodeOf = (line: number): { node: Text; length: number } | null => {
-    const el = lineElement(line);
-    const node = el?.firstChild;
-    if (!node || node.nodeType !== Node.TEXT_NODE) return null;
-    const text = node as Text;
-    return { node: text, length: text.length };
-  };
-
-  /**
-   * Measure pixels from the text start to `column` using range width. This excludes element
-   * padding and naturally returns zero at column 0.
-   */
-  const widthTo = (node: Text, column: number): number => {
-    if (column <= 0) return 0;
-    const range = document.createRange();
-    range.setStart(node, 0);
-    range.setEnd(node, Math.min(column, node.length));
-    // Allow missing Range rectangle methods in jsdom, where real layout measurements are
-    // unavailable.
-    return range.getBoundingClientRect?.()?.width ?? 0;
-  };
-
+  const measure = domLineMeasurer(lineElement);
   return {
-    columnToX(line, column) {
-      const found = textNodeOf(line);
-      if (!found) return 0;
-      return widthTo(found.node, column);
-    },
-
-    xToColumn(line, x) {
-      const found = textNodeOf(line);
-      if (!found) return 0;
-      if (x <= 0) return 0;
-
-      // Find the last column edge at or before x, then choose the nearer of that edge and the
-      // next.
-      let low = 0;
-      let high = found.length;
-      while (low < high) {
-        const mid = Math.ceil((low + high) / 2);
-        if (widthTo(found.node, mid) <= x) low = mid;
-        else high = mid - 1;
-      }
-
-      if (low >= found.length) return found.length;
-      const here = widthTo(found.node, low);
-      const next = widthTo(found.node, low + 1);
-      return x - here > next - x ? low + 1 : low;
-    },
+    columnToX: (line, column) => measure.columnToPoint(line, column).x,
+    xToColumn: (line, x) => measure.pointToColumn(line, x, 0),
   };
 }
