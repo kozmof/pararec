@@ -23,3 +23,29 @@ it.each([
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
   await expect(loadDocument()).rejects.toThrow();
 });
+it("explains how to recover when the local server cannot be reached", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+  await expect(loadDocument()).rejects.toThrow("Start pararec serve and retry");
+});
+it("preserves request cancellation rather than reporting a server outage", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const error = new DOMException("Aborted", "AbortError");
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+  await expect(loadDocument(controller.signal)).rejects.toBe(error);
+});
+it("gives actionable read-permission and invalid-file errors", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response("{broken", { headers: { ETag: '"v1"' } }))
+      .mockResolvedValueOnce(
+        new Response('{"version":2,"root":[]}', { headers: { ETag: '"v1"' } }),
+      ),
+  );
+  await expect(loadDocument()).rejects.toThrow("Check the file and its permissions");
+  await expect(loadDocument()).rejects.toThrow("Invalid JSON");
+  await expect(loadDocument()).rejects.toThrow("Unsupported version");
+});

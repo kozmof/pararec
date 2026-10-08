@@ -1,6 +1,6 @@
 # Pararec
 
-Pararec is a two-column editor for nested notes. The local document server is implemented. The client includes an isolated text editor demo while the document view is being built.
+Pararec is a two-column editor for nested notes. It saves notes to a JSON file through a local server. The editor supports Japanese composition, soft wrapping, keyboard structure commands, and app-wide undo and redo.
 
 ## Setup
 
@@ -21,7 +21,7 @@ Serve one document from the repository root.
 ./local/zig-out/bin/pararec serve document.json
 ```
 
-Open `http://127.0.0.1:4545`. A missing document returns `404` until the first successful creation request. The document view and its save controls are not implemented yet.
+Open `http://127.0.0.1:4545`. A missing document opens an empty pad. Activate Add row to create the first note. Edits save after one second of inactivity and when you leave a note. Ctrl+S or Cmd+S saves immediately.
 
 Choose another port or static directory when needed.
 
@@ -39,7 +39,7 @@ pnpm dev
 
 Open `http://127.0.0.1:5173`. Vite forwards `/api` requests to the local server on port 4545. The server lives in `local/`. The client build is written to `dist/`.
 
-Open `http://127.0.0.1:5173/#/editor-demo` to edit one fixture note. The demo supports selection, clipboard operations, IME composition, and undo/redo. Changes stay in memory and reset when leaving the demo. Text uses fixed-height lines without soft wrapping at this stage.
+Open `http://127.0.0.1:5173/#/editor-demo` to edit one fixture note. The demo supports selection, clipboard operations, IME composition, and undo/redo. Changes stay in memory and reset when leaving the demo. The demo uses soft wrapping and native text history. The pad uses one history for text and structure.
 
 ## Test
 
@@ -47,12 +47,13 @@ Run the type checks, client unit tests, Zig tests, and HTTP integration tests.
 
 ```sh
 pnpm check
+pnpm lint
 pnpm test:unit
 pnpm test:local
 pnpm test:api
 ```
 
-Install Chromium and WebKit before running browser smoke tests.
+Install Chromium and WebKit before running browser tests.
 
 ```sh
 pnpm exec playwright install chromium webkit
@@ -60,6 +61,28 @@ pnpm test:e2e
 ```
 
 CI installs browser system dependencies and runs all these checks. Browser downloads require access to Playwright's download hosts.
+
+## Editing and recovery
+
+Use Alt+Left and Alt+Right to switch columns. Alt+Enter splits a left note or creates a right-note sibling. Ctrl+Enter creates a child from a right note. Alt+Up and Alt+Down move notes or rows. Ctrl+. enters children and Ctrl+, returns to the parent. Ctrl+Z undoes text and structure together. Ctrl+Shift+Z or Ctrl+Y redoes an action. The editor also accepts Cmd for Ctrl shortcuts on macOS.
+
+If the file changes outside the app, saving stops and offers Reload or Overwrite. Reload replaces your notes with the disk version and clears history. Overwrite saves your local notes against the current disk version.
+
+Unsaved notes are also stored in the browser's IndexedDB. On reload, Restore recovers them and Discard keeps the disk version. A changed disk document requires confirmation before recovery replaces it. Keep using the same browser and origin to access that recovery snapshot. Recovery storage failures appear in the app.
+
+A load error offers Retry. Start the local server if it is unreachable, check file permissions if it cannot read the file, or fix invalid JSON and schema errors before retrying.
+
+## Performance and native input
+
+Run the browser performance scenarios separately when collecting measurements.
+
+```sh
+pnpm test:performance
+```
+
+Each scenario attaches a JSON report with host and browser details. The 5,000-line note records 100 input-to-DOM samples after five warmups, including tree and history updates. It excludes physical input, native IME, and painting. The 1,000-row level records navigation-to-ready time and DOM size. Measurements use the development client and report the 8 ms input target without enforcing it as a timing assertion. Run on representative hardware before deciding whether to add virtualization.
+
+Follow [the native IME checks](docs/ime-checks.md) on macOS and Windows.
 
 ## Document API
 

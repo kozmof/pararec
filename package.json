@@ -25,6 +25,7 @@
     "test:local": "cd local && zig build test",
     "test:api": "pnpm build:local && node --test tests/api.test.mjs",
     "test:e2e": "TMPDIR=/tmp playwright test",
+    "test:performance": "TMPDIR=/tmp PARAREC_PERFORMANCE=1 playwright test tests/e2e/performance.spec.ts --workers=1 --output=test-results/performance",
     "test:unit": "TMPDIR=/tmp vitest run"
   },
   "dependencies": {

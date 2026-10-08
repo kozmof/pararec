@@ -125,7 +125,7 @@ describe("pad navigation", () => {
       vi.fn().mockRejectedValueOnce(new Error("Offline")).mockResolvedValueOnce(response()),
     );
     render(Pad);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Offline");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Cannot reach the local server");
     await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await screen.findByTestId("pad-level");
     expect(content("root-right")).toBeInTheDocument();
@@ -161,3 +161,25 @@ it("restores the Add row control after removing the final row", async () => {
   store.apply({ type: "removeContainer", id: store.schema.root[0].id });
   await waitFor(() => expect(screen.getByRole("button", { name: "Add row" })).toHaveFocus());
 });
+
+it.each([
+  ["unreadable", () => new Response(null, { status: 500 }), "permissions"],
+  ["invalid", () => new Response("{broken", { headers: { ETag: '"bad"' } }), "file is invalid"],
+])(
+  "keeps the editor closed after an %s load and recovers on Retry",
+  async (_name, failed, message) => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce((failed as () => Response)())
+      .mockResolvedValueOnce(response());
+    vi.stubGlobal("fetch", fetch);
+    render(Pad);
+    expect(await screen.findByRole("alert")).toHaveTextContent(message as string);
+    expect(screen.queryByTestId("editor-sink")).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(IndexedRecovery.prototype.write).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+    expect(fetch).toHaveBeenCalledTimes(2);
+  },
+);
