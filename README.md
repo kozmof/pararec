@@ -39,8 +39,6 @@ pnpm dev
 
 Open `http://127.0.0.1:5173`. Vite forwards `/api` requests to the local server on port 4545. The server lives in `local/`. The client build is written to `dist/`.
 
-Open `http://127.0.0.1:5173/#/editor-demo` to edit one fixture note. The demo supports selection, clipboard operations, IME composition, and undo/redo. Changes stay in memory and reset when leaving the demo. The demo uses soft wrapping and native text history. The pad uses one history for text and structure.
-
 ## Test
 
 Run the type checks, client unit tests, Zig tests, and HTTP integration tests.

@@ -130,11 +130,11 @@ describe("pad navigation", () => {
     await screen.findByTestId("pad-level");
     expect(content("root-right")).toBeInTheDocument();
   });
-  it("allows leaving for the isolated editor demo without rewriting its hash", async () => {
+  it("canonicalizes an unknown route to the root level", async () => {
     await opened();
-    window.history.replaceState(null, "", "#/editor-demo");
+    window.history.replaceState(null, "", "#/unknown");
     await fireEvent(window, new HashChangeEvent("hashchange"));
-    expect(window.location.hash).toBe("#/editor-demo");
+    expect(window.location.hash).toBe("#/");
   });
   it("aborts pending requests when unmounted", () => {
     let signal: AbortSignal | undefined;

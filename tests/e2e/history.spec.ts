@@ -47,5 +47,6 @@ test("undo and redo restore text, structure, and caret and survive saving", asyn
   await page.reload();
   await expect(page.getByTestId("editor-sink")).toBeFocused();
   await expect(page.locator('[data-content-id="flat-1-right"]')).toContainText("abc!?First note");
-  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.locator('[data-content-id="flat-1-right"]')).toContainText("abc!?First note");
 });

@@ -1,10 +1,25 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import type { Schema } from "../../client/src/schema.js";
+const fixture: Schema = JSON.parse(readFileSync("fixtures/flat.json", "utf8"));
+test.beforeEach(async ({ page }) => {
+  let disk = structuredClone(fixture),
+    revision = 1;
+  await page.route("**/api/document", async (route) => {
+    if (route.request().method() === "PUT") {
+      disk = route.request().postDataJSON();
+      revision++;
+      await route.fulfill({ status: 204, headers: { ETag: '"v' + revision + '"' } });
+    } else await route.fulfill({ json: disk, headers: { ETag: '"v' + revision + '"' } });
+  });
+});
 
 test("Japanese text wraps with visual-row navigation and selection", async ({ page }) => {
   await page.setViewportSize({ width: 500, height: 700 });
-  await page.goto("/#/editor-demo");
+  await page.goto("/");
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
   const sink = page.getByTestId("editor-sink");
-  const line = page.locator('[data-line="0"]');
+  const line = page.getByTestId("editor-surface").locator('[data-line="0"]');
   const text = "日本語の長い文章と English 👩‍🚀 を折り返して編集します。".repeat(8);
   await sink.focus();
   await page.keyboard.press("ControlOrMeta+a");
@@ -29,11 +44,12 @@ test("Japanese text wraps with visual-row navigation and selection", async ({ pa
   ).toBe(true);
 });
 
-test("editor demo supports text, selection, undo, and redo", async ({ page }) => {
-  await page.goto("/#/editor-demo");
-  await expect(page.getByRole("heading", { name: "Editor demo" })).toBeVisible();
+test("pad supports text, selection, undo, and redo", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
+  await expect(page.getByRole("main")).toBeVisible();
   const sink = page.getByTestId("editor-sink");
-  const line = page.locator('[data-line="0"]');
+  const line = page.getByTestId("editor-surface").locator('[data-line="0"]');
   await sink.focus();
   await page.keyboard.press("ControlOrMeta+End");
   await page.keyboard.type("!");
@@ -48,28 +64,36 @@ test("editor demo supports text, selection, undo, and redo", async ({ page }) =>
   await expect(line).toHaveText("replacement");
 });
 
-test("editor demo commits composition once and resets when leaving", async ({ page }) => {
-  await page.goto("/#/editor-demo");
+test("pad commits composition once and undoes it as one action", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
   const sink = page.getByTestId("editor-sink");
   await sink.focus();
   await sink.dispatchEvent("compositionstart", { data: "" });
   await sink.dispatchEvent("compositionupdate", { data: "にほん" });
   await expect(page.locator("[data-preedit]")).toHaveText("にほん");
   await sink.dispatchEvent("keydown", { key: "Enter", isComposing: true });
-  await expect(page.locator('[data-line="0"]')).toContainText("First note");
+  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toContainText(
+    "First note",
+  );
   await sink.dispatchEvent("compositionend", { data: "日本" });
-  await expect(page.locator('[data-line="0"]')).toHaveText("日本First note");
+  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText(
+    "日本First note",
+  );
   await page.keyboard.press("ControlOrMeta+z");
-  await expect(page.locator('[data-line="0"]')).toHaveText("First note");
-  await page.getByRole("link", { name: "Back", exact: true }).click();
-  await page.getByRole("link", { name: "Open editor demo" }).click();
-  await expect(page.locator('[data-line="0"]')).toHaveText("First note");
+  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText(
+    "First note",
+  );
+  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText(
+    "First note",
+  );
 });
 
 test("click placement and the IME sink follow span measurements", async ({ page }) => {
-  await page.goto("/#/editor-demo");
+  await page.goto("/");
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
   const sink = page.getByTestId("editor-sink");
-  const line = page.locator('[data-line="0"]');
+  const line = page.getByTestId("editor-surface").locator('[data-line="0"]');
   const click = await line.evaluate((el) => {
     const text = el.querySelector("[data-from]")!.firstChild!;
     const range = document.createRange();
@@ -119,9 +143,10 @@ test("click placement and the IME sink follow span measurements", async ({ page 
 });
 
 test("grapheme deletion and composition cancellation preserve whole text", async ({ page }) => {
-  await page.goto("/#/editor-demo");
+  await page.goto("/");
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
   const sink = page.getByTestId("editor-sink");
-  const line = page.locator('[data-line="0"]');
+  const line = page.getByTestId("editor-surface").locator('[data-line="0"]');
   await sink.focus();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.insertText("a👩‍🚀b");
@@ -138,39 +163,9 @@ test("grapheme deletion and composition cancellation preserve whole text", async
   await expect(line).toHaveText("a👩‍🚀b");
 });
 
-test("auto-height and read-only modes preserve the text layout", async ({ page }) => {
-  await page.goto("/#/editor-demo");
-  await page.getByLabel("Fit content height").check();
-  const surface = page.getByTestId("editor-surface");
-  const sink = page.getByTestId("editor-sink");
-  await sink.focus();
-  await page.keyboard.press("ControlOrMeta+End");
-  await page.keyboard.press("Enter");
-  await page.keyboard.type("second line");
-  await expect(surface.locator("[data-line]")).toHaveCount(2);
-  await expect.poll(async () => (await surface.boundingBox())!.height).toBe(56);
-  const before = await surface.locator('[data-line="1"]').boundingBox();
-  await page.getByLabel("Read only", { exact: true }).check();
-  await expect(sink).toHaveCount(0);
-  await expect(page.getByTestId("editor-cursor")).toHaveCount(0);
-  await expect(surface.locator('[data-line="1"]')).toHaveText("second line");
-  expect(await surface.locator('[data-line="1"]').boundingBox()).toEqual(before);
-  await page.getByLabel("Read only", { exact: true }).uncheck();
-  await sink.focus();
-  expect(await surface.locator('[data-line="1"]').boundingBox()).toEqual(before);
-  await expect
-    .poll(async () =>
-      surface.evaluate((el) => ({
-        height: el.clientHeight,
-        scrollHeight: el.scrollHeight,
-        overflow: getComputedStyle(el).overflowY,
-      })),
-    )
-    .toEqual({ height: 56, scrollHeight: 56, overflow: "visible" });
-});
-
 test("IME input follows text edges when collapsed caret ranges are empty", async ({ page }) => {
-  await page.goto("/#/editor-demo");
+  await page.goto("/");
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
   await expect(page.getByTestId("editor-sink")).toBeFocused();
   await page.evaluate(() => {
     const clientRects = Range.prototype.getClientRects;
@@ -185,16 +180,19 @@ test("IME input follows text edges when collapsed caret ranges are empty", async
   await page.keyboard.press("End");
   await expect
     .poll(async () =>
-      page.locator('[data-line="0"]').evaluate((el) => {
-        const text = el.querySelector('[data-from="0"]')!.firstChild!;
-        const range = document.createRange();
-        range.selectNodeContents(text);
-        const expected = range.getBoundingClientRect().right;
-        const actual = document
-          .querySelector('[data-testid="editor-sink"]')!
-          .getBoundingClientRect().left;
-        return Math.abs(expected - actual);
-      }),
+      page
+        .getByTestId("editor-surface")
+        .locator('[data-line="0"]')
+        .evaluate((el) => {
+          const text = el.querySelector('[data-from="0"]')!.firstChild!;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          const expected = range.getBoundingClientRect().right;
+          const actual = document
+            .querySelector('[data-testid="editor-sink"]')!
+            .getBoundingClientRect().left;
+          return Math.abs(expected - actual);
+        }),
     )
     .toBeLessThan(2);
   await page.getByTestId("editor-sink").dispatchEvent("compositionstart");

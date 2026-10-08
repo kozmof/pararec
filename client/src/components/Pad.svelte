@@ -132,7 +132,7 @@
   }
   function enter(id: string) { if (tree) navigate(containerPath(tree.index, id)); }
   function readHash(restore = true) {
-    if (!tree || window.location.hash === "#/editor-demo") return;
+    if (!tree) return;
     const next = validPath(tree.schema, pathFromHash(window.location.hash));
     const changed = pathHash(next) !== pathHash(path);
     if (changed && focused) blur(focused);
@@ -286,7 +286,6 @@
 </script>
 <svelte:window onkeydown={keydown} />
 <main bind:this={pad}>
-  <header><h1>Pararec</h1><div><button disabled={!history.canUndo || disabled} onclick={() => command("undo")}>Undo</button><button disabled={!history.canRedo || disabled} onclick={() => command("redo")}>Redo</button></div><a href="#/editor-demo">Open editor demo</a></header>
   {#if loading}<p role="status">Loading document…</p>
   {:else if error}<p role="alert">{error}</p><button onclick={load}>Retry</button>
   {:else if tree && session}
@@ -307,8 +306,6 @@
 </main>
 <style>
   main { max-width: 1100px; margin: 0 auto; padding: 24px; font-family: system-ui, sans-serif; }
-  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-  h1 { font-size: 24px; }
   .parent-heading { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 24px; max-height: 72px; overflow: hidden; margin-bottom: 16px; }
   .level { border: 1px solid #ddd; }
   .save-status { color: #666; font-size: 13px; margin-bottom: 12px; }
