@@ -94,3 +94,34 @@ test("grapheme deletion and composition cancellation preserve whole text", async
   await sink.dispatchEvent("compositionend", { data: "" });
   await expect(line).toHaveText("a👩‍🚀b");
 });
+
+test("auto-height and read-only modes preserve the text layout", async ({ page }) => {
+  await page.goto("/#/editor-demo");
+  await page.getByLabel("Fit content height").check();
+  const surface = page.getByTestId("editor-surface");
+  const sink = page.getByTestId("editor-sink");
+  await sink.focus();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("second line");
+  await expect(surface.locator("[data-line]")).toHaveCount(2);
+  await expect.poll(async () => (await surface.boundingBox())!.height).toBe(56);
+  const before = await surface.locator('[data-line="1"]').boundingBox();
+  await page.getByLabel("Read only", { exact: true }).check();
+  await expect(sink).toHaveCount(0);
+  await expect(page.getByTestId("editor-cursor")).toHaveCount(0);
+  await expect(surface.locator('[data-line="1"]')).toHaveText("second line");
+  expect(await surface.locator('[data-line="1"]').boundingBox()).toEqual(before);
+  await page.getByLabel("Read only", { exact: true }).uncheck();
+  await sink.focus();
+  expect(await surface.locator('[data-line="1"]').boundingBox()).toEqual(before);
+  await expect
+    .poll(async () =>
+      surface.evaluate((el) => ({
+        height: el.clientHeight,
+        scrollHeight: el.scrollHeight,
+        overflow: getComputedStyle(el).overflowY,
+      })),
+    )
+    .toEqual({ height: 56, scrollHeight: 56, overflow: "visible" });
+});

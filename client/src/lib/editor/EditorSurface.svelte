@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { css, cx } from "../../../../styled-system/css";
   import type { Caret, EditorDocument } from "./document-store.svelte.js";
   import { orderCarets, sameCaret } from "./document-store.svelte.js";
@@ -11,26 +11,35 @@
   } from "./geometry.js";
 
   import { domLineMeasurer } from "./line-measurer.js";
-  import { FixedLayout } from "./vertical-layout.js";
+  import EditorLine from "./EditorLine.svelte";
+  import {
+    MeasuredLayout, estimateLineHeight, captureScrollAnchor, anchorScrollTop,
+    spliceScrollAnchor, type ScrollAnchor,
+  } from "./vertical-layout.js";
 
   export type EditorMode = "insert" | "normal";
 
   let {
     doc,
-    caret = $bindable(),
-    anchor = $bindable(),
+    caret = $bindable({ line: 0, column: 0 }),
+    anchor = $bindable(null),
     mode = "insert",
     readonly = false,
+    autoHeight = false,
+    onHeight,
     onKeydown,
   }: {
     doc: EditorDocument;
     /** Where the caret is, in (line, column) characters. */
-    caret: Caret;
+    caret?: Caret;
     /** The other end of the selection, or null when there is none. */
-    anchor: Caret | null;
+    anchor?: Caret | null;
     /** Only the cursor's shape and whether typing inserts. Vim owns the rest. */
     mode?: EditorMode;
     readonly?: boolean;
+    /** Render every line and let the page own scrolling. */
+    autoHeight?: boolean;
+    onHeight?: (height: number) => void;
     /**
      * Offer each key to the host first. A true result skips default handling, allowing Vim
      * mode without coupling the surface to it.
@@ -49,7 +58,10 @@
   let sinkEl: HTMLTextAreaElement | undefined = $state();
   let scrollTop = $state(0);
   let viewportHeight = $state(400);
+  let viewportWidth = $state(600);
   let focused = $state(false);
+  let layoutVersion = $state(0);
+  let resizeObserver: ResizeObserver | null = null;
 
   /**
    * Track rendered line elements for event-time measurement. The `lineEl` action adds entries
@@ -59,8 +71,10 @@
 
   function lineEl(node: HTMLDivElement, lineNumber: number) {
     lineEls[lineNumber] = node;
+    resizeObserver?.observe(node);
     return {
       destroy() {
+        resizeObserver?.unobserve(node);
         delete lineEls[lineNumber];
       },
     };
@@ -76,17 +90,108 @@
   let compositionSelection: { start: Caret; end: Caret } | null = null;
 
   const measure = domLineMeasurer((line) => lineEls[line] ?? null);
-  const layout = $derived(new FixedLayout(doc.lineCount, LINE_HEIGHT));
+  const layout = $derived.by(() => {
+    const currentDoc = doc;
+    return untrack(() => new MeasuredLayout(currentDoc.lineCount, line =>
+      estimateLineHeight(currentDoc.lineText(line), viewportWidth - PAD_X * 2,
+        FONT_SIZE * 0.6, LINE_HEIGHT, false),
+    ));
+  });
 
-  const window_ = $derived(
-    visibleRange(
+  function scrollAnchor(): ScrollAnchor | null {
+    return !autoHeight && scrollEl ? captureScrollAnchor(layout, scrollEl.scrollTop, PAD_Y) : null;
+  }
+
+  function restoreScroll(anchor: ScrollAnchor | null): void {
+    if (!anchor || !scrollEl || autoHeight) return;
+    const element = scrollEl;
+    const target = anchorScrollTop(layout, anchor, PAD_Y);
+    element.scrollTop = target;
+    scrollTop = element.scrollTop;
+    const applied = element.scrollTop;
+    // Retry after the content height reaches the DOM, unless the user has scrolled again.
+    void tick().then(() => {
+      if (scrollEl === element && element.scrollTop === applied) {
+        element.scrollTop = target;
+        scrollTop = element.scrollTop;
+      }
+    });
+  }
+
+  $effect(() => {
+    const currentDoc = doc;
+    const currentLayout = layout;
+    return currentDoc.subscribeEdits(({ change }) => {
+      if (currentDoc !== doc) return;
+      let anchor = scrollAnchor();
+      currentLayout.splice(change.fromLine, change.oldEndLine - change.fromLine,
+        change.newEndLine - change.fromLine);
+      if (anchor) anchor = spliceScrollAnchor(anchor, change.fromLine, change.oldEndLine,
+        change.newEndLine, currentLayout.lineCount);
+      layoutVersion++;
+      restoreScroll(anchor);
+    });
+  });
+
+  onMount(() => {
+    resizeObserver = new ResizeObserver(entries => {
+      const anchor = scrollAnchor();
+      let changed = false;
+      const root = entries.find(entry => entry.target === scrollEl);
+      if (root) {
+        const width = root.contentRect.width;
+        if (width > 0 && width !== viewportWidth) {
+          viewportWidth = width;
+          layout.resetEstimates();
+          changed = true;
+        }
+        if (root.contentRect.height > 0) viewportHeight = root.contentRect.height;
+      }
+      for (const entry of entries) {
+        if (entry.target !== scrollEl) {
+          const line = Number((entry.target as HTMLElement).dataset.line);
+          if (lineEls[line] !== entry.target || line >= layout.lineCount) continue;
+          if (entry.contentRect.height > 0)
+            changed = layout.setHeight(line, entry.contentRect.height) || changed;
+        }
+      }
+      if (changed) {
+        layoutVersion++;
+        measurementVersion++;
+        restoreScroll(anchor);
+      }
+    });
+    if (scrollEl) {
+      resizeObserver.observe(scrollEl);
+      if (scrollEl.clientHeight > 0) viewportHeight = scrollEl.clientHeight;
+    }
+    for (const element of Object.values(lineEls)) if (element) resizeObserver.observe(element);
+    return () => {
+      resizeObserver?.disconnect();
+      resizeObserver = null;
+    };
+  });
+
+  const window_ = $derived.by(() => {
+    void layoutVersion;
+    if (autoHeight) return { startLine: 0, visibleLineCount: doc.lineCount };
+    return visibleRange(
       { scrollTop, height: viewportHeight, layout, lineCount: doc.lineCount },
       OVERSCAN,
-    ),
-  );
+    );
+  });
   const lines = $derived(doc.visibleLines(window_.startLine, window_.visibleLineCount, 0));
-  const contentHeight = $derived(layout.totalHeight);
+  const contentHeight = $derived.by(() => {
+    void layoutVersion;
+    return layout.totalHeight;
+  });
   let measurementVersion = $state(0);
+
+  $effect(() => {
+    const height = contentHeight + PAD_Y * 2;
+    const notify = onHeight;
+    untrack(() => notify?.(height));
+  });
 
   // Read geometry after Svelte has updated the spans, including composition text.
   $effect(() => {
@@ -97,7 +202,22 @@
     void composing;
     let active = true;
     void tick().then(() => {
-      if (active) measurementVersion++;
+      if (!active) return;
+      const anchor = scrollAnchor();
+      let changed = false;
+      // An edited line may keep its old DOM height, so ResizeObserver would not report it
+      // after splice replaced that measurement with an estimate. Read mounted lines too.
+      for (const [number, element] of Object.entries(lineEls)) {
+        const line = Number(number);
+        const height = element?.getBoundingClientRect().height ?? 0;
+        if (height > 0 && line < layout.lineCount)
+          changed = layout.setHeight(line, height) || changed;
+      }
+      if (changed) {
+        layoutVersion++;
+        restoreScroll(anchor);
+      }
+      measurementVersion++;
     });
     return () => {
       active = false;
@@ -112,16 +232,18 @@
   // Recomputed against the document's revision as well as the carets, because the same
   // (line, column) pair sits at a different pixel once the text around it has changed.
   const rects = $derived.by(() => {
+    void layoutVersion;
     void measurementVersion;
     void doc.state.revision;
     void lines;
-    if (!selection) return [];
+    if (readonly || !selection) return [];
     return selectionRects(selection.start, selection.end, layout, measure, (line) =>
       doc.lineText(line).length,
     );
   });
 
   const caretXY = $derived.by(() => {
+    void layoutVersion;
     void measurementVersion;
     void doc.state.revision;
     void lines;
@@ -389,6 +511,10 @@
     doc.closeHistoryGroup();
   }
 
+  $effect(() => {
+    if (readonly) untrack(handleBlur);
+  });
+
   /**
    * Handle text input that arrives without keydown, such as mobile keyboard commits or
    * dictation. Composition uses its separate handler.
@@ -450,6 +576,7 @@
   }
 
   function handleMousedown(event: MouseEvent): void {
+    if (readonly) return;
     if (event.button !== 0) return;
     // Dragging the scrollbar is the browser's, and preventing its default below would stop
     // the thumb from moving.
@@ -481,25 +608,20 @@
   // Follow caret changes without depending on reactive scroll state. Read the element's
   // current viewport directly so manual scrolling does not trigger a jump back to the caret.
   $effect(() => {
-    const top = layout.top(caret.line);
-    const height = layout.height(caret.line);
-    if (!scrollEl) return;
-    const viewTop = scrollEl.scrollTop;
-    const viewHeight = scrollEl.clientHeight;
-    // Before the panel has been laid out there is no view to be in or out of, and scrolling
-    // against a zero height would only move the file away from the caret.
-    if (viewHeight === 0) return;
-    if (top < viewTop) scrollEl.scrollTop = top;
-    else if (top + height > viewTop + viewHeight)
-      scrollEl.scrollTop = top + height - viewHeight;
-  });
-
-  const lineClass = css({
-    position: "absolute",
-    left: "0",
-    right: "0",
-    whiteSpace: "pre",
-    lineHeight: "20px",
+    const currentCaret = caret;
+    const currentLayout = layout;
+    if (autoHeight || readonly) return;
+    untrack(() => {
+      const top = currentLayout.top(currentCaret.line);
+      const height = currentLayout.height(currentCaret.line);
+      if (!scrollEl) return;
+      const viewTop = scrollEl.scrollTop;
+      const viewHeight = scrollEl.clientHeight;
+      if (viewHeight === 0) return;
+      if (top < viewTop) scrollEl.scrollTop = top;
+      else if (top + height > viewTop + viewHeight)
+        scrollEl.scrollTop = top + height - viewHeight;
+    });
   });
 </script>
 
@@ -514,12 +636,15 @@
     fontFamily: "mono",
     fontSize: "12.5px",
     color: "ink.black",
-    cursor: "text",
     outline: "none",
   })}
+  style:flex={autoHeight ? "none" : "1"}
+  style:height={autoHeight ? `${contentHeight + PAD_Y * 2}px` : undefined}
+  style:overflow={autoHeight ? "visible" : "auto"}
+  style:overflow-anchor={autoHeight ? "auto" : "none"}
+  style:cursor={readonly ? "default" : "text"}
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
   onmousedown={handleMousedown}
-  bind:clientHeight={viewportHeight}
   data-testid="editor-surface"
 >
   <!-- Size the scroll area for the whole document, including virtualized lines. Keep this element unpadded because its children are absolutely positioned. Apply text padding to lines and caret or selection coordinates instead. -->
@@ -548,29 +673,15 @@
 
     <!-- Text: only the window, absolutely positioned by line number. -->
     {#each lines as line (line.lineNumber)}
-      <div
-        use:lineEl={line.lineNumber}
-        class={lineClass}
-        data-line={line.lineNumber}
-        style:top={`${layout.top(line.lineNumber) + PAD_Y}px`}
-        style:height={`${layout.height(line.lineNumber)}px`}
-        style:padding-left={`${PAD_X}px`}
-        style:padding-right={`${PAD_X}px`}
-        style:z-index="1"
-      >{#if composing && preedit && line.lineNumber === caret.line}<span data-from="0"
-          >{line.content.slice(0, caret.column)}</span
-        ><span
-            class={css({ textDecoration: "underline", textUnderlineOffset: "2px" })}
-            data-from={caret.column}
-            data-preedit>{preedit}</span
-        ><span data-from={caret.column + preedit.length}
-          >{line.content.slice(caret.column)}</span
-        >{:else}<span data-from="0">{line.content}</span>{/if}</div>
+      <EditorLine line={line.lineNumber} text={line.content}
+        top={layout.top(line.lineNumber) + PAD_Y} padding={PAD_X} rowHeight={LINE_HEIGHT}
+        preedit={composing && line.lineNumber === caret.line ? preedit : ""}
+        column={caret.column} register={lineEl} />
     {/each}
 
     <!-- Cursor: a sibling of the text, never spliced into it, so drawing it cannot move
          a single character on the line. -->
-    {#if focused && !composing}
+    {#if !readonly && focused && !composing}
       <div
         class={cx(
           css({ position: "absolute", pointerEvents: "none", zIndex: "2" }),
@@ -588,7 +699,7 @@
 
     <!-- The IME sink. One pixel, invisible, parked at the caret so the candidate window
          opens where the text will land. It renders nothing and holds no document text. -->
-    <textarea
+    {#if !readonly}<textarea
       bind:this={sinkEl}
       class={css({
         position: "absolute",
@@ -621,6 +732,6 @@
       autocomplete="off"
       aria-label="File contents"
       data-testid="editor-sink"
-    ></textarea>
+    ></textarea>{/if}
   </div>
 </div>

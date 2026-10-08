@@ -9,6 +9,8 @@
   let caret = $state<Caret>({ line: 0, column: 0 });
   let anchor = $state<Caret | null>(null);
   let surface: EditorSurface | undefined = $state();
+  let autoHeight = $state(false);
+  let readOnly = $state(false);
 
   onMount(() => {
     surface?.focus();
@@ -20,8 +22,12 @@
   <a href="#/">Back</a>
   <h1>Editor demo</h1>
   <p>Edit a sample note. Changes stay in this demo until you leave.</p>
-  <div class="editor">
-    <EditorSurface bind:this={surface} {doc} bind:caret bind:anchor />
+  <div class="options">
+    <label><input type="checkbox" bind:checked={autoHeight} /> Fit content height</label>
+    <label><input type="checkbox" bind:checked={readOnly} /> Read only</label>
+  </div>
+  <div class="editor" class:auto-height={autoHeight}>
+    <EditorSurface bind:this={surface} {doc} bind:caret bind:anchor {autoHeight} readonly={readOnly} />
   </div>
 </main>
 
@@ -50,5 +56,15 @@
     height: min(32rem, 65vh);
     min-height: 12rem;
     border: 1px solid #cccccc;
+  }
+  .options {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .editor.auto-height {
+    display: block;
+    height: auto;
+    min-height: 0;
   }
 </style>

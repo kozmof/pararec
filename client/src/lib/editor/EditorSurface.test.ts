@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
+import { tick } from "svelte";
 import EditorSurface from "./EditorSurface.svelte";
 import { EditorDocument } from "./document-store.svelte.js";
 
@@ -320,10 +321,12 @@ describe("EditorSurface", () => {
   });
 
   it("accepts no edit when readonly", async () => {
-    const { doc, sink } = mount("a\n", { caret: { line: 0, column: 1 }, readonly: true });
-    sink.focus();
-    await userEvent.keyboard("b{Enter}{Backspace}");
+    const doc = new EditorDocument("a\n");
+    render(EditorSurface, { props: { doc, readonly: true } });
+    expect(screen.queryByTestId("editor-sink")).toBeNull();
+    await fireEvent.keyDown(screen.getByTestId("editor-surface"), { key: "b" });
     expect(doc.text()).toBe("a\n");
+    doc.dispose();
   });
 
   it("takes focus back when the text is clicked after being unfocused", async () => {
@@ -432,13 +435,15 @@ describe("EditorSurface test hooks", () => {
     expect(drawn.length).toBeLessThanOrEqual(doc.lineCount);
   });
 
-  it("paints a selection as its own rectangles", () => {
+  it("paints a selection as its own rectangles", async () => {
     mount("hello world\n", {
       caret: { line: 0, column: 5 },
       anchor: { line: 0, column: 0 },
     });
     // One line selected, so one rectangle. The count is what the browser specs assert
     // against, and jsdom can at least confirm they are drawn at all.
+    await tick();
+    await tick();
     expect(document.querySelectorAll("[data-testid='editor-selection']")).toHaveLength(1);
   });
 
