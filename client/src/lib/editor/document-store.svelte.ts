@@ -66,15 +66,16 @@ export class EditorDocument {
     return current;
   }
 
-  /**
-   * The revision the file was last read or saved at. What `dirty` is measured against, so
-   * an edit and its undo leave the file reported as unmodified again.
-   */
-  savedRevision = $state(0);
+  /** Content last read or saved, so returning to it through undo or redo is clean. */
+  #savedContent = $state("");
+
+  /** Cache the comparison until the document or saved content changes. */
+  #dirty = $derived(this.text() !== this.#savedContent);
 
   constructor(content: string) {
     this.#store = store.createDocumentStore({ content, undoGroupTimeout: UNDO_GROUP_MS });
     this.#current = this.#store.getSnapshot();
+    this.#savedContent = this.text();
     this.#unsubscribe = this.#store.subscribe(() => {
       this.#current = this.#store.getSnapshot();
     });
@@ -104,12 +105,12 @@ export class EditorDocument {
   }
 
   get dirty(): boolean {
-    return this.state.revision !== this.savedRevision;
+    return this.#dirty;
   }
 
-  /** Marks the current revision as what is on disk. Called after a save. */
+  /** Marks the current content as what is on disk. Called after a save. */
   markSaved(): void {
-    this.savedRevision = this.state.revision;
+    this.#savedContent = this.text();
   }
 
   /**

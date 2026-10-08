@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { history, position, scan, store, type ContentChangeEvent } from "@kozmof/reed";
+import {
+  history,
+  position,
+  query,
+  rendering,
+  scan,
+  store,
+  type ContentChangeEvent,
+} from "@kozmof/reed";
 
 /** Guard the Reed capabilities that determine Pararec's app-wide history strategy. */
 describe("Reed 4 history integration", () => {
@@ -74,6 +82,39 @@ describe("Reed 4 history integration", () => {
       doc.dispatch(store.DocumentActions.redo());
       expect(changes).toHaveLength(1);
       expect(directions).toEqual(["undo", "redo"]);
+    } finally {
+      doc.dispose();
+    }
+  });
+
+  it("renders multiline undo and redo accurately before reconciliation", () => {
+    const doc = store.createDocumentStore({ content: "a\n日本😀\nz", reconcileMode: "none" });
+    try {
+      doc.dispatch(store.DocumentActions.insert(position.byteOffset(2), "x\ny\n"));
+      for (const action of [store.DocumentActions.undo(), store.DocumentActions.redo()]) {
+        doc.dispatch(action);
+        const state = doc.getSnapshot();
+        const undone = action.type === "UNDO";
+        const line = undone ? 1 : 3;
+        const offset = undone ? 2 : 6;
+        expect(state.lineIndex.rebuildPending).toBe(true);
+        expect(query.getLineCount(state)).toBe(undone ? 3 : 5);
+        expect(
+          rendering
+            .getVisibleLines(state, {
+              startLine: 0,
+              visibleLineCount: 10,
+              overscan: 0,
+            })
+            .lines.map(({ content }) => content),
+        ).toEqual(undone ? ["a", "日本😀", "z"] : ["a", "x", "y", "日本😀", "z"]);
+        expect(rendering.getLineContent(state, line)).toBe("日本😀");
+        expect(rendering.lineColumnToPosition(state, line, 4)).toBe(offset + 10);
+        expect(rendering.positionToLineColumn(state, position.byteOffset(offset + 10))).toEqual({
+          line,
+          column: 4,
+        });
+      }
     } finally {
       doc.dispose();
     }

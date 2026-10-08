@@ -365,6 +365,38 @@ describe("EditorDocument", () => {
     expect(d.dirty).toBe(true);
   });
 
+  it("becomes clean when undo returns to the opened content", () => {
+    const d = doc("日本😀\n");
+    try {
+      d.insert({ line: 0, column: 4 }, "!");
+      expect(d.dirty).toBe(true);
+      d.undo();
+      expect(d.dirty).toBe(false);
+      d.redo();
+      expect(d.dirty).toBe(true);
+    } finally {
+      d.dispose();
+    }
+  });
+
+  it("tracks saved content across undo, redo, and an equivalent replacement", () => {
+    const d = doc("a\n");
+    try {
+      d.insert({ line: 0, column: 1 }, "b");
+      d.markSaved();
+      d.undo();
+      expect(d.dirty).toBe(true);
+      d.redo();
+      expect(d.dirty).toBe(false);
+      d.replace({ line: 0, column: 0 }, { line: 0, column: 2 }, "different");
+      expect(d.dirty).toBe(true);
+      d.replace({ line: 0, column: 0 }, { line: 0, column: 9 }, "ab");
+      expect(d.dirty).toBe(false);
+    } finally {
+      d.dispose();
+    }
+  });
+
   it("clamps a caret into the document and into its line", () => {
     const d = doc("hello\nhi\n");
     expect(d.clamp({ line: 99, column: 0 })).toEqual({ line: 2, column: 0 });
