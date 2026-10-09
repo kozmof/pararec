@@ -117,7 +117,8 @@ describe("pad navigation", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Add row" }));
     await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
     expect(window.location.hash).toBe("#/c/root/child/grandchild");
-    expect(document.querySelectorAll("[data-container-id]")).toHaveLength(1);
+    expect(screen.getByTestId("pad-level").querySelectorAll("[data-container-id]")).toHaveLength(1);
+    expect(screen.getByTestId("parent-level").querySelectorAll("[data-content-id]")).toHaveLength(1);
   });
   it("shows a failed load and retries", async () => {
     vi.stubGlobal(

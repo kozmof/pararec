@@ -14,6 +14,7 @@
   import { CONTENT_HOST, type ContentHost, type Entry, type Boundary, type Command } from "../lib/editor/content-host.js";
   import ContainerRow from "./ContainerRow.svelte";
   import Breadcrumb from "./Breadcrumb.svelte";
+  import ContentView from "./ContentView.svelte";
 
   let tree = $state<TreeStore | null>(null);
   let session = $state<SaveSession | null>(null);
@@ -116,7 +117,7 @@
     if (!active || disabled || version !== navigationVersion) return;
     const target = preferred ?? focusByLevel.get(pathHash(path));
     const elements = [...pad.querySelectorAll<HTMLElement>("[data-content-id]")];
-    const element = elements.find(element => element.dataset.contentId === target) ?? elements.find(element => element.getAttribute("aria-label") === "Right note");
+    const element = elements.find(element => element.dataset.contentId === target) ?? elements.find(element => element.closest('[data-testid="pad-level"]') && element.getAttribute("aria-label") === "Right note");
     if (element) {
       if (nextEntry) { if (focused && focused !== element.dataset.contentId) blur(focused); focused = element.dataset.contentId!; entry = nextEntry; focusByLevel.set(pathHash(path), focused); }
       element.focus();
@@ -221,11 +222,11 @@
     if (!current || current.side === "container") return;
     const visibleRows = [...pad.querySelectorAll<HTMLElement>("[data-container-id]")]
       .map(element => tree!.index.get(element.dataset.containerId!)!.container);
-    const topIds = new Set(rows.map(row => row.id));
+    const topIds = new Set([...rows.map(row => row.id), ...(parent ? [parent.id] : [])]);
     const nested = !topIds.has(current.container.id);
     let target: string | undefined;
     if (direction === "left" || direction === "right") {
-      const notes = visibleRows.flatMap(row => [...row.left.map(note => note.id), row.right.id]);
+      const notes = [...pad.querySelectorAll<HTMLElement>("[data-content-id]")].map(element => element.dataset.contentId!);
       const at = notes.indexOf(focused);
       target = notes[at + (direction === "left" ? -1 : 1)];
     } else {
@@ -244,6 +245,7 @@
         const notes = siblings.flatMap(row => row.left);
         const at = notes.findIndex(note => note.id === focused);
         target = notes[at + (backwards ? -1 : 1)]?.id;
+        if (!target && backwards && !nested && parent && current.container.id !== parent.id) target = parent.right.id;
         if (!target && nested) {
           const parent = tree.index.get(current.parentId!)!.container;
           const after = visibleRows.findIndex(row => row.id === siblings.at(-1)?.id) + 1;
@@ -292,7 +294,7 @@
     }
     const current = tree.index.get(focused)!;
     if (command === "enter") { if (current.side === "right" && current.container.right.children.length) enter(current.container.id); }
-    else if (command === "otherColumnLeft" && current.side === "right") void restoreFocus(current.container.left[0].id);
+    else if (command === "otherColumnLeft" && current.side === "right" && current.container.id !== parent?.id) void restoreFocus(current.container.left[0].id);
     else if (command === "otherColumnRight" && current.side === "left") void restoreFocus(current.container.right.id);
 
   }
@@ -336,7 +338,7 @@
     {#if recoverySnapshot}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="Recover unsaved notes" aria-modal="true"><p>{confirmRestore ? "The disk document has changed since these notes were saved locally. Confirm restoring your notes over the current disk version." : "Unsaved notes are available from an earlier session."}</p><button onclick={restoreRecovery}>{confirmRestore ? "Confirm restore" : "Restore"}</button><button onclick={discardRecovery}>Discard</button></dialog>{/if}
     <div inert={disabled}>
       <Breadcrumb {ancestors} onup={depth => navigate(path.slice(0, depth))} />
-      {#if parent}<div class="parent-heading">{parent.right.text || "Untitled"}</div>{/if}
+      {#if parent}<div class="level parent-row" data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right" /></div>{/if}
       <div class="level" data-testid="pad-level" data-etag={session.etag ?? ""}>
         {#each rows as container (container.id)}<ContainerRow {container} onenter={enter} />
         {:else}<button bind:this={addButton} class="add-row" onclick={addRow}>Add row</button>{/each}
@@ -346,8 +348,8 @@
 </main>
 <style>
   main { max-width: 1100px; margin: 0 auto; padding: 24px; font-family: system-ui, sans-serif; }
-  .parent-heading { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 24px; max-height: 72px; overflow: hidden; margin-bottom: 16px; }
   .level { border: 1px solid #ddd; }
+  .parent-row { border-bottom: 0; }
   .save-status { color: #666; font-size: 13px; margin-bottom: 12px; }
   .add-row { width: 100%; padding: 20px; cursor: pointer; }
   dialog { border: 1px solid #b78b40; padding: 16px; margin-bottom: 16px; }
