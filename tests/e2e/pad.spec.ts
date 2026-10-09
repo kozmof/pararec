@@ -22,7 +22,7 @@ test("nested levels support mouse, keyboard, reload, and browser history", async
   await page.keyboard.press("ControlOrMeta+,");
   await expect(root).toBeVisible();
   await expect(child.getByTestId("editor-sink")).toBeFocused();
-  await page.getByRole("button", { name: "Open children of Child note" }).click();
+  await page.getByRole("button", { name: "Go deeper into Child note" }).click();
   await expect(grandchild.getByTestId("editor-sink")).toBeFocused();
   await page.reload();
   await expect(grandchild.getByTestId("editor-sink")).toBeFocused();

@@ -13,7 +13,6 @@
   import { ContentCache, type ContentChange } from "../lib/editor/content-cache.js";
   import { CONTENT_HOST, type ContentHost, type Entry, type Boundary, type Command } from "../lib/editor/content-host.js";
   import ContainerRow from "./ContainerRow.svelte";
-  import Breadcrumb from "./Breadcrumb.svelte";
   import ContentView from "./ContentView.svelte";
 
   let tree = $state<TreeStore | null>(null);
@@ -337,8 +336,7 @@
     {#if recoveryError || session.recoveryError}<p role="alert">{recoveryError || session.recoveryError}</p>{/if}
     {#if recoverySnapshot}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="Recover unsaved notes" aria-modal="true"><p>{confirmRestore ? "The disk document has changed since these notes were saved locally. Confirm restoring your notes over the current disk version." : "Unsaved notes are available from an earlier session."}</p><button onclick={restoreRecovery}>{confirmRestore ? "Confirm restore" : "Restore"}</button><button onclick={discardRecovery}>Discard</button></dialog>{/if}
     <div inert={disabled}>
-      <Breadcrumb {ancestors} onup={depth => navigate(path.slice(0, depth))} />
-      {#if parent}<div class="level parent-row" data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right" /></div>{/if}
+      {#if parent}<div class="level parent-row" data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right" /><button class="go-back" onclick={() => navigate(path.slice(0, -1))}>Go back</button></div>{/if}
       <div class="level" data-testid="pad-level" data-etag={session.etag ?? ""}>
         {#each rows as container (container.id)}<ContainerRow {container} onenter={enter} />
         {:else}<button bind:this={addButton} class="add-row" onclick={addRow}>Add row</button>{/each}
@@ -350,6 +348,7 @@
   main { max-width: 1100px; margin: 0 auto; padding: 24px; font-family: system-ui, sans-serif; }
   .level { border: 1px solid #ddd; }
   .parent-row { border-bottom: 0; }
+  .go-back { margin: 0 12px 12px; padding: 3px 8px; }
   .save-status { color: #666; font-size: 13px; margin-bottom: 12px; }
   .add-row { width: 100%; padding: 20px; cursor: pointer; }
   dialog { border: 1px solid #b78b40; padding: 16px; margin-bottom: 16px; }

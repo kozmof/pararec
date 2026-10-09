@@ -38,13 +38,15 @@ async function key(key: string, isComposing = false) {
 }
 
 describe("pad navigation", () => {
-  it("shows one level of nested children and badges for deeper levels", async () => {
+  it("shows one level of nested children and Go deeper controls", async () => {
     await opened();
     expect(content("root-right")).toHaveTextContent("Root note");
     expect(content("child-right")).toHaveTextContent("Child note");
     expect(content("grandchild-right")).toBeNull();
-    expect(screen.getByRole("button", { name: "Open children of Child note" })).toHaveTextContent(
-      "1 child",
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Go back" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go deeper into Child note" })).toHaveTextContent(
+      "Go deeper",
     );
     await waitFor(() =>
       expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
@@ -52,17 +54,17 @@ describe("pad navigation", () => {
     expect(screen.getAllByTestId("editor-sink")).toHaveLength(1);
     expect(screen.getByTestId("pad-level")).toHaveAttribute("data-etag", '"v1"');
   });
-  it("enters visible nested Containers and restores focus through breadcrumbs", async () => {
+  it("enters visible nested Containers and restores focus with Go back", async () => {
     await opened();
     content("child-right").focus();
-    await fireEvent.click(screen.getByRole("button", { name: "Open children of Child note" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Child note" }));
     await waitFor(() => expect(window.location.hash).toBe("#/c/root/child"));
     await waitFor(() =>
       expect(
         content("grandchild-right").querySelector('[data-testid="editor-sink"]'),
       ).toHaveFocus(),
     );
-    await fireEvent.click(screen.getByRole("button", { name: /^Root$/ }));
+    await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
     await waitFor(() =>
       expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
     );

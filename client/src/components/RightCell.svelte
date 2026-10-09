@@ -7,7 +7,7 @@
 <div class="right-cell">
   <ContentView content={container.right} label="Right note" side="right" />
   {#if container.right.children.length}
-    <button class="count" onclick={() => onenter(container.id)} aria-label={`Open children of ${container.right.text.split("\n")[0] || "Untitled"}`}>{container.right.children.length} {container.right.children.length === 1 ? "child" : "children"}</button>
+    <button class="go-deeper" onclick={() => onenter(container.id)} aria-label={`Go deeper into ${container.right.text.split("\n")[0] || "Untitled"}`}>Go deeper</button>
     {#if depth === 0}
       <div class="nested">
         {#each container.right.children as child (child.id)}
@@ -19,6 +19,6 @@
 </div>
 <style>
   .right-cell { min-width: 0; display: flex; flex-direction: column; border-left: 1px solid #ddd; }
-  .count { align-self: flex-start; margin: 0 12px 12px; padding: 3px 8px; cursor: pointer; }
+  .go-deeper { align-self: flex-start; margin: 0 12px 12px; padding: 3px 8px; cursor: pointer; }
   .nested { border-top: 1px solid #ddd; }
 </style>

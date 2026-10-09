@@ -581,7 +581,7 @@ it("Shift Right wraps through three child records and Shift Left reverses the se
 it("edits the parent row in a deeper layer and preserves edits when leaving and reentering", async () => {
   disk = JSON.parse(readFileSync("fixtures/three-levels.json", "utf8"));
   await opened();
-  await fireEvent.click(screen.getByRole("button", { name: "Open children of Child note" }));
+  await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Child note" }));
   await waitFor(() => expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
   const parentRow = screen.getByTestId("parent-level");
   expect(parentRow.querySelectorAll("[data-content-id]")).toHaveLength(1);
@@ -603,7 +603,7 @@ it("edits the parent row in a deeper layer and preserves edits when leaving and 
   await waitFor(() => expect(window.location.hash).toBe("#/c/root"));
   expect(content("child-right")).toHaveTextContent("!Child note");
   expect(content("child-left")).toHaveTextContent("");
-  await fireEvent.click(screen.getByRole("button", { name: "Open children of !Child note" }));
+  await fireEvent.click(screen.getByRole("button", { name: "Go deeper into !Child note" }));
   await waitFor(() => expect(window.location.hash).toBe("#/c/root/child"));
   expect(screen.getByTestId("parent-level")).toHaveTextContent("!Child note");
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
