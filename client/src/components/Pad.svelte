@@ -230,11 +230,15 @@
       target = notes[at + (direction === "left" ? -1 : 1)];
     } else {
       const backwards = direction === "up";
-      if (current.side === "right") {
+      if (backwards && nested && current.side === "right") {
+        target = current.container.left.at(-1)?.id;
+      } else if (current.side === "right") {
         const at = visibleRows.findIndex(row => row.id === current.container.id);
         const next = visibleRows[at + (backwards ? -1 : 1)];
         const enteringChild = !backwards && next && current.container.right.children.some(child => child.id === next.id);
-        target = enteringChild ? next.left[0].id : next?.right.id;
+        const enteringPreviousChildren = backwards && next && !topIds.has(next.id);
+        target = enteringChild ? next.left[0].id
+          : enteringPreviousChildren ? next.left.at(-1)?.id : next?.right.id;
       } else {
         const siblings = nested ? tree.index.get(current.parentId!)!.container.right.children : rows;
         const notes = siblings.flatMap(row => row.left);

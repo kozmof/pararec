@@ -527,8 +527,11 @@ it("Shift arrows move focus through columns, children, and the next record", asy
   await move("ArrowRight", "child-a-right");
   await move("ArrowDown", "child-b-right");
   await move("ArrowDown", "flat-2-right");
-  await move("ArrowUp", "child-b-right");
-  await move("ArrowLeft", "child-b-left");
+  await move("ArrowUp", "child-b-left");
+  await move("ArrowUp", "child-a-left");
+  await move("ArrowUp", "flat-1-right");
+  await move("ArrowDown", "child-a-left");
+  await move("ArrowDown", "child-b-left");
   await move("ArrowDown", "flat-2-right");
   await move("ArrowLeft", "flat-2-left");
   await move("ArrowUp", "flat-1-left");
