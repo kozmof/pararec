@@ -232,7 +232,9 @@
       const backwards = direction === "up";
       if (current.side === "right") {
         const at = visibleRows.findIndex(row => row.id === current.container.id);
-        target = visibleRows[at + (backwards ? -1 : 1)]?.right.id;
+        const next = visibleRows[at + (backwards ? -1 : 1)];
+        const enteringChild = !backwards && next && current.container.right.children.some(child => child.id === next.id);
+        target = enteringChild ? next.left[0].id : next?.right.id;
       } else {
         const siblings = nested ? tree.index.get(current.parentId!)!.container.right.children : rows;
         const notes = siblings.flatMap(row => row.left);
