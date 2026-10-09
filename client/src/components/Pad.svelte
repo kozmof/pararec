@@ -215,7 +215,41 @@
     if (!target) return;
     void restoreFocus(target.dataset.contentId, { kind: "edge", edge: backwards ? "end" : "start", ...((direction === "up" || direction === "down") ? { goalX } : {}) });
   }
+  function moveCell(direction: Boundary) {
+    if (!tree || !focused || disabled) return;
+    const current = tree.index.get(focused);
+    if (!current || current.side === "container") return;
+    const visibleRows = [...pad.querySelectorAll<HTMLElement>("[data-container-id]")]
+      .map(element => tree!.index.get(element.dataset.containerId!)!.container);
+    const topIds = new Set(rows.map(row => row.id));
+    const nested = !topIds.has(current.container.id);
+    let target: string | undefined;
+    if (direction === "left" || direction === "right") {
+      const notes = visibleRows.flatMap(row => [...row.left.map(note => note.id), row.right.id]);
+      const at = notes.indexOf(focused);
+      target = notes[at + (direction === "left" ? -1 : 1)];
+    } else {
+      const backwards = direction === "up";
+      if (current.side === "right") {
+        const at = visibleRows.findIndex(row => row.id === current.container.id);
+        target = visibleRows[at + (backwards ? -1 : 1)]?.right.id;
+      } else {
+        const siblings = nested ? tree.index.get(current.parentId!)!.container.right.children : rows;
+        const notes = siblings.flatMap(row => row.left);
+        const at = notes.findIndex(note => note.id === focused);
+        target = notes[at + (backwards ? -1 : 1)]?.id;
+        if (!target && nested) {
+          const parent = tree.index.get(current.parentId!)!.container;
+          const after = visibleRows.findIndex(row => row.id === siblings.at(-1)?.id) + 1;
+          target = backwards ? parent.right.id : visibleRows[after]?.right.id;
+        }
+      }
+    }
+    if (target) void restoreFocus(target, { kind: "edge", edge: "start" });
+  }
   function command(command: Command, caret: Caret = { line: 0, column: 0 }) {
+    const direction = ({ focusLeft: "left", focusRight: "right", focusUp: "up", focusDown: "down" } as Partial<Record<Command, Boundary>>)[command];
+    if (direction) { moveCell(direction); return; }
     if (command === "undo" || command === "redo") {
       if (disabled || !tree) return;
       const target = command === "undo" ? history.undo() : history.redo();

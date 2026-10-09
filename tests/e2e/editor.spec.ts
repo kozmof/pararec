@@ -31,7 +31,7 @@ test("Japanese text wraps with visual-row navigation and selection", async ({ pa
   await page.keyboard.press("ArrowDown");
   await expect.poll(async () => Math.round((await sink.boundingBox())!.y - start.y)).toBe(20);
   await page.keyboard.press("Home");
-  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Shift+End");
   await expect.poll(() => page.getByTestId("editor-selection").count()).toBeGreaterThan(0);
   await page.keyboard.press("ControlOrMeta+a");
   await expect.poll(() => page.getByTestId("editor-selection").count()).toBeGreaterThan(2);

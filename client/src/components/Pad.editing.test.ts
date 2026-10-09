@@ -499,3 +499,73 @@ it("keeps paste separate from adjacent typing", async () => {
   await save();
   expect(disk).toEqual(original);
 });
+
+it("Shift arrows move focus through columns, children, and the next record", async () => {
+  disk.root[0].left[0].text = "Parent left";
+  disk.root[0].right.children = [
+    { id: "child-a", left: [{ id: "child-a-left", text: "Child left" }], right: { id: "child-a-right", text: "Child right", children: [] } },
+    { id: "child-b", left: [{ id: "child-b-left", text: "Bottom left" }], right: { id: "child-b-right", text: "Bottom right", children: [] } },
+  ];
+  await opened();
+  const focused = async (id: string) => {
+    await waitFor(() => expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  };
+  const move = async (arrow: string, id: string) => {
+    await key(arrow, { shiftKey: true });
+    await focused(id);
+  };
+  await key("ArrowRight"); // Navigation must work inside text, without reaching an edge.
+  await move("ArrowRight", "child-a-left");
+  await move("ArrowLeft", "flat-1-right");
+  await move("ArrowLeft", "flat-1-left");
+  await move("ArrowRight", "flat-1-right");
+  await move("ArrowDown", "child-a-right");
+  await move("ArrowDown", "child-b-right");
+  await move("ArrowDown", "flat-2-right");
+  await move("ArrowUp", "child-b-right");
+  await move("ArrowLeft", "child-b-left");
+  await move("ArrowDown", "flat-2-right");
+  await move("ArrowLeft", "flat-2-left");
+  await move("ArrowUp", "flat-1-left");
+  await move("ArrowLeft", "flat-1-left"); // No destination keeps focus in place.
+  await key("!");
+  await save();
+  expect(disk.root[0].left[0].text).toBe("!Parent left");
+  expect(disk.root[0].right.text).toBe("First note");
+  expect(disk.root[0].right.children[0].left[0].text).toBe("Child left");
+});
+
+it("Shift Right wraps through three child records and Shift Left reverses the sequence", async () => {
+  disk.root[0].right.children = [1, 2, 3].map(number => ({
+    id: `child-${number}`,
+    left: [{ id: `child-${number}-left`, text: `Left ${number}` }],
+    right: { id: `child-${number}-right`, text: `Right ${number}`, children: [] },
+  }));
+  await opened();
+  const sequence = [
+    "flat-1-right",
+    "child-1-left", "child-1-right",
+    "child-2-left", "child-2-right",
+    "child-3-left", "child-3-right",
+    "flat-2-left", "flat-2-right",
+  ];
+  for (const id of sequence.slice(1)) {
+    await key("ArrowRight", { shiftKey: true });
+    await waitFor(() => expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  }
+  await key("ArrowRight", { shiftKey: true });
+  expect(content("flat-2-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus();
+  for (const id of sequence.slice(0, -1).reverse()) {
+    await key("ArrowLeft", { shiftKey: true });
+    await waitFor(() => expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  }
+  await save();
+  expect(disk).toEqual({ ...original, root: [
+    { ...original.root[0], right: { ...original.root[0].right, children: [1, 2, 3].map(number => ({
+      id: `child-${number}`,
+      left: [{ id: `child-${number}-left`, text: `Left ${number}` }],
+      right: { id: `child-${number}-right`, text: `Right ${number}`, children: [] },
+    })) } },
+    original.root[1],
+  ] });
+});

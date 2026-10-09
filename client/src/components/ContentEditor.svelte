@@ -15,6 +15,10 @@
     onCaret?.({ ...caret });
     if (onKeydown?.(event)) return true;
     const accel = event.ctrlKey || event.metaKey;
+    if (event.shiftKey && !accel && !event.altKey) {
+      const command = ({ ArrowLeft: "focusLeft", ArrowRight: "focusRight", ArrowUp: "focusUp", ArrowDown: "focusDown" } as Partial<Record<string, Command>>)[event.key];
+      if (command) { event.stopPropagation(); onCommand(command); return true; }
+    }
     let command: Command | undefined;
     if (event.altKey && event.key === "ArrowLeft") command = "otherColumnLeft";
     if (event.altKey && event.key === "ArrowRight") command = "otherColumnRight";

@@ -8,6 +8,10 @@ export type Entry =
 export type Boundary = "up" | "down" | "left" | "right";
 export type Command =
   | StructureCommand
+  | "focusLeft"
+  | "focusRight"
+  | "focusUp"
+  | "focusDown"
   | "otherColumnLeft"
   | "otherColumnRight"
   | "enter"
