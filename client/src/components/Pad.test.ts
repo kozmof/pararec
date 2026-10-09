@@ -45,9 +45,7 @@ describe("pad navigation", () => {
     expect(content("grandchild-right")).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Go back" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Go deeper into Child note" })).toHaveTextContent(
-      "Go deeper",
-    );
+    expect(screen.getByRole("button", { name: "Go deeper into Child note" })).toHaveAttribute("title", "Go deeper");
     await waitFor(() =>
       expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
     );
