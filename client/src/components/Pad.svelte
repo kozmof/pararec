@@ -337,7 +337,7 @@
     {#if recoveryError || session.recoveryError}<p role="alert">{recoveryError || session.recoveryError}</p>{/if}
     {#if recoverySnapshot}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="Recover unsaved notes" aria-modal="true"><p>{confirmRestore ? "The disk document has changed since these notes were saved locally. Confirm restoring your notes over the current disk version." : "Unsaved notes are available from an earlier session."}</p><button onclick={restoreRecovery}>{confirmRestore ? "Confirm restore" : "Restore"}</button><button onclick={discardRecovery}>Discard</button></dialog>{/if}
     <div inert={disabled}>
-      {#if parent}<div class="level parent-row" data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right" /><button class="go-back" title="Go back" aria-label="Go back" onclick={() => navigate(path.slice(0, -1))}><ArrowIcon direction="up" /></button></div>{/if}
+      {#if parent}<div class="level parent-row" data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right">{#snippet navigation()}<button class="go-back" title="Go back" aria-label="Go back" onclick={() => navigate(path.slice(0, -1))}><ArrowIcon direction="up" /></button>{/snippet}</ContentView></div>{/if}
       <div class="level" data-testid="pad-level" data-etag={session.etag ?? ""}>
         {#each rows as container (container.id)}<ContainerRow {container} onenter={enter} />
         {:else}<button bind:this={addButton} class="add-row" onclick={addRow}>Add row</button>{/each}

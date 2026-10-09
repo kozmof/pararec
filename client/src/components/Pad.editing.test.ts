@@ -618,3 +618,28 @@ it("edits the parent row in a deeper layer and preserves edits when leaving and 
   await key("ArrowUp", { shiftKey: true });
   await waitFor(() => expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
 });
+
+it("focuses and types beside navigation arrows before and after the cell is active", async () => {
+  disk = JSON.parse(readFileSync("fixtures/three-levels.json", "utf8"));
+  await opened();
+  content("child-right").focus();
+  await waitFor(() => expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  for (let click = 0; click < 2; click++) {
+    await fireEvent.mouseDown(content("root-right"), { button: 0, clientX: 20, clientY: 100 });
+    await waitFor(() => expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    await key("!");
+    expect(content("root-right")).toHaveTextContent("!");
+    expect(window.location.hash).toBe("#/");
+  }
+  await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Child note" }));
+  await waitFor(() => expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  for (let click = 0; click < 2; click++) {
+    await fireEvent.mouseDown(content("child-right"), { button: 0, clientX: 20, clientY: 100 });
+    await waitFor(() => expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    await key("!");
+    expect(content("child-right")).toHaveTextContent("!");
+    expect(window.location.hash).toBe("#/c/root/child");
+  }
+  await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+  await waitFor(() => expect(window.location.hash).toBe("#/c/root"));
+});

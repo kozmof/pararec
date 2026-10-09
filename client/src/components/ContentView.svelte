@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getContext } from "svelte";
+  import { getContext, type Snippet } from "svelte";
   import { css } from "../../../styled-system/css";
   import type { Content } from "../schema.js";
   import { CONTENT_HOST, type ContentHost } from "../lib/editor/content-host.js";
@@ -7,7 +7,8 @@
   import { domLineMeasurer } from "../lib/editor/line-measurer.js";
   import { visualCaret } from "../lib/editor/visual-navigation.js";
   import ContentEditor from "./ContentEditor.svelte";
-  let { content, label, side }: { content: Content; label: string; side: "left" | "right" } = $props();
+  let { content, label, side, navigation }: { content: Content; label: string; side: "left" | "right"; navigation?: Snippet } = $props();
+  let editor = $state<ContentEditor>();
   const host = getContext<ContentHost>(CONTENT_HOST);
   const editing = $derived(host.focused === content.id && !host.disabled);
   let initialMeasurements = $state.raw<{ width: number; heights: number[] }>();
@@ -19,7 +20,11 @@
     if (!(event.relatedTarget instanceof Node) || !(event.currentTarget as HTMLElement).contains(event.relatedTarget)) host.blur(content.id);
   }
   function mousedown(event: MouseEvent) {
-    if (editing || host.disabled || event.button !== 0) return;
+    if (host.disabled || event.button !== 0 || (event.target instanceof Element && event.target.closest("button"))) return;
+    if (editing) {
+      if (!event.defaultPrevented) editor?.focusAt(event);
+      return;
+    }
     const root = event.currentTarget as HTMLElement;
     const lines = [...root.querySelectorAll<HTMLElement>("[data-line]")];
     const element = lines.find(line => event.clientY < line.getBoundingClientRect().bottom) ?? lines.at(-1);
@@ -36,7 +41,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 <div class="content" data-content-id={content.id} tabindex="0" role="group" aria-label={label} onfocus={event => { capture(event.currentTarget); host.focus(content.id); }} onfocusout={blur} onmousedown={mousedown}>
   {#if editing}
-    <ContentEditor doc={host.cache.get(content.id)} entry={host.entry} {side} onBoundary={host.boundary} onCommand={host.command} onCaret={caret => host.caret(content.id, caret)} {initialMeasurements} />
+    <ContentEditor bind:this={editor} doc={host.cache.get(content.id)} entry={host.entry} {side} onBoundary={host.boundary} onCommand={host.command} onCaret={caret => host.caret(content.id, caret)} {initialMeasurements} />
   {:else}
     <div class={css({ fontFamily: "mono", fontSize: "12.5px", color: "ink.black", paddingTop: "8px", paddingBottom: "8px" })}>
       {#each content.text.split("\n") as text, line}
@@ -44,9 +49,9 @@
       {/each}
     </div>
   {/if}
+  {@render navigation?.()}
 </div>
 <style>
-  .content { min-width: 0; display: flex; flex-direction: column; }
+  .content { position: relative; min-width: 0; display: flex; flex-direction: column; outline: none; }
   .content:last-child { flex: 1; }
-  .content:focus, .content:focus-within { outline: 2px solid #6883b5; outline-offset: -2px; }
 </style>

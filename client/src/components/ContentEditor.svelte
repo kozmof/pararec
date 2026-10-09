@@ -10,6 +10,7 @@
   let anchor = $state<Caret | null>(null);
   let surface = $state<EditorSurface>();
   let active = true;
+  export function focusAt(event: MouseEvent): void { surface?.focusAt(event); }
   function keydown(event: KeyboardEvent): boolean {
     if (event.isComposing) return false;
     onCaret?.({ ...caret });

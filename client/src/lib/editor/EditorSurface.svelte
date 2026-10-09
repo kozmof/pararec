@@ -667,6 +667,10 @@
     return event.clientX - box.left > clientWidth || event.clientY - box.top > clientHeight;
   }
 
+  export function focusAt(event: MouseEvent): void {
+    handleMousedown(event);
+  }
+
   function handleMousedown(event: MouseEvent): void {
     if (readonly) return;
     if (event.button !== 0) return;

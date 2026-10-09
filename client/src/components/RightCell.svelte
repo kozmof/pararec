@@ -6,9 +6,14 @@
   let { container, depth, onenter }: { container: Container; depth: 0 | 1; onenter: (id: string) => void } = $props();
 </script>
 <div class="right-cell">
-  <ContentView content={container.right} label="Right note" side="right" />
+  <ContentView content={container.right} label="Right note" side="right">
+    {#snippet navigation()}
+      {#if container.right.children.length}
+        <button class="go-deeper" title="Go deeper" onclick={() => onenter(container.id)} aria-label={`Go deeper into ${container.right.text.split("\n")[0] || "Untitled"}`}><ArrowIcon direction="down" /></button>
+      {/if}
+    {/snippet}
+  </ContentView>
   {#if container.right.children.length}
-    <button class="go-deeper" title="Go deeper" onclick={() => onenter(container.id)} aria-label={`Go deeper into ${container.right.text.split("\n")[0] || "Untitled"}`}><ArrowIcon direction="down" /></button>
     {#if depth === 0}
       <div class="nested">
         {#each container.right.children as child (child.id)}
