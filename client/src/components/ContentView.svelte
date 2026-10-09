@@ -46,6 +46,7 @@
   {/if}
 </div>
 <style>
-  .content { min-width: 0; }
+  .content { min-width: 0; display: flex; flex-direction: column; }
+  .content:last-child { flex: 1; }
   .content:focus, .content:focus-within { outline: 2px solid #6883b5; outline-offset: -2px; }
 </style>

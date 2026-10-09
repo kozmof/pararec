@@ -741,7 +741,7 @@
     color: "ink.black",
     outline: "none",
   })}
-  style:flex={autoHeight ? "none" : "1"}
+  style:flex={autoHeight ? "1 0 auto" : "1"}
   style:height={autoHeight ? `${contentHeight + PAD_Y * 2}px` : undefined}
   style:overflow={autoHeight ? "visible" : "auto"}
   style:overflow-anchor={autoHeight ? "auto" : "none"}

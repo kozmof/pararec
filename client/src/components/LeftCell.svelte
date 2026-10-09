@@ -9,6 +9,6 @@
   {/each}
 </div>
 <style>
-  .left-cell { min-width: 0; }
+  .left-cell { min-width: 0; display: flex; flex-direction: column; }
   .left-cell :global([data-content-id] + [data-content-id]) { border-top: 1px solid #ddd; }
 </style>

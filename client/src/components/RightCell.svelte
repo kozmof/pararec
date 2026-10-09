@@ -18,7 +18,7 @@
   {/if}
 </div>
 <style>
-  .right-cell { min-width: 0; border-left: 1px solid #ddd; }
-  .count { margin: 0 12px 12px; padding: 3px 8px; cursor: pointer; }
+  .right-cell { min-width: 0; display: flex; flex-direction: column; border-left: 1px solid #ddd; }
+  .count { align-self: flex-start; margin: 0 12px 12px; padding: 3px 8px; cursor: pointer; }
   .nested { border-top: 1px solid #ddd; }
 </style>

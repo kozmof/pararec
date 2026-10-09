@@ -111,3 +111,25 @@ test("a failed save can be recovered after reload from IndexedDB", async ({ page
     "Recovered First note",
   );
 });
+
+for (const side of ["left", "right"] as const) {
+  test(`clicking blank space in a shorter ${side} cell focuses its input`, async ({ page }) => {
+    const disk = structuredClone(fixture);
+    disk.root[0].left[0].text = side === "left" ? "Short" : "One\nTwo\nThree";
+    disk.root[0].right.text = side === "right" ? "Short" : "One\nTwo\nThree";
+    await page.route("**/api/document", route =>
+      route.fulfill({ json: disk, headers: { ETag: '"v1"' } }),
+    );
+    await page.goto("/");
+    await expect(page.getByTestId("editor-sink")).toBeFocused();
+    const cell = page.locator(`[data-container-id="flat-1"] > .${side}-cell`);
+    const note = page.locator(`[data-content-id="flat-1-${side}"]`);
+    for (let click = 0; click < 2; click++) {
+      const box = (await cell.boundingBox())!;
+      await page.mouse.click(box.x + box.width - 20, box.y + box.height - 10);
+      await expect(note.getByTestId("editor-sink")).toBeFocused();
+      await page.keyboard.type("!");
+      await expect(note).toHaveText(`Short${"!".repeat(click + 1)}`);
+    }
+  });
+}
