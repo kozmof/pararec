@@ -5,9 +5,11 @@ import { applyOp, type Op } from "./ops.js";
 export class TreeStore {
   #schema = $state.raw<Schema>();
   #revision = $state(0);
+  #validated = new WeakSet<Schema>();
   readonly index;
   constructor(value: unknown) {
     this.#schema = parseSchema(value);
+    this.#validated.add(this.#schema);
     this.index = buildIndex(this.#schema);
   }
   get schema(): Schema {
@@ -18,7 +20,10 @@ export class TreeStore {
   }
   /** Restore a previously validated immutable app snapshot and rebuild its index. */
   restore(schema: Schema): void {
-    parseSchema(schema);
+    if (!this.#validated.has(schema)) {
+      parseSchema(schema);
+      this.#validated.add(schema);
+    }
     const index = buildIndex(schema);
     this.index.clear();
     for (const [id, entry] of index) this.index.set(id, entry);
@@ -30,6 +35,7 @@ export class TreeStore {
     const result = applyOp(before, op, this.index);
     updateIndex(this.index, before.root, result.schema.root);
     this.#schema = result.schema;
+    this.#validated.add(result.schema);
     this.#revision++;
     return result.inverse;
   }
@@ -48,6 +54,7 @@ export class TreeStore {
     }
     updateIndex(this.index, before.root, staged.root);
     this.#schema = staged;
+    this.#validated.add(staged);
     this.#revision++;
     return inverses;
   }

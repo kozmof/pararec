@@ -1,8 +1,20 @@
 import type { Schema } from "../../schema.js";
 import type { Caret } from "../editor/document-store.svelte.js";
 export type FocusSnapshot = Caret & { contentId: string };
-export type AppSnapshot = { schema: Schema; path: string[]; focus: FocusSnapshot | null };
-export type HistoryEntry = { kind: "snapshot"; before: AppSnapshot; after: AppSnapshot };
+/** UTF-16 offsets of the affected span in the before and after snapshots. */
+export type TextChange = { contentId: string; from: number; oldEnd: number; newEnd: number };
+export type AppSnapshot = { schema: Schema; path: string[]; focus: FocusSnapshot | null; textChange?: TextChange };
+export type HistoryEntry = { kind: "snapshot"; before: AppSnapshot; after: AppSnapshot; textChange?: TextChange };
+function mergeChanges(a: TextChange, b: TextChange): TextChange {
+  const oldDelta = a.newEnd - a.oldEnd;
+  const newDelta = b.newEnd - b.oldEnd;
+  return {
+    contentId: a.contentId,
+    from: Math.min(a.from, b.from >= a.newEnd ? b.from - oldDelta : b.from),
+    oldEnd: Math.max(a.oldEnd, b.oldEnd >= a.newEnd ? b.oldEnd - oldDelta : a.oldEnd),
+    newEnd: Math.max(b.newEnd, a.newEnd >= b.oldEnd ? a.newEnd + newDelta : b.newEnd),
+  };
+}
 export type TypingGroup = {
   contentId: string;
   intent: "insert" | "backspace" | "delete";
@@ -55,7 +67,7 @@ export class AppHistory {
     this.#redo = [];
     this.closeGroup();
   }
-  record(before: AppSnapshot, after: AppSnapshot, typing?: TypingGroup) {
+  record(before: AppSnapshot, after: AppSnapshot, typing?: TypingGroup, textChange?: TextChange) {
     if (before.schema === after.schema) return;
     const time = typing?.time ?? Date.now();
     const last = this.#undo.at(-1),
@@ -77,6 +89,7 @@ export class AppHistory {
       kind: "snapshot",
       before: merge ? last!.before : copy(before),
       after: copy(after),
+      textChange: merge ? last!.textChange && textChange ? mergeChanges(last!.textChange, textChange) : undefined : textChange,
     };
     this.#undo = merge
       ? [...this.#undo.slice(0, -1), entry]
@@ -90,7 +103,9 @@ export class AppHistory {
     if (!entry) return null;
     this.#undo = this.#undo.slice(0, -1);
     this.#redo = [...this.#redo, entry];
-    return copy(entry.before);
+    const result = copy(entry.before);
+    if (entry.textChange) result.textChange = { ...entry.textChange, oldEnd: entry.textChange.newEnd, newEnd: entry.textChange.oldEnd };
+    return result;
   }
   redo(): AppSnapshot | null {
     this.closeGroup();
@@ -98,6 +113,8 @@ export class AppHistory {
     if (!entry) return null;
     this.#redo = this.#redo.slice(0, -1);
     this.#undo = [...this.#undo, entry].slice(-this.limit);
-    return copy(entry.after);
+    const result = copy(entry.after);
+    if (entry.textChange) result.textChange = { ...entry.textChange };
+    return result;
   }
 }

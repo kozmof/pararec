@@ -177,9 +177,37 @@ describe("serialized saving", () => {
   it("surfaces storage failures without blocking disk saving", async () => {
     recovery.write = vi.fn().mockRejectedValue(new Error("Quota exceeded"));
     session.changed(next);
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(200);
     expect(session.recoveryError).toBe("Quota exceeded");
     await session.flush();
     expect(session.status).toBe("saved");
+  });
+  it("batches recovery snapshots until typing pauses and retains only the latest schema", async () => {
+    session.changed(next);
+    await vi.advanceTimersByTimeAsync(100);
+    const latest = { ...next, title: "latest" };
+    session.changed(latest);
+    expect(recovery.write).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(recovery.write).toHaveBeenCalledOnce();
+    expect(vi.mocked(recovery.write).mock.calls[0][0].schema).toBe(latest);
+  });
+  it("bounds recovery delay during continuous typing", async () => {
+    for (let key = 0; key < 10; key++) {
+      session.changed(next);
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    expect(recovery.write).toHaveBeenCalledOnce();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("persists pending recovery when saving or disposing before the debounce expires", async () => {
+    session.changed(next);
+    await session.flush();
+    expect(recovery.write).toHaveBeenCalledOnce();
+    session.changed(next);
+    session.dispose();
+    expect(recovery.write).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(recovery.write).toHaveBeenCalledTimes(2);
   });
 });

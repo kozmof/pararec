@@ -25,12 +25,12 @@ function percentile(values: number[], fraction: number): number {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.max(0, Math.ceil(sorted.length * fraction) - 1)];
 }
-for (const scenario of ["5000-line Content", "50000-line Content", "1000-Container level"] as const) {
+for (const scenario of ["5000-line Content", "50000-line Content", "500000-line Content", "1000-Container level"] as const) {
   test(`measure ${scenario}`, async ({ page, browser, browserName }, info) => {
     test.skip(process.env.PARAREC_PERFORMANCE !== "1", "Run with pnpm test:performance");
     test.setTimeout(120_000);
     const largeNote = scenario !== "1000-Container level";
-    const schema = largeNote ? fixture(1, scenario === "5000-line Content" ? 5000 : 50000) : fixture(1000);
+    const schema = largeNote ? fixture(1, Number.parseInt(scenario, 10)) : fixture(1000);
     await page.route("**/api/document", (route) =>
       route.fulfill({ json: schema, headers: { ETag: '"bench"' } }),
     );

@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { EditorDocument, orderCarets, sameCaret } from "./document-store.svelte.js";
+import { scan } from "@kozmof/reed";
 
 function doc(content: string): EditorDocument {
   return new EditorDocument(content);
@@ -34,6 +35,47 @@ describe("sameCaret", () => {
 });
 
 describe("EditorDocument", () => {
+  it("updates cached Unicode text without decoding the document for local edits", () => {
+    const d = doc("日本👩🏽‍💻\né tail\nlast");
+    const decode = vi.spyOn(scan, "getValue");
+    try {
+      d.insert({ line: 1, column: 2 }, "X\r\nY");
+      expect(d.text()).toBe("日本👩🏽‍💻\néX\nY tail\nlast");
+      d.replace({ line: 0, column: 2 }, { line: 1, column: 2 }, "葛󠄀");
+      expect(d.text()).toBe("日本葛󠄀X\nY tail\nlast");
+      d.delete({ line: 1, column: 0 }, { line: 2, column: 2 });
+      expect(d.text()).toBe("日本葛󠄀X\nst");
+      expect(decode).not.toHaveBeenCalled();
+      d.transact(() => d.insert({ line: 1, column: 2 }, "日本"), "composition");
+      expect(d.text()).toBe("日本葛󠄀X\nst日本");
+      expect(decode).not.toHaveBeenCalled();
+      d.delete({ line: 1, column: 2 }, { line: 1, column: 4 });
+      d.closeHistoryGroup();
+      d.insert({ line: 1, column: 2 }, "!");
+      d.undo();
+      expect(d.text()).toBe("日本葛󠄀X\nst");
+      d.redo();
+      expect(d.text()).toBe("日本葛󠄀X\nst!");
+    } finally {
+      decode.mockRestore();
+      d.dispose();
+    }
+  });
+
+  it("avoids full decoding when typing near the end of a 500,000-line document", () => {
+    const text = Array.from({ length: 500000 }, (_, line) => `${line}: 日本👩🏽‍💻`).join("\n");
+    const d = doc(text);
+    const decode = vi.spyOn(scan, "getValue");
+    try {
+      for (let column = 0; column < 10; column++) d.insert({ line: 499999, column }, "x");
+      expect(d.lineText(499999)).toBe("xxxxxxxxxx499999: 日本👩🏽‍💻");
+      expect(d.text().length).toBe(text.length + 10);
+      expect(decode).not.toHaveBeenCalled();
+    } finally {
+      decode.mockRestore();
+      d.dispose();
+    }
+  }, 20000);
   it("reports the text it was opened with", () => {
     expect(doc("hello\nworld\n").text()).toBe("hello\nworld\n");
   });

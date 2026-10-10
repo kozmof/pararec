@@ -24,6 +24,14 @@ const typing = (time: number, extra: Partial<TypingGroup> = {}): TypingGroup => 
   ...extra,
 });
 describe("app snapshot history", () => {
+  it("merges changed text ranges and reverses their coordinates for undo", () => {
+    const history = new AppHistory();
+    const a = snapshot("abc\ndef"), b = snapshot("abcX\ndef"), c = snapshot("abcXY\ndef");
+    history.record(a, b, typing(0), { contentId: "right", from: 0, oldEnd: 4, newEnd: 5 });
+    history.record(b, c, typing(1), { contentId: "right", from: 0, oldEnd: 5, newEnd: 6 });
+    expect(history.undo()!.textChange).toEqual({ contentId: "right", from: 0, oldEnd: 6, newEnd: 4 });
+    expect(history.redo()!.textChange).toEqual({ contentId: "right", from: 0, oldEnd: 4, newEnd: 6 });
+  });
   it("groups contiguous typing and restores the first caret and final caret", () => {
     const history = new AppHistory(),
       a = snapshot(""),

@@ -2,7 +2,7 @@ import { history, position, query, rendering, scan, store } from "@kozmof/reed";
 import { GraphemeCache, normalizeLineBreaks } from "./graphemes.js";
 import { compareLines, contentLineChange, type LineChange } from "./document-change.js";
 import type { CaretAffinity } from "./line-measurer.js";
-import type { SelectionRange, DocumentAction as ReedAction } from "@kozmof/reed";
+import type { SelectionRange, ContentChangeEvent, DocumentAction as ReedAction } from "@kozmof/reed";
 
 type DocumentState = ReturnType<ReturnType<typeof store.createDocumentStore>["getSnapshot"]>;
 type ReedStore = ReturnType<typeof store.createDocumentStoreWithEvents>;
@@ -79,6 +79,8 @@ export class EditorDocument {
   #editListeners = new Set<(edit: DocumentEdit) => void>();
   #editContext: EditContext | null = null;
   #transactionCarets: Pick<DocumentEdit, "beforeCaret" | "afterCaret"> | null = null;
+  #transactionEdits = 0;
+  #transactionChange: LineChange | null = null;
   lastChange = $state.raw<LineChange | null>(null);
 
   /**
@@ -113,8 +115,13 @@ export class EditorDocument {
     this.#savedContent = this.text();
     this.#eventUnsubscribers = [
       this.#store.addEventListener("content-change", (event) => {
-        if (this.#transactionDepth) return;
+        this.#updateText(event);
         const change = contentLineChange(event);
+        if (this.#transactionDepth) {
+          this.#transactionEdits++;
+          this.#transactionChange = change;
+          return;
+        }
         if (change) this.#publish(event.prevState, event.nextState, change, "edit");
       }),
       this.#store.addEventListener("history-change", (event) => {
@@ -226,6 +233,8 @@ export class EditorDocument {
     if (outer) {
       this.closeHistoryGroup();
       this.#transactionCarets = null;
+      this.#transactionEdits = 0;
+      this.#transactionChange = null;
     }
     this.#transactionDepth++;
     let committed = false;
@@ -239,11 +248,14 @@ export class EditorDocument {
         const after = this.state;
         try {
           if (committed) {
-            const change = compareLines(before, after);
+            const change = before.pieceTable === after.pieceTable ? null
+              : this.#transactionEdits === 1 ? this.#transactionChange : compareLines(before, after);
             if (change) this.#publish(before, after, change, kind);
           }
         } finally {
           this.#transactionCarets = null;
+          this.#transactionEdits = 0;
+          this.#transactionChange = null;
           this.closeHistoryGroup();
         }
       }
@@ -294,14 +306,44 @@ export class EditorDocument {
   #textState: DocumentState | undefined;
   #textValue = "";
 
+  #updateText({ action, prevState, nextState }: ContentChangeEvent): void {
+    if (action.type === "APPLY_REMOTE" || this.#textState?.pieceTable !== prevState.pieceTable) return;
+    const offset = (byte: number): number | undefined => {
+      const at = rendering.positionToLineColumn(prevState, position.byteOffset(byte));
+      return at ? query.getCharStartOffset(prevState, at.line) + at.column : undefined;
+    };
+    const from = offset(action.start);
+    const to = action.type === "INSERT" ? from : offset(action.end);
+    if (from === undefined || to === undefined) return;
+    const inserted = action.type === "DELETE" ? "" : normalizeLineBreaks(action.text);
+    this.#textValue = this.#textValue.slice(0, from) + inserted + this.#textValue.slice(to);
+    this.#textState = nextState;
+  }
+
   /** Decode once per immutable revision; cache checks and saving share the value. */
   text(): string {
     const state = this.state;
-    if (state !== this.#textState) {
+    if (state.pieceTable !== this.#textState?.pieceTable) {
       this.#textValue = scan.getValue(state.pieceTable);
       this.#textState = state;
     }
     return this.#textValue;
+  }
+
+  /** Restore an app history range while preserving the document and its line index. */
+  restoreText(text: string, from: number, oldEnd: number, newEnd: number): void {
+    const caret = (offset: number): Caret => {
+      const at = query.findLineAtCharPosition(this.state, offset);
+      if (!at) throw new RangeError("History text offset is outside the document");
+      return { line: at.lineNumber, column: at.charOffsetInLine };
+    };
+    this.closeHistoryGroup();
+    this.replace(caret(from), caret(oldEnd), text.slice(from, newEnd));
+    // Share the authoritative snapshot string, avoiding a full string equality
+    // comparison when ContentCache checks the restored document.
+    this.#textValue = text;
+    this.#textState = this.state;
+    this.closeHistoryGroup();
   }
 
   /**

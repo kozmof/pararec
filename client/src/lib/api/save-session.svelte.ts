@@ -14,6 +14,8 @@ export class SaveSession {
   #savedRevision = 0;
   #flight: Promise<void> | null = null;
   #timer: ReturnType<typeof setTimeout> | null = null;
+  #recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  #recoveryStarted = 0;
   #paused = false;
   #disposed = false;
   constructor(
@@ -31,6 +33,7 @@ export class SaveSession {
     this.#timer = null;
   }
   #persist() {
+    this.#cancelRecovery();
     void this.recovery
       .write({ schema: this.#schema, base: this.#base, savedAt: Date.now() })
       .catch((error) => {
@@ -38,11 +41,23 @@ export class SaveSession {
           error instanceof Error ? error.message : "Unable to store recovery snapshot";
       });
   }
+  #cancelRecovery() {
+    if (this.#recoveryTimer !== null) clearTimeout(this.#recoveryTimer);
+    this.#recoveryTimer = null;
+  }
+  #scheduleRecovery() {
+    if (this.#recoveryTimer === null) this.#recoveryStarted = Date.now();
+    else clearTimeout(this.#recoveryTimer);
+    // Keep large structured clones out of each key event. Continuous typing
+    // still produces a recovery snapshot at least once a second.
+    this.#recoveryTimer = setTimeout(() => this.#persist(),
+      Math.max(0, Math.min(200, 1000 - (Date.now() - this.#recoveryStarted))));
+  }
   changed(schema: Schema) {
     if (this.#disposed) return;
     this.#schema = schema;
     this.#revision++;
-    this.#persist();
+    this.#scheduleRecovery();
     if (this.status !== "conflict" && this.status !== "saving") this.status = "dirty";
     this.#cancelTimer();
     if (!this.#paused && this.status !== "conflict")
@@ -50,8 +65,12 @@ export class SaveSession {
         void this.flush();
       }, 1000);
   }
+  flushRecovery(): void {
+    if (this.#recoveryTimer !== null) this.#persist();
+  }
   async flush(): Promise<void> {
     this.#cancelTimer();
+    this.flushRecovery();
     if (this.#flight) return this.#flight;
     if (this.#disposed || this.#paused || !this.dirty || this.status === "conflict") return;
     this.#flight = this.#save();
@@ -75,6 +94,7 @@ export class SaveSession {
         this.#base = snapshot;
         if (this.dirty) this.#persist();
         else {
+          this.#cancelRecovery();
           // Queue clear immediately, before any subsequent change queues its write.
           void this.recovery.clear().catch((error) => {
             this.recoveryError = String(error);
@@ -96,6 +116,7 @@ export class SaveSession {
     try {
       const loaded = await loadDocument();
       this.#schema = this.#base = loaded.schema;
+      this.#cancelRecovery();
       this.etag = loaded.etag;
       this.#revision = this.#savedRevision = 0;
       this.status = "saved";
@@ -125,6 +146,7 @@ export class SaveSession {
     await this.flush();
   }
   dispose() {
+    this.flushRecovery();
     this.#disposed = true;
     this.#cancelTimer();
   }

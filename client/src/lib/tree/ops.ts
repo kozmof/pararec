@@ -16,7 +16,7 @@ export type Op =
   | { type: "insertContent"; containerId: string; index: number; content: Content }
   | { type: "removeContent"; id: string }
   | { type: "moveContent"; id: string; containerId: string; index: number }
-  | { type: "setText"; id: string; text: string };
+  | { type: "setText"; id: string; text: string; normalized?: boolean };
 
 /** Positions for moves refer to the destination after removing the source. */
 export function applyOp(
@@ -201,7 +201,7 @@ export function applyOp(
       if (typeof op.text !== "string") throw new Error("Expected string text");
       const container = entry.container;
       const previous = entry.side === "left" ? container.left[entry.index] : container.right;
-      const text = op.text.replace(/\r\n?/g, "\n");
+      const text = op.normalized ? op.text : op.text.replace(/\r\n?/g, "\n");
       const next =
         entry.side === "left"
           ? {

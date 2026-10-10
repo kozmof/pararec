@@ -5,6 +5,8 @@ import { tick } from "svelte";
 import Pad from "./Pad.svelte";
 import { IndexedRecovery } from "../lib/api/recovery.js";
 import type { Schema } from "../schema.js";
+import { scan } from "@kozmof/reed";
+import { EditorDocument } from "../lib/editor/document-store.svelte.js";
 let disk: Schema;
 let etag: string;
 let puts: { schema: Schema; headers: Record<string, string> }[];
@@ -163,6 +165,11 @@ describe("integrated content editing", () => {
     const event = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
+    expect(IndexedRecovery.prototype.write).toHaveBeenCalledWith(expect.objectContaining({
+      schema: expect.objectContaining({ root: expect.arrayContaining([
+        expect.objectContaining({ right: expect.objectContaining({ text: "!First note" }) }),
+      ]) }),
+    }));
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
     await fireEvent(document, new Event("visibilitychange"));
     await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
@@ -850,6 +857,38 @@ it("keeps the 10x fixture window bounded through input, newlines, history, and s
   await save();
   expect(disk.root[0].right.text).toBe("!" + initialText + "?");
 }, 20000);
+
+it("undoes and redoes 100x-fixture typing in place without decoding or rebuilding the document", async () => {
+  disk = JSON.parse(readFileSync("fixtures/long-100x.json", "utf8"));
+  const initialText = disk.root[0].right.text;
+  await opened();
+  await key("End", { ctrlKey: true });
+  const surface = screen.getByTestId("editor-surface");
+  const sink = screen.getByTestId("editor-sink");
+  const dispose = vi.spyOn(EditorDocument.prototype, "dispose");
+  const restore = vi.spyOn(EditorDocument.prototype, "restoreText");
+  const decode = vi.spyOn(scan, "getValue");
+  try {
+    await key("!");
+    for (let cycle = 0; cycle < 3; cycle++) {
+      await key("z", { ctrlKey: true });
+      await key("y", { ctrlKey: true });
+      expect(screen.getByTestId("editor-surface")).toBe(surface);
+      expect(screen.getByTestId("editor-sink")).toBe(sink);
+    }
+    expect(decode).not.toHaveBeenCalled();
+    expect(dispose).not.toHaveBeenCalled();
+    expect(restore).toHaveBeenCalledTimes(6);
+    expect(restore.mock.calls.every(([, from, oldEnd, newEnd]) => Math.max(oldEnd, newEnd) - from < 200)).toBe(true);
+    expect(surface.querySelectorAll("[data-line]").length).toBeLessThan(100);
+  } finally {
+    decode.mockRestore();
+    dispose.mockRestore();
+    restore.mockRestore();
+  }
+  await save();
+  expect(disk.root[0].right.text).toBe(initialText + "!");
+}, 30000);
 
 it("keeps the 5000-line editor and unchanged line elements mounted during undo and redo", async () => {
   disk = JSON.parse(readFileSync("fixtures/long.json", "utf8"));

@@ -81,7 +81,7 @@
       const afterCaret = edit.afterCaret ?? beforeCaret;
       history.record({ schema: edit.before, path: [...path], focus: { contentId: edit.contentId, ...beforeCaret } },
         { schema: edit.after, path: [...path], focus: { contentId: edit.contentId, ...afterCaret } },
-        edit.kind === "edit" && edit.groupable && edit.intent && edit.intent !== "replace" ? { contentId: edit.contentId, intent: edit.intent, group: edit.group } : undefined);
+        edit.kind === "edit" && edit.groupable && edit.intent && edit.intent !== "replace" ? { contentId: edit.contentId, intent: edit.intent, group: edit.group } : undefined, edit.textChange);
       liveCaret = { ...afterCaret };
     }
     if (!tree || !session) return;
@@ -274,7 +274,11 @@
         const keepEditor = focused !== null && focused === target.focus?.contentId && pathHash(path) === pathHash(nextPath);
         if (!keepEditor) focused = null;
         liveCaret = null;
+        const previous = target.textChange ? tree.index.get(target.textChange.contentId) : undefined;
+        const previousText = previous && previous.side !== "container"
+          ? previous.side === "right" ? previous.container.right.text : previous.container.left[previous.index].text : undefined;
         tree.restore(target.schema);
+        cache?.restoreText(target.textChange, previousText);
         path = nextPath; focusByLevel.clear();
         if (keepEditor && target.focus) entry = { kind: "caret", ...target.focus };
         const hash = pathHash(path); if (window.location.hash !== hash) window.location.hash = hash;
@@ -331,7 +335,7 @@
     active = true; void load();
     const update = () => readHash();
     const visibility = () => { if (document.visibilityState === "hidden") void session?.flush(); };
-    const unload = (event: BeforeUnloadEvent) => { if (session?.dirty) { event.preventDefault(); event.returnValue = ""; } };
+    const unload = (event: BeforeUnloadEvent) => { if (session?.dirty) { session.flushRecovery(); event.preventDefault(); event.returnValue = ""; } };
     window.addEventListener("hashchange", update);
     window.addEventListener("beforeunload", unload);
     document.addEventListener("visibilitychange", visibility);
