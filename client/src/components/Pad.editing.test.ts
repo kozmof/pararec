@@ -643,3 +643,45 @@ it("focuses and types beside navigation arrows before and after the cell is acti
   await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
   await waitFor(() => expect(window.location.hash).toBe("#/c/root"));
 });
+
+it("edits, saves, undoes, and redoes the document title", async () => {
+  await opened();
+  const title = screen.getByRole("textbox", { name: "Document title" });
+  title.focus();
+  await fireEvent.input(title, { target: { value: "Updated title" } });
+  await fireEvent.keyDown(title, { key: "s", ctrlKey: true });
+  await waitFor(() => expect(disk.title).toBe("Updated title"));
+  expect(disk.root).toEqual(original.root);
+  await fireEvent.keyDown(title, { key: "z", ctrlKey: true });
+  await tick();
+  expect(title).toHaveValue(original.title);
+  expect(title).toHaveFocus();
+  await fireEvent.keyDown(title, { key: "z", ctrlKey: true, shiftKey: true });
+  await tick();
+  expect(title).toHaveValue("Updated title");
+  await fireEvent.blur(title);
+  await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
+  expect(disk.title).toBe("Updated title");
+});
+
+it("saves composed title text only after composition finishes", async () => {
+  await opened();
+  const title = screen.getByRole("textbox", { name: "Document title" });
+  title.focus();
+  await fireEvent.compositionStart(title);
+  await fireEvent.input(title, { target: { value: "にほん" }, isComposing: true });
+  await fireEvent.keyDown(title, { key: "s", ctrlKey: true, isComposing: true });
+  expect(puts).toHaveLength(0);
+  await fireEvent.compositionEnd(title, { target: { value: "日本語" }, data: "日本語" });
+  await fireEvent.keyDown(title, { key: "Enter" });
+  await waitFor(() => expect(disk.title).toBe("日本語"));
+});
+
+it("autosaves the title while the title field remains focused", async () => {
+  await opened();
+  const title = screen.getByRole("textbox", { name: "Document title" });
+  title.focus();
+  await fireEvent.input(title, { target: { value: "Autosaved title" } });
+  await waitFor(() => expect(disk.title).toBe("Autosaved title"), { timeout: 2500 });
+  expect(title).toHaveFocus();
+});

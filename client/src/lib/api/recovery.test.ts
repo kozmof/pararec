@@ -51,8 +51,26 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 const snapshot: RecoverySnapshot = {
-  schema: { version: 1, root: [] },
-  base: { version: 1, root: [] },
+  schema: {
+    version: 1,
+    title: "document",
+    config: {
+      showTitles: true,
+      outerWidthRate: { left: 35, right: 65 },
+      innerIdthRate: { left: 35, right: 65 },
+    },
+    root: [],
+  },
+  base: {
+    version: 1,
+    title: "document",
+    config: {
+      showTitles: true,
+      outerWidthRate: { left: 35, right: 65 },
+      innerIdthRate: { left: 35, right: 65 },
+    },
+    root: [],
+  },
   savedAt: 1,
 };
 it("serializes writes and clears so a new edit survives an older save acknowledgement", async () => {

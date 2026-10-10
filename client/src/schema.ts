@@ -9,13 +9,21 @@ export type Container = {
   right: Content & { children: Container[] };
 };
 
+export type Config = {
+  showTitles: boolean;
+  outerWidthRate: { left: number; right: number };
+  innerIdthRate: { left: number; right: number };
+};
+
 export type Schema = {
+  title: string;
+  config: Config;
   version: 1;
   root: Container[];
 };
 
 /** Parse the file format, discard unknown fields, and normalize loaded text. */
-export function parseSchema(value: unknown): Schema {
+export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
   const ids = new Set<string>();
   function object(input: unknown): Record<string, unknown> {
     if (typeof input !== "object" || input === null || Array.isArray(input)) {
@@ -48,5 +56,34 @@ export function parseSchema(value: unknown): Schema {
   }
   const document = object(value);
   if (document.version !== 1) throw new Error("Unsupported version");
-  return { version: 1, root: level(document.root) };
+  let title = defaultTitle;
+  const config: Config = {
+    showTitles: true,
+    outerWidthRate: { left: 35, right: 65 },
+    innerIdthRate: { left: 35, right: 65 },
+  };
+  const settings = document.config === undefined ? {} : object(document.config);
+  if (document.title !== undefined) {
+    if (typeof document.title !== "string") throw new Error("Expected string title");
+    title = document.title.replace(/\r\n?/g, "\n");
+  }
+  if (settings.showTitles !== undefined) {
+    if (typeof settings.showTitles !== "boolean") throw new Error("Expected boolean showTitles");
+    config.showTitles = settings.showTitles;
+  }
+  for (const key of ["outerWidthRate", "innerIdthRate"] as const) {
+    if (settings[key] === undefined) continue;
+    const rate = object(settings[key]);
+    if (
+      typeof rate.left !== "number" ||
+      typeof rate.right !== "number" ||
+      !Number.isFinite(rate.left) ||
+      !Number.isFinite(rate.right) ||
+      rate.left <= 0 ||
+      rate.right <= 0
+    )
+      throw new Error("Expected positive finite width rates");
+    config[key] = { left: rate.left, right: rate.right };
+  }
+  return { version: 1, title, config, root: level(document.root) };
 }

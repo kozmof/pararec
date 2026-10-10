@@ -45,7 +45,10 @@ describe("pad navigation", () => {
     expect(content("grandchild-right")).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Go back" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Go deeper into Child note" })).toHaveAttribute("title", "Go deeper");
+    expect(screen.getByRole("button", { name: "Go deeper into Child note" })).toHaveAttribute(
+      "title",
+      "Go deeper",
+    );
     await waitFor(() =>
       expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
     );
@@ -118,7 +121,9 @@ describe("pad navigation", () => {
     await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
     expect(window.location.hash).toBe("#/c/root/child/grandchild");
     expect(screen.getByTestId("pad-level").querySelectorAll("[data-container-id]")).toHaveLength(1);
-    expect(screen.getByTestId("parent-level").querySelectorAll("[data-content-id]")).toHaveLength(1);
+    expect(screen.getByTestId("parent-level").querySelectorAll("[data-content-id]")).toHaveLength(
+      1,
+    );
   });
   it("shows a failed load and retries", async () => {
     vi.stubGlobal(
@@ -184,3 +189,37 @@ it.each([
     expect(fetch).toHaveBeenCalledTimes(2);
   },
 );
+
+it("shows the filename title and applies configured width rates", async () => {
+  vi.mocked(fetch).mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        ...fixture,
+        title: undefined,
+        config: {
+          showTitles: true,
+          outerWidthRate: { left: 2, right: 3 },
+          innerIdthRate: { left: 1, right: 4 },
+        },
+      }),
+      { headers: { ETag: '"v1"', "X-Document-Title": JSON.stringify("my.notes") } },
+    ),
+  );
+  await opened();
+  expect(screen.getByRole("textbox", { name: "Document title" })).toHaveValue("my.notes");
+  const main = document.querySelector("main")!;
+  expect(main.style.getPropertyValue("--outer-left")).toBe("2fr");
+  expect(main.style.getPropertyValue("--inner-right")).toBe("4fr");
+});
+
+it.each([true, false])("respects title visibility %s", async (showTitle) => {
+  vi.mocked(fetch).mockResolvedValue(
+    response({
+      ...fixture,
+      title: "Custom notes",
+      config: { ...fixture.config, showTitles: showTitle },
+    }),
+  );
+  await opened();
+  expect(screen.queryByRole("textbox", { name: "Document title" }) !== null).toBe(showTitle);
+});

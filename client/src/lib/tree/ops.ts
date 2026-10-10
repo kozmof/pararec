@@ -8,6 +8,7 @@ function spliced<T>(items: T[], at: number, count: number, ...insert: T[]): T[] 
 }
 
 export type Op =
+  | { type: "setTitle"; title: string }
   | { type: "insertContainer"; parentId: string | null; index: number; container: Container }
   // An insertion's inverse can remove its unchanged subtree. User removal omits expected.
   | { type: "removeContainer"; id: string; expected?: Container }
@@ -75,10 +76,18 @@ export function applyOp(
     });
   }
   switch (op.type) {
+    case "setTitle": {
+      if (typeof op.title !== "string") throw new Error("Expected string title");
+      const title = op.title.replace(/\r\n?/g, "\n");
+      return {
+        schema: title === schema.title ? schema : { ...schema, title },
+        inverse: { type: "setTitle", title: schema.title },
+      };
+    }
     case "insertContainer": {
       position(op.index, level(op.parentId).length);
       const container = parseSchema({ version: 1, root: [op.container] }).root[0];
-      fresh(buildIndex({ version: 1, root: [container] }).keys());
+      fresh(buildIndex({ ...schema, root: [container] }).keys());
       return {
         schema: replaceLevel(schema, op.parentId, (rows) => spliced(rows, op.index, 0, container)),
         inverse: { type: "removeContainer", id: container.id, expected: container },

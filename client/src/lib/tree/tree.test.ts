@@ -15,7 +15,16 @@ function row(id: string, children: Container[] = []): Container {
   };
 }
 function fixture(): Schema {
-  return { version: 1, root: [row("a", [row("b", [row("c")])]), row("d")] };
+  return {
+    version: 1,
+    title: "document",
+    config: {
+      showTitles: true,
+      outerWidthRate: { left: 35, right: 65 },
+      innerIdthRate: { left: 35, right: 65 },
+    },
+    root: [row("a", [row("b", [row("c")])]), row("d")],
+  };
 }
 function check(store: TreeStore) {
   expect(parseSchema(store.schema)).toEqual(store.schema);

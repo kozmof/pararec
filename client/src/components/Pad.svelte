@@ -30,6 +30,8 @@
   let confirmRestore = $state(false);
   let pad: HTMLElement;
   let addButton = $state<HTMLButtonElement>();
+  let titleInput = $state<HTMLInputElement>();
+  let titleComposing = false;
   const recovery = new IndexedRecovery();
   const history = new AppHistory();
   let liveCaret: Caret | null = null;
@@ -83,6 +85,13 @@
     if (!tree || !session) return;
     seenSchema = tree.schema;
     session.changed(tree.schema);
+  }
+  function editTitle(value: string) {
+    if (!tree || disabled || value === tree.schema.title) return;
+    const before = snapshot();
+    tree.apply({ type: "setTitle", title: value });
+    history.record(before, snapshot());
+    changed();
   }
   function install(loaded: LoadedDocument) {
     history.clear();
@@ -262,12 +271,13 @@
       if (disabled || !tree) return;
       const target = command === "undo" ? history.undo() : history.redo();
       if (target) {
+        const editingTitle = document.activeElement === titleInput;
         focused = null; liveCaret = null; cache?.dispose();
         tree.restore(target.schema); cache = new ContentCache(tree, changed);
         path = validPath(tree.schema, target.path); focusByLevel.clear();
         const hash = pathHash(path); if (window.location.hash !== hash) window.location.hash = hash;
         changed();
-        void restoreFocus(target.focus?.contentId, target.focus ? { kind: "caret", ...target.focus } : undefined);
+        if (!editingTitle) void restoreFocus(target.focus?.contentId, target.focus ? { kind: "caret", ...target.focus } : undefined);
       }
       return;
     }
@@ -305,7 +315,7 @@
     if (seenSchema !== tree.schema) changed();
     const valid = validPath(tree.schema, path);
     if (valid.length !== path.length) navigate(valid);
-    else if (rows.length === 0) void restoreFocus();
+    else if (rows.length === 0 && document.activeElement !== titleInput) void restoreFocus();
   });
   function keydown(event: KeyboardEvent) {
     if (event.isComposing || event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || disabled) return;
@@ -327,10 +337,23 @@
   });
 </script>
 <svelte:window onkeydown={keydown} />
-<main bind:this={pad}>
+<main bind:this={pad}
+  style:--outer-left={(tree?.schema.config.outerWidthRate?.left ?? 35) + "fr"}
+  style:--outer-right={(tree?.schema.config.outerWidthRate?.right ?? 65) + "fr"}
+  style:--inner-left={(tree?.schema.config.innerIdthRate?.left ?? 35) + "fr"}
+  style:--inner-right={(tree?.schema.config.innerIdthRate?.right ?? 65) + "fr"}>
   {#if loading}<p role="status">Loading document…</p>
   {:else if error}<p role="alert">{error}</p><button onclick={load}>Retry</button>
   {:else if tree && session}
+    {#if tree.schema.config.showTitles}
+      <div class="document-title"><input bind:this={titleInput} class="title-input" aria-label="Document title" value={tree.schema.title} disabled={disabled}
+        onfocus={() => { if (focused) blur(focused); history.closeGroup(); }}
+        oncompositionstart={() => { titleComposing = true; }}
+        oninput={event => { if (!titleComposing) editTitle(event.currentTarget.value); }}
+        oncompositionend={event => { titleComposing = false; editTitle(event.currentTarget.value); }}
+        onblur={() => { history.closeGroup(); void session?.flush(); }}
+        onkeydown={event => { if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); event.currentTarget.blur(); } }} /></div>
+    {/if}
     <div class="save-status" role="status">{session.status === "saved" ? "Saved" : session.status === "saving" ? "Saving…" : session.status === "dirty" ? "Unsaved changes" : session.status === "conflict" ? "File changed on disk" : "Save failed"}</div>
     {#if session.status === "failed"}<p role="alert">{session.error}</p><button onclick={() => session?.flush()}>Retry save</button>{/if}
     {#if session.status === "conflict"}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="File changed on disk" aria-modal="true"><p>The file changed on disk. Reload the disk version or overwrite it with your notes.</p>{#if session.error}<p>{session.error}</p>{/if}<button disabled={busy} onclick={reload}>Reload</button><button disabled={busy} onclick={overwrite}>Overwrite</button></dialog>{/if}
@@ -347,6 +370,10 @@
 </main>
 <style>
   main { max-width: 1100px; margin: 0 auto; padding: 24px; font-family: system-ui, sans-serif; }
+  .document-title { font-size: 1em; font-weight: normal; margin: 0.67em 0; }
+  .title-input { width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 4px; }
+  .title-input:hover { border-color: #ddd; }
+  .title-input:focus { outline: none; }
   .level { border: 1px solid #ddd; }
   .parent-row { border-bottom: 0; display: flex; flex-direction: column; }
   .go-back { align-self: flex-end; margin: 0 8px 8px auto; padding: 4px; width: 24px; height: 24px; color: #9ca3af; box-sizing: border-box; border: 1px solid currentColor; border-radius: 50%; background: transparent; display: inline-flex; align-items: center; justify-content: center; }

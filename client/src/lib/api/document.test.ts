@@ -5,15 +5,51 @@ it("loads and validates the document with its ETag", async () => {
   const fetch = vi
     .fn()
     .mockResolvedValue(
-      new Response(JSON.stringify({ version: 1, root: [] }), { headers: { ETag: '"v1"' } }),
+      new Response(
+        JSON.stringify({
+          version: 1,
+          title: "document",
+          config: {
+            showTitles: true,
+            outerWidthRate: { left: 35, right: 65 },
+            innerIdthRate: { left: 35, right: 65 },
+          },
+          root: [],
+        }),
+        { headers: { ETag: '"v1"' } },
+      ),
     );
   vi.stubGlobal("fetch", fetch);
-  expect(await loadDocument()).toEqual({ schema: { version: 1, root: [] }, etag: '"v1"' });
+  expect(await loadDocument()).toEqual({
+    schema: {
+      version: 1,
+      title: "document",
+      config: {
+        showTitles: true,
+        outerWidthRate: { left: 35, right: 65 },
+        innerIdthRate: { left: 35, right: 65 },
+      },
+      root: [],
+    },
+    etag: '"v1"',
+  });
   expect(fetch).toHaveBeenCalledWith("/api/document", { signal: undefined, cache: "no-store" });
 });
 it("opens a missing file as an empty unsaved document", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
-  expect(await loadDocument()).toEqual({ schema: { version: 1, root: [] }, etag: null });
+  expect(await loadDocument()).toEqual({
+    schema: {
+      version: 1,
+      title: "document",
+      config: {
+        showTitles: true,
+        outerWidthRate: { left: 35, right: 65 },
+        innerIdthRate: { left: 35, right: 65 },
+      },
+      root: [],
+    },
+    etag: null,
+  });
 });
 it.each([
   new Response(null, { status: 500 }),

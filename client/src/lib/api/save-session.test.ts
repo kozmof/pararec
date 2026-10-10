@@ -2,9 +2,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Schema } from "../../schema.js";
 import { SaveSession } from "./save-session.svelte.js";
 import type { RecoveryStorage } from "./recovery.js";
-const schema: Schema = { version: 1, root: [] };
+const schema: Schema = {
+  version: 1,
+  title: "document",
+  config: {
+    showTitles: true,
+    outerWidthRate: { left: 35, right: 65 },
+    innerIdthRate: { left: 35, right: 65 },
+  },
+  root: [],
+};
 const next: Schema = {
   version: 1,
+  title: "document",
+  config: {
+    showTitles: true,
+    outerWidthRate: { left: 35, right: 65 },
+    innerIdthRate: { left: 35, right: 65 },
+  },
   root: [
     { id: "a", left: [{ id: "l", text: "" }], right: { id: "r", text: "日本", children: [] } },
   ],

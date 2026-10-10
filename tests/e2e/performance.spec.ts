@@ -4,6 +4,12 @@ import type { Schema } from "../../client/src/schema.js";
 function fixture(rows: number, lines = 1): Schema {
   return {
     version: 1,
+    title: "document",
+    config: {
+      showTitles: true,
+      outerWidthRate: { left: 35, right: 65 },
+      innerIdthRate: { left: 35, right: 65 },
+    },
     root: Array.from({ length: rows }, (_, i) => ({
       id: `row-${i}`,
       left: [{ id: `left-${i}`, text: `Left ${i}` }],

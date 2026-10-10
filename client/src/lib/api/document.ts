@@ -1,5 +1,5 @@
 import { parseSchema, type Schema } from "../../schema.js";
-export type LoadedDocument = { schema: Schema; etag: string | null };
+export type LoadedDocument = { schema: Schema; etag: string | null; defaultTitle?: string };
 export async function loadDocument(signal?: AbortSignal): Promise<LoadedDocument> {
   let response: Response;
   try {
@@ -8,7 +8,20 @@ export async function loadDocument(signal?: AbortSignal): Promise<LoadedDocument
     if (signal?.aborted) throw cause;
     throw new Error("Cannot reach the local server. Start pararec serve and retry.", { cause });
   }
-  if (response.status === 404) return { schema: { version: 1, root: [] }, etag: null };
+  const titleHeader = response.headers.get("X-Document-Title");
+  const metadata: { defaultTitle?: string } = {};
+  if (titleHeader) {
+    try {
+      const title: unknown = JSON.parse(titleHeader);
+      if (typeof title === "string") metadata.defaultTitle = title;
+    } catch {}
+  }
+  if (response.status === 404)
+    return {
+      schema: parseSchema({ version: 1, root: [] }, metadata.defaultTitle),
+      etag: null,
+      ...metadata,
+    };
   if (!response.ok) {
     if (response.status === 500)
       throw new Error(
@@ -19,7 +32,7 @@ export async function loadDocument(signal?: AbortSignal): Promise<LoadedDocument
   const etag = response.headers.get("ETag");
   if (!etag) throw new Error("Document response is missing its ETag");
   try {
-    return { schema: parseSchema(await response.json()), etag };
+    return { schema: parseSchema(await response.json(), metadata.defaultTitle), etag, ...metadata };
   } catch (cause) {
     if (signal?.aborted) throw cause;
     const detail =

@@ -4,6 +4,12 @@ import type { Schema } from "../../schema.js";
 function snapshot(text: string, column = text.length): AppSnapshot {
   const schema: Schema = {
     version: 1,
+    title: "document",
+    config: {
+      showTitles: true,
+      outerWidthRate: { left: 35, right: 65 },
+      innerIdthRate: { left: 35, right: 65 },
+    },
     root: [
       { id: "row", left: [{ id: "left", text: "" }], right: { id: "right", text, children: [] } },
     ],

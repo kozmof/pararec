@@ -12,7 +12,16 @@ let directory;
 let documentPath;
 let server;
 let port;
-const empty = { version: 1, root: [] };
+const empty = {
+  version: 1,
+  title: "document",
+  config: {
+    showTitles: true,
+    outerWidthRate: { left: 35, right: 65 },
+    innerIdthRate: { left: 35, right: 65 },
+  },
+  root: [],
+};
 const origin = () => `http://127.0.0.1:${port}`;
 const etag = (bytes) => `"${createHash("sha256").update(bytes).digest("hex").slice(0, 32)}"`;
 
@@ -102,7 +111,7 @@ test("document API over real sockets", async (t) => {
     const response = await put(empty, { "if-none-match": "*" });
     assert.equal(response.status, 200);
     const disk = await readFile(documentPath, "utf8");
-    assert.equal(disk, '{\n  "version": 1,\n  "root": []\n}\n');
+    assert.equal(disk, JSON.stringify(empty, null, 2) + "\n");
     assert.equal(response.headers.etag, etag(disk));
     assert.equal((await put(empty, { "if-none-match": "*" })).status, 412);
   });
@@ -326,4 +335,30 @@ test("structure-generated snapshots are accepted by the local server", async () 
     container: emptyRow,
   }).schema;
   await command(emptyRow.right.id, "deleteContainer");
+});
+
+test("document settings persist and the default title uses the filename", async () => {
+  await writeFile(documentPath, JSON.stringify(empty));
+  const response = await fetch(`${origin()}/api/document`);
+  assert.equal(JSON.parse(response.headers.get("x-document-title")), "document");
+  const settings = {
+    ...empty,
+    title: "Custom title",
+    config: {
+      showTitles: false,
+      outerWidthRate: { left: 1, right: 2 },
+      innerIdthRate: { left: 3, right: 4 },
+    },
+  };
+  const saved = await fetch(`${origin()}/api/document`, {
+    method: "PUT",
+    headers: {
+      Origin: origin(),
+      "If-Match": response.headers.get("etag"),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(settings),
+  });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(JSON.parse(await readFile(documentPath, "utf8")), settings);
 });
