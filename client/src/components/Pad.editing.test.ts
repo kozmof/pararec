@@ -831,8 +831,10 @@ it("activates and edits a preview after its document was evicted from the cache"
   expect(disk.root[1].left[0].text).toBe("!Left");
 });
 
-it("keeps the 10x fixture window bounded through input, newlines, history, and select-all", async () => {
-  disk = JSON.parse(readFileSync("fixtures/long-10x.json", "utf8"));
+it("keeps a 50,010-line window bounded through input, newlines, history, and select-all", async () => {
+  disk = JSON.parse(readFileSync("fixtures/long.json", "utf8"));
+  disk.root[0].right.text = Array.from({ length: 50_010 }, (_, line) =>
+    `${line + 1}: 日本語の長い文章。こんにちは 👩🏽‍💻 葛󠄀 é`).join("\n");
   const initialText = disk.root[0].right.text;
   await opened();
   const surface = screen.getByTestId("editor-surface");
