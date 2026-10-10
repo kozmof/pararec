@@ -62,7 +62,7 @@ CI installs browser system dependencies and runs all these checks. Browser downl
 
 ## Editing and recovery
 
-Use Alt+Left and Alt+Right to switch columns. Alt+Enter splits a left note or creates a right-note sibling. Ctrl+Enter creates a child from a right note. Alt+Up and Alt+Down move notes or rows. Ctrl+. enters children and Ctrl+, returns to the parent. Ctrl+Z undoes text and structure together. Ctrl+Shift+Z or Ctrl+Y redoes an action. The editor also accepts Cmd for Ctrl shortcuts on macOS.
+Use Alt+Left and Alt+Right to switch columns. Shift+Enter splits the current note into a new sibling row with left and right cells. Ctrl+Enter splits a left note into a new left cell or creates a child row from a right note. Alt+Up and Alt+Down move notes or rows. Ctrl+. enters children and Ctrl+, returns to the parent. Ctrl+Z undoes text and structure together. Ctrl+Shift+Z or Ctrl+Y redoes an action. The editor also accepts Cmd for Ctrl shortcuts on macOS.
 
 If the file changes outside the app, saving stops and offers Reload or Overwrite. Reload replaces your notes with the disk version and clears history. Overwrite saves your local notes against the current disk version.
 

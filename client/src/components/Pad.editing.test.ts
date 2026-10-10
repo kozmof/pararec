@@ -217,10 +217,10 @@ it("forwards all undo shortcuts to app history instead of native Reed history", 
   expect(disk.root[0].right.text).toBe("XFirst note");
 });
 
-it("Alt+Enter splits a right note into a sibling and saves both halves together", async () => {
+it("Shift+Enter splits a right note into a sibling and saves both halves together", async () => {
   await opened();
   for (let column = 0; column < 6; column++) await key("ArrowRight");
-  await key("Enter", { altKey: true });
+  await key("Enter", { shiftKey: true });
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
   await key("!");
   await save();
@@ -239,7 +239,7 @@ it("splits and joins left notes and restores the caret at the join point", async
   await key("Home", { ctrlKey: true });
   await key("ArrowRight");
   await key("ArrowRight");
-  await key("Enter", { altKey: true });
+  await key("Enter", { ctrlKey: true });
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
   await key("Backspace");
   await waitFor(() =>
@@ -307,7 +307,7 @@ it("keeps structure shortcuts inside the IME until composition commits", async (
   const sink = screen.getByTestId("editor-sink");
   await fireEvent.compositionStart(sink);
   await fireEvent.compositionUpdate(sink, { data: "にほん" });
-  await fireEvent.keyDown(sink, { key: "Enter", altKey: true });
+  await fireEvent.keyDown(sink, { key: "Enter", shiftKey: true });
   await fireEvent.keyDown(sink, { key: "Enter", ctrlKey: true });
   await fireEvent.keyDown(sink, { key: "ArrowDown", altKey: true });
   await fireEvent.compositionEnd(sink, { data: "日本" });
@@ -356,7 +356,7 @@ it("undoes text, row movement, and text as three separate actions", async () => 
 it("restores both halves and the caret when undoing a split", async () => {
   await opened();
   for (let i = 0; i < 6; i++) await key("ArrowRight");
-  await key("Enter", { altKey: true });
+  await key("Enter", { shiftKey: true });
   await key("z", { ctrlKey: true });
   await key("!");
   await save();
@@ -736,4 +736,39 @@ it.each([[false, false], [false, true], [true, false], [true, true]])("Right fro
   const saved = nested ? disk.root[0].right.children[0] : disk.root[0];
   expect(saved.left).toEqual(row.left);
   expect(saved.right.text).toBe("!Right note");
+});
+
+it("Shift Enter from a left cell creates a sibling row and can be undone", async () => {
+  disk.root[0].left[0].text = "left tail";
+  await opened();
+  content("flat-1-left").focus();
+  await waitFor(() => expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  for (let column = 0; column < 5; column++) await key("ArrowRight");
+  await key("Enter", { shiftKey: true });
+  await waitFor(() => expect(document.querySelector('[data-testid="editor-sink"]')?.closest('[aria-label="Left note"]')).not.toBeNull());
+  await key("!");
+  await save();
+  expect(disk.root).toHaveLength(3);
+  expect(disk.root[0].left[0].text).toBe("left ");
+  expect(disk.root[1].left[0].text).toBe("!tail");
+  expect(disk.root[1].right.text).toBe("");
+  expect(disk.root[0].right.text).toBe(original.root[0].right.text);
+  await key("z", { ctrlKey: true });
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk.root).toHaveLength(2);
+  expect(disk.root[0].left[0].text).toBe("left tail");
+});
+
+it.each(["left", "right"])("Alt Enter no longer creates records from the %s column", async side => {
+  await opened();
+  if (side === "left") {
+    content("flat-1-left").focus();
+    await waitFor(() => expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  }
+  await key("Enter", { altKey: true });
+  await save();
+  expect(disk.root).toHaveLength(2);
+  expect(disk.root[0].left).toHaveLength(1);
+  expect(disk.root[0].right.children).toEqual([]);
 });

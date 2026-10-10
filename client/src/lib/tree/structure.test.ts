@@ -171,3 +171,18 @@ it("preserves a moved caret's side of a wrap boundary", () => {
   );
   expect(result!.focus!.entry).toEqual({ kind: "caret", line: 0, column: 4, affinity: "upstream" });
 });
+
+it.each(["a-l0", "child-l0"])("creates a sibling row from left note %s at the same level", id => {
+  const tree = store();
+  const parentId = tree.index.get(id)!.parentId;
+  const before = tree.index.get(id)!.container;
+  const result = action(tree, id, "newSibling", 0, 1)!;
+  const siblings = parentId === null ? tree.schema.root : tree.index.get(parentId)!.container.right.children;
+  const at = siblings.findIndex(row => row.id === before.id);
+  const sibling = siblings[at + 1];
+  expect(siblings[at].left[0].text).toBe(before.left[0].text.slice(0, 1));
+  expect(sibling.left[0].text).toBe(before.left[0].text.slice(1));
+  expect(sibling.right.text).toBe("");
+  expect(siblings[at].right).toEqual(before.right);
+  expect(result.focus!.contentId).toBe(sibling.left[0].id);
+});

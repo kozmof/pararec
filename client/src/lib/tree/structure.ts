@@ -72,9 +72,9 @@ export function structureAction(
       };
     }
     case "newSibling": {
-      if (current.side !== "right") return null;
       const sibling = createContainer();
-      sibling.right.text = text.slice(offset);
+      const destination = current.side === "left" ? sibling.left[0] : sibling.right;
+      destination.text = text.slice(offset);
       return {
         path,
         ops: [
@@ -86,7 +86,7 @@ export function structureAction(
             container: sibling,
           },
         ],
-        focus: { contentId: sibling.right.id, entry: { kind: "edge", edge: "start" } },
+        focus: { contentId: destination.id, entry: { kind: "edge", edge: "start" } },
       };
     }
     case "newChild": {

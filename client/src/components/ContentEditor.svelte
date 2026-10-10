@@ -28,8 +28,8 @@
     if (accel && event.key.toLowerCase() === "s") command = "save";
     if (accel && event.key.toLowerCase() === "z") command = event.shiftKey ? "redo" : "undo";
     if (accel && event.key.toLowerCase() === "y") command = "redo";
-    if (event.key === "Enter" && event.altKey) command = side === "left" ? "split" : "newSibling";
-    if (event.key === "Enter" && accel && !event.altKey && side === "right") command = "newChild";
+    if (event.key === "Enter" && event.shiftKey && !accel && !event.altKey) command = "newSibling";
+    if (event.key === "Enter" && accel && !event.shiftKey && !event.altKey) command = side === "left" ? "split" : "newChild";
     if (event.altKey && event.key === "ArrowUp") command = "moveUp";
     if (event.altKey && event.key === "ArrowDown") command = "moveDown";
     if (event.key === "Backspace" && !accel && !event.altKey && !event.shiftKey) {
