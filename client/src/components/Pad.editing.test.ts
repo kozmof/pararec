@@ -772,3 +772,17 @@ it.each(["left", "right"])("Alt Enter no longer creates records from the %s colu
   expect(disk.root[0].left).toHaveLength(1);
   expect(disk.root[0].right.children).toEqual([]);
 });
+
+it("updates total layer depth when creating children and undoing them", async () => {
+  await opened();
+  const status = screen.getByRole("status", { name: "Current layer" });
+  expect(status).toHaveTextContent("1:1");
+  await key("Enter", { ctrlKey: true });
+  await waitFor(() => expect(status).toHaveTextContent("1:2"));
+  await key("Enter", { ctrlKey: true });
+  await waitFor(() => expect(status).toHaveTextContent("3:3"));
+  await key("z", { ctrlKey: true });
+  await waitFor(() => expect(status).toHaveTextContent("1:2"));
+  await key("z", { ctrlKey: true });
+  await waitFor(() => expect(status).toHaveTextContent("1:1"));
+});

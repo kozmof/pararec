@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { parseSchema } from "../../schema.js";
 import { buildIndex } from "./index.js";
-import { containerPath, levelAt, pathFromHash, pathHash, validPath } from "./navigation.js";
+import { containerPath, layerDepth, levelAt, pathFromHash, pathHash, validPath } from "./navigation.js";
 const schema = parseSchema(JSON.parse(readFileSync("fixtures/three-levels.json", "utf8")));
 it("validates ancestor chains and truncates the first invalid segment", () => {
   expect(validPath(schema, ["root", "child", "missing", "grandchild"])).toEqual(["root", "child"]);
@@ -17,4 +17,10 @@ it("round trips ids with URL-sensitive characters and stops at malformed escapes
   expect(pathFromHash(pathHash(["a/b", "日本", "#%"]))).toEqual(["a/b", "日本", "#%"]);
   expect(pathFromHash("#/c/root/%ZZ/child")).toEqual(["root"]);
   expect(pathHash([])).toBe("#/");
+});
+
+it("counts the deepest branch and treats an empty document as one layer", () => {
+  expect(layerDepth(schema)).toBe(3);
+  expect(layerDepth({ ...schema, root: [] })).toBe(1);
+  expect(layerDepth({ ...schema, root: [{ ...schema.root[0], right: { ...schema.root[0].right, children: [] } }, ...schema.root] })).toBe(3);
 });

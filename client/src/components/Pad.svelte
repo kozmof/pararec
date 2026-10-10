@@ -5,7 +5,7 @@
   import { createContainer } from "../lib/tree/ops.js";
   import { structureAction, type StructureCommand } from "../lib/tree/structure.js";
   import type { Caret } from "../lib/editor/document-store.svelte.js";
-  import { containerPath, levelAt, pathFromHash, pathHash, validPath } from "../lib/tree/navigation.js";
+  import { containerPath, layerDepth, levelAt, pathFromHash, pathHash, validPath } from "../lib/tree/navigation.js";
   import { loadDocument, type LoadedDocument } from "../lib/api/document.js";
   import { SaveSession } from "../lib/api/save-session.svelte.js";
   import { IndexedRecovery, type RecoverySnapshot } from "../lib/api/recovery.js";
@@ -43,6 +43,8 @@
   let loadedSchema: Schema | null = null;
   const disabled = $derived(busy || recoverySnapshot !== null || session?.status === "conflict");
   const rows = $derived(tree ? levelAt(tree.schema, path) : []);
+  const currentLayer = $derived(tree ? validPath(tree.schema, path).length + 1 : 1);
+  const totalLayers = $derived(tree ? layerDepth(tree.schema) : 1);
   const ancestors = $derived.by(() => {
     if (!tree) return [];
     void tree.schema;
@@ -350,7 +352,10 @@
         onblur={() => { history.closeGroup(); void session?.flush(); }}
         onkeydown={event => { if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); event.currentTarget.blur(); } }} /></div>
     {/if}
+    <div class="status-row">
     <div class="save-status" role="status">{session.status === "saved" ? "Saved" : session.status === "saving" ? "Saving…" : session.status === "dirty" ? "Unsaved changes" : session.status === "conflict" ? "File changed on disk" : "Save failed"}</div>
+      <span class="layer-status" role="status" aria-label="Current layer" title={`Layer ${currentLayer} of ${totalLayers}`}>{currentLayer}:{totalLayers}</span>
+    </div>
     {#if session.status === "failed"}<p role="alert">{session.error}</p><button onclick={() => session?.flush()}>Retry save</button>{/if}
     {#if session.status === "conflict"}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="File changed on disk" aria-modal="true"><p>The file changed on disk. Reload the disk version or overwrite it with your notes.</p>{#if session.error}<p>{session.error}</p>{/if}<button disabled={busy} onclick={reload}>Reload</button><button disabled={busy} onclick={overwrite}>Overwrite</button></dialog>{/if}
     {#if recoveryError || session.recoveryError}<p role="alert">{recoveryError || session.recoveryError}</p>{/if}
@@ -366,7 +371,9 @@
 </main>
 <style>
   main { max-width: 1100px; margin: 0 auto; padding: 24px; font-family: system-ui, sans-serif; }
-  .document-title { font-size: 1em; font-weight: normal; margin: 0.67em 0; }
+  .status-row { display: flex; align-items: baseline; gap: 16px; margin-bottom: 12px; }
+  .document-title { min-width: 0; font-size: 1em; font-weight: normal; margin: 0.67em 0; }
+  .layer-status { margin-left: auto; flex-shrink: 0; color: #666; font-size: 13px; font-variant-numeric: tabular-nums; }
   .title-input { width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 4px; }
   .title-input:hover { border-color: #ddd; }
   .title-input:focus { outline: none; }
@@ -374,7 +381,7 @@
   .parent-row { border-bottom: 0; display: flex; flex-direction: column; }
   .go-back { align-self: flex-end; margin: 0 8px 8px auto; padding: 4px; width: 24px; height: 24px; color: #9ca3af; box-sizing: border-box; border: 1px solid currentColor; border-radius: 50%; background: transparent; display: inline-flex; align-items: center; justify-content: center; }
   .go-back:hover { color: #6b7280; }
-  .save-status { color: #666; font-size: 13px; margin-bottom: 12px; }
+  .save-status { color: #666; font-size: 13px; }
   .add-row { width: 100%; padding: 20px; cursor: pointer; }
   dialog { border: 1px solid #b78b40; padding: 16px; margin-bottom: 16px; }
   button { cursor: pointer; }

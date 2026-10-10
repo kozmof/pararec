@@ -1,6 +1,21 @@
 import type { Container, Schema } from "../../schema.js";
 import type { TreeIndex } from "./index.js";
 
+export function layerDepth(schema: Schema): number {
+  let depth = 1;
+  const pending = [{ rows: schema.root, depth: 1 }];
+  while (pending.length) {
+    const level = pending.pop()!;
+    for (const row of level.rows) {
+      if (!row.right.children.length) continue;
+      const childDepth = level.depth + 1;
+      depth = Math.max(depth, childDepth);
+      pending.push({ rows: row.right.children, depth: childDepth });
+    }
+  }
+  return depth;
+}
+
 export function validPath(schema: Schema, path: string[]): string[] {
   const valid: string[] = [];
   let rows = schema.root;

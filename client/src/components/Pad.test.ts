@@ -223,3 +223,22 @@ it.each([true, false])("respects title visibility %s", async (showTitle) => {
   await opened();
   expect(screen.queryByRole("textbox", { name: "Document title" }) !== null).toBe(showTitle);
 });
+
+it("shows the current layer and whole-document depth while navigating", async () => {
+  await opened();
+  const status = screen.getByRole("status", { name: "Current layer" });
+  expect(status).toHaveTextContent("1:3");
+  await key(".");
+  await waitFor(() => expect(status).toHaveTextContent("2:3"));
+  await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Child note" }));
+  await waitFor(() => expect(status).toHaveTextContent("3:3"));
+  await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+  await waitFor(() => expect(status).toHaveTextContent("2:3"));
+});
+
+it("shows layer status on an empty document with the title hidden", async () => {
+  vi.mocked(fetch).mockResolvedValue(response({ ...fixture, root: [], config: { ...fixture.config, showTitles: false } }));
+  await opened();
+  expect(screen.queryByRole("textbox", { name: "Document title" })).not.toBeInTheDocument();
+  expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent("1:1");
+});
