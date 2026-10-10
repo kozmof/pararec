@@ -6,6 +6,7 @@ pub const Container = struct { id: []const u8, left: []const Content, right: Rig
 pub const WidthRate = struct { left: f64, right: f64 };
 pub const Config = struct {
     showTitles: bool = true,
+    maxWidth: f64 = 1100,
     outerWidthRate: WidthRate = .{ .left = 35, .right = 65 },
     innerIdthRate: WidthRate = .{ .left = 35, .right = 65 },
 };
@@ -30,6 +31,7 @@ pub fn parse(gpa: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(Schema)
 
 pub fn validate(gpa: std.mem.Allocator, document: Schema) !void {
     if (document.version != 1) return error.UnsupportedVersion;
+    if (!std.math.isFinite(document.config.maxWidth) or document.config.maxWidth <= 0) return error.InvalidMaxWidth;
     try checkText(document.title);
     for ([_]WidthRate{ document.config.outerWidthRate, document.config.innerIdthRate }) |rate| {
         if (!std.math.isFinite(rate.left) or !std.math.isFinite(rate.right) or rate.left <= 0 or rate.right <= 0) return error.InvalidWidthRate;
@@ -124,4 +126,19 @@ test "document settings survive serialization and validate ratios" {
     try std.testing.expectError(error.InvalidWidthRate, validate(std.testing.allocator, .{ .version = 1, .root = &.{}, .config = .{ .outerWidthRate = .{ .left = 0, .right = 1 } } }));
     try std.testing.expectEqualStrings("my.notes", defaultTitle("/tmp/my.notes.json"));
     try std.testing.expectEqualStrings("notes", defaultTitle("notes"));
+}
+
+test "maxWidth defaults and validation" {
+    const parsed = try parse(std.testing.allocator, "{\"version\":1,\"root\":[],\"config\":{\"maxWidth\":900}}");
+    defer parsed.deinit();
+    try validate(std.testing.allocator, parsed.value);
+    const bytes = try serialize(std.testing.allocator, parsed.value);
+    defer std.testing.allocator.free(bytes);
+    const roundtrip = try parse(std.testing.allocator, bytes);
+    defer roundtrip.deinit();
+    try std.testing.expectEqual(@as(f64, 900), roundtrip.value.config.maxWidth);
+    try std.testing.expectEqual(@as(f64, 1100), (Config{}).maxWidth);
+    for ([_]f64{ 0, -1, std.math.inf(f64), std.math.nan(f64) }) |width| {
+        try std.testing.expectError(error.InvalidMaxWidth, validate(std.testing.allocator, .{ .version = 1, .root = &.{}, .config = .{ .maxWidth = width } }));
+    }
 }

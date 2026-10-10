@@ -16,7 +16,7 @@ const empty = {
   version: 1,
   title: "document",
   config: {
-    showTitles: true,
+    showTitles: true, maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
     innerIdthRate: { left: 35, right: 65 },
   },
@@ -345,7 +345,7 @@ test("document settings persist and the default title uses the filename", async 
     ...empty,
     title: "Custom title",
     config: {
-      showTitles: false,
+      showTitles: false, maxWidth: 900,
       outerWidthRate: { left: 1, right: 2 },
       innerIdthRate: { left: 3, right: 4 },
     },

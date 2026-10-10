@@ -336,6 +336,7 @@
 </script>
 <svelte:window onkeydown={keydown} />
 <main bind:this={pad}
+  style:max-width={`${tree?.schema.config.maxWidth ?? 1100}px`}
   style:--outer-left={(tree?.schema.config.outerWidthRate?.left ?? 35) + "fr"}
   style:--outer-right={(tree?.schema.config.outerWidthRate?.right ?? 65) + "fr"}
   style:--inner-left={(tree?.schema.config.innerIdthRate?.left ?? 35) + "fr"}

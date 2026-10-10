@@ -197,7 +197,7 @@ it("shows the filename title and applies configured width rates", async () => {
         ...fixture,
         title: undefined,
         config: {
-          showTitles: true,
+          showTitles: true, maxWidth: 1100,
           outerWidthRate: { left: 2, right: 3 },
           innerIdthRate: { left: 1, right: 4 },
         },
@@ -241,4 +241,10 @@ it("shows layer status on an empty document with the title hidden", async () => 
   await opened();
   expect(screen.queryByRole("textbox", { name: "Document title" })).not.toBeInTheDocument();
   expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent("1:1");
+});
+
+it("applies the configured maximum width to the whole records layout", async () => {
+  vi.mocked(fetch).mockResolvedValue(response({ ...fixture, config: { ...fixture.config, maxWidth: 900 } }));
+  await opened();
+  expect(document.querySelector("main")).toHaveStyle({ maxWidth: "900px" });
 });

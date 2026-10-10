@@ -11,6 +11,7 @@ export type Container = {
 
 export type Config = {
   showTitles: boolean;
+  maxWidth: number;
   outerWidthRate: { left: number; right: number };
   innerIdthRate: { left: number; right: number };
 };
@@ -59,10 +60,15 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
   let title = defaultTitle;
   const config: Config = {
     showTitles: true,
+    maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
     innerIdthRate: { left: 35, right: 65 },
   };
   const settings = document.config === undefined ? {} : object(document.config);
+  if (settings.maxWidth !== undefined) {
+    if (typeof settings.maxWidth !== "number" || !Number.isFinite(settings.maxWidth) || settings.maxWidth <= 0) throw new Error("Expected positive finite maxWidth in pixels");
+    config.maxWidth = settings.maxWidth;
+  }
   if (document.title !== undefined) {
     if (typeof document.title !== "string") throw new Error("Expected string title");
     title = document.title.replace(/\r\n?/g, "\n");

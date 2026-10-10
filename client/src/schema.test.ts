@@ -25,7 +25,7 @@ describe("file format", () => {
     expect(result).toEqual({
       title: "document",
       config: {
-        showTitles: true,
+        showTitles: true, maxWidth: 1100,
         outerWidthRate: { left: 35, right: 65 },
         innerIdthRate: { left: 35, right: 65 },
       },
@@ -55,7 +55,7 @@ it("preserves document settings", () => {
     root: [],
     title: "My notes",
     config: {
-      showTitles: false,
+      showTitles: false, maxWidth: 1100,
       outerWidthRate: { left: 2, right: 3 },
       innerIdthRate: { left: 1, right: 4 },
     },
@@ -78,10 +78,19 @@ it("populates required title and configuration for legacy files", () => {
     version: 1,
     title: "my.notes",
     config: {
-      showTitles: true,
+      showTitles: true, maxWidth: 1100,
       outerWidthRate: { left: 35, right: 65 },
       innerIdthRate: { left: 35, right: 65 },
     },
     root: [],
   });
+});
+
+it.each([0, -1, Infinity, NaN, "900px", null])("rejects invalid maxWidth %s", maxWidth => {
+  expect(() => parseSchema({ version: 1, root: [], config: { maxWidth } })).toThrow();
+});
+
+it("uses the existing width for older configs and preserves a custom width", () => {
+  expect(parseSchema({ version: 1, root: [] }).config.maxWidth).toBe(1100);
+  expect(parseSchema({ version: 1, root: [], config: { maxWidth: 900 } }).config.maxWidth).toBe(900);
 });

@@ -6,7 +6,7 @@ const schema: Schema = {
   version: 1,
   title: "document",
   config: {
-    showTitles: true,
+    showTitles: true, maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
     innerIdthRate: { left: 35, right: 65 },
   },
@@ -16,7 +16,7 @@ const next: Schema = {
   version: 1,
   title: "document",
   config: {
-    showTitles: true,
+    showTitles: true, maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
     innerIdthRate: { left: 35, right: 65 },
   },
