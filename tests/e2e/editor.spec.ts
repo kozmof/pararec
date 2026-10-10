@@ -72,6 +72,7 @@ test("pad commits composition once and undoes it as one action", async ({ page }
   await sink.focus();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.insertText("note");
+  await page.keyboard.press("ControlOrMeta+Home");
   await composition(sink, "compositionstart", "");
   await composition(sink, "compositionupdate", "にほんご");
   await expect(page.locator("[data-preedit]")).toHaveText("にほんご");
