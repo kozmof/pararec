@@ -14,6 +14,7 @@
   import { moveVisualRow, visualRowEdge, visualCaret, rowAt } from "./visual-navigation.js";
   import EditorLine from "./EditorLine.svelte";
   import { LineIdentity } from "./line-identity.js";
+  import { compareLines } from "./document-change.js";
   import {
     MeasuredLayout, estimateLineHeight, captureScrollAnchor, anchorScrollTop,
     spliceScrollAnchor, type ScrollAnchor,
@@ -59,6 +60,7 @@
   const PAD_X = 12;
   const PAD_Y = 8;
   const OVERSCAN = 6;
+  const PAGE_WINDOW_THRESHOLD = 2000;
 
   let scrollEl: HTMLDivElement | undefined = $state();
   let sinkEl: HTMLTextAreaElement | undefined = $state();
@@ -70,6 +72,21 @@
   let resizeObserver: ResizeObserver | null = null;
   let goalX: number | undefined;
   let pendingCaretScroll = false;
+  const pageWindowed = $derived(autoHeight && doc.lineCount > PAGE_WINDOW_THRESHOLD);
+  let pageTop = $state(0);
+  let pageHeight = $state(800);
+  let pageScrollVersion = 0;
+  function updatePageViewport(): void {
+    if (!scrollEl || !pageWindowed) return;
+    const box = scrollEl.getBoundingClientRect();
+    pageTop = Math.max(0, -box.top - PAD_Y);
+    pageHeight = Math.max(LINE_HEIGHT, window.innerHeight - Math.max(0, box.top) - PAD_Y);
+  }
+  function pageScrolled(): void {
+    pageScrollVersion++;
+    pendingCaretScroll = false;
+    updatePageViewport();
+  }
   $effect(() => {
     const point = { ...caret };
     const notify = onCaret;
@@ -148,6 +165,7 @@
     return currentDoc.subscribeEdits(({ change }) => {
       if (currentDoc !== doc) return;
       let anchor = scrollAnchor();
+      lineIdentity.splice(change.fromLine, change.oldEndLine, change.newEndLine);
       currentLayout.splice(change.fromLine, change.oldEndLine - change.fromLine,
         change.newEndLine - change.fromLine);
       if (anchor) anchor = spliceScrollAnchor(anchor, change.fromLine, change.oldEndLine,
@@ -192,6 +210,7 @@
         }
         restoreScroll(anchor);
       }
+      updatePageViewport();
     });
     if (scrollEl) {
       resizeObserver.observe(scrollEl);
@@ -203,24 +222,56 @@
       }
     }
     for (const element of Object.values(lineEls)) if (element) resizeObserver.observe(element);
+    updatePageViewport();
     return () => {
       resizeObserver?.disconnect();
       resizeObserver = null;
     };
   });
 
+  $effect(() => {
+    if (!pageWindowed || !scrollEl) return;
+    untrack(updatePageViewport);
+    // Capture includes scrolling ancestors; document resizing also catches
+    // another record growing above this note and moving its viewport.
+    window.addEventListener("scroll", pageScrolled, true);
+    window.addEventListener("resize", updatePageViewport);
+    const observer = resizeObserver;
+    observer?.observe(document.documentElement);
+    return () => {
+      window.removeEventListener("scroll", pageScrolled, true);
+      window.removeEventListener("resize", updatePageViewport);
+      observer?.unobserve(document.documentElement);
+    };
+  });
+
   const window_ = $derived.by(() => {
     void layoutVersion;
-    if (autoHeight) return { startLine: 0, visibleLineCount: doc.lineCount };
+    if (autoHeight && !pageWindowed) return { startLine: 0, visibleLineCount: doc.lineCount };
     return visibleRange(
-      { scrollTop, height: viewportHeight, layout, lineCount: doc.lineCount },
+      { scrollTop: pageWindowed ? pageTop : scrollTop,
+        height: pageWindowed ? pageHeight : viewportHeight, layout, lineCount: doc.lineCount },
       OVERSCAN,
     );
   });
   const lineIdentity = new LineIdentity();
+  let renderedDoc: EditorDocument | undefined;
   const lines = $derived.by(() => {
     void layoutVersion;
-    return lineIdentity.reconcile(doc.visibleLines(window_.startLine, window_.visibleLineCount, 0))
+    if (renderedDoc && renderedDoc !== doc) {
+      const change = untrack(() => compareLines(renderedDoc!.state, doc.state));
+      if (change) lineIdentity.splice(change.fromLine, change.oldEndLine, change.newEndLine);
+    }
+    renderedDoc = doc;
+    const visible = doc.visibleLines(window_.startLine, window_.visibleLineCount, 0);
+    // Keep a distant keyboard destination measurable without mounting the gap
+    // between it and the page viewport (for example Ctrl+End).
+    if (pageWindowed && !readonly && (caret.line < window_.startLine || caret.line >= window_.startLine + window_.visibleLineCount)) {
+      visible.push(...doc.visibleLines(Math.max(0, caret.line - OVERSCAN), OVERSCAN * 2 + 1, 0)
+        .filter(line => line.lineNumber < window_.startLine || line.lineNumber >= window_.startLine + window_.visibleLineCount));
+      visible.sort((a, b) => a.lineNumber - b.lineNumber);
+    }
+    return lineIdentity.reconcile(visible)
       .map(line => ({ ...line, top: layout.top(line.lineNumber) + PAD_Y }));
   });
   const contentHeight = $derived.by(() => {
@@ -298,7 +349,7 @@
     void lines;
     if (readonly || !selection) return [];
     return selectionRects(selection.start, selection.end, layout, measure, (line) =>
-      doc.lineText(line).length,
+      doc.lineText(line).length, lines.map(line => line.lineNumber),
     );
   });
 
@@ -724,7 +775,16 @@
   // Follow caret changes without depending on reactive scroll state. Read the element's
   // current viewport directly so manual scrolling does not trigger a jump back to the caret.
   function ensureCaretVisible(): boolean {
-    if (!scrollEl || autoHeight || readonly || scrollEl.clientHeight === 0) return true;
+    if (!scrollEl || readonly) return true;
+    if (autoHeight) {
+      if (!pageWindowed) return true;
+      const mounted = lineEls[caret.line];
+      if (!mounted) return false;
+      sinkEl?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      updatePageViewport();
+      return true;
+    }
+    if (scrollEl.clientHeight === 0) return true;
     const mounted = lineEls[caret.line];
     const point = mounted ? measure.columnToPoint(caret.line, caret.column, caret.affinity)
       : arithmeticMeasurer(line => doc.lineText(line), FONT_SIZE * 0.6, LINE_HEIGHT,
@@ -745,9 +805,17 @@
     void caret.column;
     void caret.affinity;
     void layout;
-    if (autoHeight || readonly) return;
+    if ((autoHeight && !pageWindowed) || readonly) return;
     untrack(() => {
-      pendingCaretScroll = !ensureCaretVisible();
+      if (!autoHeight) {
+        pendingCaretScroll = !ensureCaretVisible();
+        return;
+      }
+      const version = pageScrollVersion;
+      pendingCaretScroll = true;
+      void tick().then(() => {
+        pendingCaretScroll = version === pageScrollVersion && !ensureCaretVisible();
+      });
     });
   });
 </script>

@@ -291,9 +291,17 @@ export class EditorDocument {
     return rendering.getLineContent(this.state, line) ?? "";
   }
 
-  /** Read the whole document in O(n) time for saving, outside the rendering path. */
+  #textState: DocumentState | undefined;
+  #textValue = "";
+
+  /** Decode once per immutable revision; cache checks and saving share the value. */
   text(): string {
-    return scan.getValue(this.state.pieceTable);
+    const state = this.state;
+    if (state !== this.#textState) {
+      this.#textValue = scan.getValue(state.pieceTable);
+      this.#textState = state;
+    }
+    return this.#textValue;
   }
 
   /**

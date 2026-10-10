@@ -102,6 +102,7 @@ export function selectionRects(
   layout: VerticalLayout | number,
   measure: LineMeasurer | PointMeasurer,
   lineLength: (line: number) => number,
+  mountedLines?: readonly number[],
 ): SelectionRect[] {
   if (start.line === end.line && start.column === end.column) return [];
 
@@ -124,6 +125,14 @@ export function selectionRects(
       height: vertical.height(line),
     });
   };
+
+  if (mountedLines) {
+    for (const line of mountedLines) {
+      if (line < start.line || line > end.line) continue;
+      push(line, line === start.line ? start.column : 0, line === end.line ? end.column : null);
+    }
+    return rects;
+  }
 
   if (start.line === end.line) {
     push(start.line, start.column, end.column);

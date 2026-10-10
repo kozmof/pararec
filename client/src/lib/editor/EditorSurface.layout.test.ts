@@ -152,3 +152,29 @@ it("starts focused layout from the measured preview heights", async () => {
   expect(surface.style.height).toBe("116px");
   expect(line(1).style.top).toBe("68px");
 });
+
+it("windows a 50,010-line note against page scrolling and keeps keyboard destinations mounted", async () => {
+  const { surface, doc, view } = mount(
+    Array.from({ length: 50010 }, (_, at) => `line ${at}`).join("\n"), { autoHeight: true },
+  );
+  await settled();
+  const count = () => document.querySelectorAll("[data-line]").length;
+  expect(count()).toBeLessThan(100);
+  expect(surface.style.height).toBe("1000216px");
+  const read = vi.spyOn(doc, "visibleLines");
+  doc.insert({ line: 0, column: 0 }, "!");
+  await settled();
+  expect(count()).toBeLessThan(100);
+  expect(read.mock.calls.every(([, length]) => length < 100)).toBe(true);
+  vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({ top: -200000 } as DOMRect);
+  await fireEvent.scroll(window);
+  await settled();
+  expect(line(10000)).toBeInTheDocument();
+  expect(line(5000)).toBeNull();
+  expect(count()).toBeLessThan(100);
+  await view.rerender({ doc, autoHeight: true, caret: { line: 50009, column: 0 } });
+  await settled();
+  expect(line(50009)).toBeInTheDocument();
+  expect(line(50008)).toBeInTheDocument();
+  expect(count()).toBeLessThan(100);
+});

@@ -32,3 +32,14 @@ it("updates line numbers without losing identity when the visible window moves",
   expect(after[1].key).toBe(before[2].key);
   expect(after.map((line) => line.lineNumber)).toEqual([11, 12, 13]);
 });
+
+it("preserves a clipped window's line identities through newline insertion and deletion", () => {
+  const identity = new LineIdentity();
+  const before = identity.reconcile(lines("one\ntwo\nthree"));
+  identity.splice(0, 1, 2);
+  const split = identity.reconcile(lines("o\nne\ntwo"));
+  expect(split[2].key).toBe(before[1].key);
+  identity.splice(0, 2, 1);
+  const joined = identity.reconcile(lines("one\ntwo\nthree"));
+  expect(joined[1].key).toBe(before[1].key);
+});
