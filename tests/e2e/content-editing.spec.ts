@@ -74,46 +74,28 @@ test("read-only and focused notes have identical wrapping and click placement", 
   await expect(note).toContainText(`${disk.root[1].right.text.slice(0, 3)}!`);
 });
 
-test("a failed save can be recovered after reload from IndexedDB", async ({ page }) => {
-  let offline = false;
+test("failed edits stay in memory and reload reads the disk document without browser storage", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "indexedDB", {
+      get() { throw new Error("Browser recovery storage must not be accessed"); },
+    });
+  });
   await page.route("**/api/document", (route) =>
     route.request().method() === "PUT"
-      ? route.fulfill({ status: offline ? 500 : 204, headers: { ETag: '"v2"' } })
+      ? route.fulfill({ status: 500 })
       : route.fulfill({ json: fixture, headers: { ETag: '"v1"' } }),
   );
   await page.goto("/");
   await expect(page.getByTestId("editor-sink")).toBeFocused();
-  offline = true;
-  await page.keyboard.type("Recovered ");
+  await page.keyboard.type("Unsaved ");
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByText("Save failed", { exact: true })).toBeVisible();
-  await expect
-    .poll(() =>
-      page.evaluate(async () => {
-        const database = await new Promise<IDBDatabase>((resolve, reject) => {
-          const request = indexedDB.open("pararec-recovery", 1);
-          request.onsuccess = () => resolve(request.result);
-          request.onerror = () => reject(request.error);
-        });
-        const value = await new Promise<unknown>((resolve) => {
-          const request = database
-            .transaction("documents")
-            .objectStore("documents")
-            .get(`${location.origin}/api/document`);
-          request.onsuccess = () => resolve(request.result);
-        });
-        database.close();
-        return !!value;
-      }),
-    )
-    .toBe(true);
+  await expect(page.locator('[data-content-id="flat-1-right"]')).toContainText("Unsaved First note");
   page.on("dialog", (dialog) => dialog.accept());
   await page.reload();
-  await expect(page.getByRole("dialog", { name: "Recover unsaved notes" })).toBeVisible();
-  await page.getByRole("button", { name: "Restore", exact: true }).click();
-  await expect(page.locator('[data-content-id="flat-1-right"]')).toContainText(
-    "Recovered First note",
-  );
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
+  await expect(page.locator('[data-content-id="flat-1-right"]')).toHaveText("First note");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 for (const side of ["left", "right"] as const) {

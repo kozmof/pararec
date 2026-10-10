@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { tick } from "svelte";
 import Pad from "./Pad.svelte";
-import { IndexedRecovery } from "../lib/api/recovery.js";
 import type { Schema } from "../schema.js";
 import { scan } from "@kozmof/reed";
 import { EditorDocument } from "../lib/editor/document-store.svelte.js";
@@ -21,9 +20,6 @@ beforeEach(() => {
   puts = [];
   conflict = false;
   window.history.replaceState(null, "", "/");
-  vi.spyOn(IndexedRecovery.prototype, "read").mockResolvedValue(null);
-  vi.spyOn(IndexedRecovery.prototype, "write").mockResolvedValue();
-  vi.spyOn(IndexedRecovery.prototype, "clear").mockResolvedValue();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (_url, options) => {
@@ -57,6 +53,17 @@ async function save() {
 const content = (id: string) => document.querySelector(`[data-content-id="${id}"]`) as HTMLElement;
 
 describe("integrated content editing", () => {
+  it("loads, edits, and saves without accessing IndexedDB", async () => {
+    const open = vi.fn(() => { throw new Error("Browser storage is disabled"); });
+    vi.stubGlobal("indexedDB", { open });
+    await opened();
+    await key("!");
+    await save();
+    expect(disk.root[0].right.text).toBe("!First note");
+    expect(open).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("commits Japanese composition once, excludes preedit from saving, and survives remount", async () => {
     disk.root[0].right.text = "note";
     const view = render(Pad);
@@ -132,45 +139,12 @@ describe("integrated content editing", () => {
     expect(disk.root[0].right.text).toBe("XFirst note");
     expect(puts.at(-1)!.headers["If-Match"]).toBe('"external"');
   });
-  it("restores local notes only after confirmation when the disk document differs", async () => {
-    const base = clone(disk),
-      schema = clone(disk);
-    schema.root[0].right.text = "Recovered";
-    vi.mocked(IndexedRecovery.prototype.read).mockResolvedValue({ schema, base, savedAt: 1 });
-    disk.root[0].right.text = "External";
-    render(Pad);
-    await screen.findByRole("dialog", { name: "Recover unsaved notes" });
-    expect(screen.queryByTestId("editor-sink")).not.toBeInTheDocument();
-    await fireEvent.click(screen.getByRole("button", { name: /^Restore$/ }));
-    expect(puts).toHaveLength(0);
-    await fireEvent.click(screen.getByRole("button", { name: "Confirm restore" }));
-    await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
-    await save();
-    expect(disk.root[0].right.text).toBe("Recovered");
-  });
-  it("discards local recovery and retains the disk document", async () => {
-    const schema = clone(disk);
-    schema.root[0].right.text = "Recovered";
-    vi.mocked(IndexedRecovery.prototype.read).mockResolvedValue({ schema, base: disk, savedAt: 1 });
-    render(Pad);
-    await screen.findByRole("dialog", { name: "Recover unsaved notes" });
-    await fireEvent.click(screen.getByRole("button", { name: "Discard" }));
-    await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
-    expect(content(disk.root[0].right.id)).toHaveTextContent("First note");
-    expect(puts).toHaveLength(0);
-    expect(IndexedRecovery.prototype.clear).toHaveBeenCalled();
-  });
   it("warns before leaving with unsaved edits and flushes when the page becomes hidden", async () => {
     await opened();
     await key("!");
     const event = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
-    expect(IndexedRecovery.prototype.write).toHaveBeenCalledWith(expect.objectContaining({
-      schema: expect.objectContaining({ root: expect.arrayContaining([
-        expect.objectContaining({ right: expect.objectContaining({ text: "!First note" }) }),
-      ]) }),
-    }));
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
     await fireEvent(document, new Event("visibilitychange"));
     await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());

@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Schema } from "../../schema.js";
 import { SaveSession } from "./save-session.svelte.js";
-import type { RecoveryStorage } from "./recovery.js";
 const schema: Schema = {
   version: 1,
   title: "document",
@@ -24,7 +23,6 @@ const next: Schema = {
     { id: "a", left: [{ id: "l", text: "" }], right: { id: "r", text: "日本", children: [] } },
   ],
 };
-let recovery: RecoveryStorage;
 let session: SaveSession;
 let fetchMock: ReturnType<typeof vi.fn>;
 const saved = (etag = '"v2"') => new Response(null, { status: 204, headers: { ETag: etag } });
@@ -37,14 +35,9 @@ function deferred<T>() {
 }
 beforeEach(() => {
   vi.useFakeTimers();
-  recovery = {
-    read: vi.fn().mockResolvedValue(null),
-    write: vi.fn().mockResolvedValue(undefined),
-    clear: vi.fn().mockResolvedValue(undefined),
-  };
   fetchMock = vi.fn().mockImplementation(() => Promise.resolve(saved()));
   vi.stubGlobal("fetch", fetchMock);
-  session = new SaveSession({ schema, etag: '"v1"' }, recovery);
+  session = new SaveSession({ schema, etag: '"v1"' });
 });
 afterEach(() => {
   session.dispose();
@@ -63,11 +56,10 @@ describe("serialized saving", () => {
     expect(fetchMock.mock.calls[0][1].headers["If-Match"]).toBe('"v1"');
     expect(session.status).toBe("saved");
     expect(session.dirty).toBe(false);
-    expect(recovery.clear).toHaveBeenCalledOnce();
   });
   it("uses the creation precondition for a missing file", async () => {
     session.dispose();
-    session = new SaveSession({ schema, etag: null }, recovery);
+    session = new SaveSession({ schema, etag: null });
     session.changed(next);
     await session.flush();
     expect(fetchMock.mock.calls[0][1].headers["If-None-Match"]).toBe("*");
@@ -93,7 +85,6 @@ describe("serialized saving", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][1].headers["If-Match"]).toBe('"v2"');
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual(newer);
-    expect(recovery.clear).not.toHaveBeenCalled();
     second.resolve(saved('"v3"'));
     await flush;
     expect(session.dirty).toBe(false);
@@ -105,7 +96,6 @@ describe("serialized saving", () => {
     await session.flush();
     expect(session.status).toBe("failed");
     expect(session.dirty).toBe(true);
-    expect(recovery.clear).not.toHaveBeenCalled();
     await session.flush();
     expect(session.status).toBe("saved");
   });
@@ -164,7 +154,7 @@ describe("serialized saving", () => {
     await session.flush();
     expect(fetchMock.mock.calls[2][1].headers["If-Match"]).toBe('"reloaded"');
   });
-  it("retains recovery when disposed during a save", async () => {
+  it("does not acknowledge an in-flight save after disposal", async () => {
     const first = deferred<Response>();
     fetchMock.mockReturnValueOnce(first.promise);
     session.changed(next);
@@ -172,42 +162,8 @@ describe("serialized saving", () => {
     session.dispose();
     first.resolve(saved());
     await flush;
-    expect(recovery.clear).not.toHaveBeenCalled();
-  });
-  it("surfaces storage failures without blocking disk saving", async () => {
-    recovery.write = vi.fn().mockRejectedValue(new Error("Quota exceeded"));
-    session.changed(next);
-    await vi.advanceTimersByTimeAsync(200);
-    expect(session.recoveryError).toBe("Quota exceeded");
-    await session.flush();
-    expect(session.status).toBe("saved");
-  });
-  it("batches recovery snapshots until typing pauses and retains only the latest schema", async () => {
-    session.changed(next);
-    await vi.advanceTimersByTimeAsync(100);
-    const latest = { ...next, title: "latest" };
-    session.changed(latest);
-    expect(recovery.write).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(200);
-    expect(recovery.write).toHaveBeenCalledOnce();
-    expect(vi.mocked(recovery.write).mock.calls[0][0].schema).toBe(latest);
-  });
-  it("bounds recovery delay during continuous typing", async () => {
-    for (let key = 0; key < 10; key++) {
-      session.changed(next);
-      await vi.advanceTimersByTimeAsync(100);
-    }
-    expect(recovery.write).toHaveBeenCalledOnce();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-  it("persists pending recovery when saving or disposing before the debounce expires", async () => {
-    session.changed(next);
-    await session.flush();
-    expect(recovery.write).toHaveBeenCalledOnce();
-    session.changed(next);
-    session.dispose();
-    expect(recovery.write).toHaveBeenCalledTimes(2);
+    expect(session.dirty).toBe(true);
     await vi.advanceTimersByTimeAsync(2000);
-    expect(recovery.write).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

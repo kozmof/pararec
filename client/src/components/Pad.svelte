@@ -8,7 +8,6 @@
   import { containerPath, layerDepth, levelAt, pathFromHash, pathHash, validPath } from "../lib/tree/navigation.js";
   import { loadDocument, type LoadedDocument } from "../lib/api/document.js";
   import { SaveSession } from "../lib/api/save-session.svelte.js";
-  import { IndexedRecovery, type RecoverySnapshot } from "../lib/api/recovery.js";
   import { AppHistory, type AppSnapshot, type FocusSnapshot } from "../lib/history/history.svelte.js";
   import { ContentCache, type ContentChange } from "../lib/editor/content-cache.js";
   import { CONTENT_HOST, type ContentHost, type Entry, type Boundary, type Command } from "../lib/editor/content-host.js";
@@ -23,16 +22,12 @@
   let focused = $state<string | null>(null);
   let entry = $state<Entry>({ kind: "edge", edge: "start" });
   let error = $state("");
-  let recoveryError = $state("");
   let loading = $state(true);
   let busy = $state(false);
-  let recoverySnapshot = $state.raw<RecoverySnapshot | null>(null);
-  let confirmRestore = $state(false);
   let pad: HTMLElement;
   let addButton = $state<HTMLButtonElement>();
   let titleInput = $state<HTMLInputElement>();
   let titleComposing = false;
-  const recovery = new IndexedRecovery();
   const history = new AppHistory();
   let liveCaret: Caret | null = null;
   const focusByLevel = new Map<string, string>();
@@ -40,8 +35,7 @@
   let controller: AbortController;
   let navigationVersion = 0;
   let seenSchema: Schema | null = null;
-  let loadedSchema: Schema | null = null;
-  const disabled = $derived(busy || recoverySnapshot !== null || session?.status === "conflict");
+  const disabled = $derived(busy || session?.status === "conflict");
   const rows = $derived(tree ? levelAt(tree.schema, path) : []);
   const currentLayer = $derived(tree ? validPath(tree.schema, path).length + 1 : 1);
   const totalLayers = $derived(tree ? layerDepth(tree.schema) : 1);
@@ -101,8 +95,8 @@
     cache?.dispose();
     session?.dispose();
     tree = new TreeStore(loaded.schema);
-    seenSchema = loadedSchema = tree.schema;
-    session = new SaveSession(loaded, recovery);
+    seenSchema = tree.schema;
+    session = new SaveSession(loaded);
     cache = new ContentCache(tree, changed);
     focused = null;
     focusByLevel.clear();
@@ -159,19 +153,11 @@
     const request = controller;
     loading = true; error = "";
     try {
-      const [loaded, record] = await Promise.allSettled([loadDocument(request.signal), recovery.read()]);
+      const loaded = await loadDocument(request.signal);
       if (!active || request !== controller) return;
-      if (loaded.status === "rejected") throw loaded.reason;
-      install(loaded.value);
-      if (record.status === "fulfilled") {
-        recoverySnapshot = record.value;
-        if (recoverySnapshot && JSON.stringify(recoverySnapshot.schema) === JSON.stringify(loaded.value.schema)) {
-          recoverySnapshot = null;
-          void recovery.clear().catch(cause => { recoveryError = String(cause); });
-        }
-      } else recoveryError = `Local recovery is unavailable. ${String(record.reason)}`;
+      install(loaded);
       loading = false;
-      if (!recoverySnapshot) await restoreFocus();
+      await restoreFocus();
     } catch (cause) { if (active && !request.signal.aborted) error = cause instanceof Error ? cause.message : "Unable to load document"; }
     finally { if (active && request === controller) loading = false; }
   }
@@ -195,25 +181,6 @@
     if (!session || busy) return;
     busy = true;
     try { await session.overwrite(); } finally { busy = false; if (active && session.status !== "conflict") void restoreFocus(); }
-  }
-  async function restoreRecovery() {
-    if (!recoverySnapshot || !tree || !session) return;
-    if (!confirmRestore && JSON.stringify(recoverySnapshot.base) !== JSON.stringify(loadedSchema)) { confirmRestore = true; return; }
-    const snapshot = recoverySnapshot;
-    history.clear(); liveCaret = null;
-    cache?.dispose();
-    tree = new TreeStore(snapshot.schema);
-    cache = new ContentCache(tree, changed);
-    focused = null; focusByLevel.clear();
-    recoverySnapshot = null; confirmRestore = false;
-    readHash(false);
-    changed();
-    await restoreFocus();
-  }
-  async function discardRecovery() {
-    try { await recovery.clear(); } catch (cause) { recoveryError = String(cause); }
-    recoverySnapshot = null; confirmRestore = false;
-    await restoreFocus();
   }
   function boundary(direction: Boundary, goalX: number) {
     const backwards = direction === "up" || direction === "left";
@@ -335,7 +302,7 @@
     active = true; void load();
     const update = () => readHash();
     const visibility = () => { if (document.visibilityState === "hidden") void session?.flush(); };
-    const unload = (event: BeforeUnloadEvent) => { if (session?.dirty) { session.flushRecovery(); event.preventDefault(); event.returnValue = ""; } };
+    const unload = (event: BeforeUnloadEvent) => { if (session?.dirty) { event.preventDefault(); event.returnValue = ""; } };
     window.addEventListener("hashchange", update);
     window.addEventListener("beforeunload", unload);
     document.addEventListener("visibilitychange", visibility);
@@ -367,8 +334,6 @@
     </div>
     {#if session.status === "failed"}<p role="alert">{session.error}</p><button onclick={() => session?.flush()}>Retry save</button>{/if}
     {#if session.status === "conflict"}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="File changed on disk" aria-modal="true"><p>The file changed on disk. Reload the disk version or overwrite it with your notes.</p>{#if session.error}<p>{session.error}</p>{/if}<button disabled={busy} onclick={reload}>Reload</button><button disabled={busy} onclick={overwrite}>Overwrite</button></dialog>{/if}
-    {#if recoveryError || session.recoveryError}<p role="alert">{recoveryError || session.recoveryError}</p>{/if}
-    {#if recoverySnapshot}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="Recover unsaved notes" aria-modal="true"><p>{confirmRestore ? "The disk document has changed since these notes were saved locally. Confirm restoring your notes over the current disk version." : "Unsaved notes are available from an earlier session."}</p><button onclick={restoreRecovery}>{confirmRestore ? "Confirm restore" : "Restore"}</button><button onclick={discardRecovery}>Discard</button></dialog>{/if}
     <div inert={disabled}>
       {#if parent}<div class="level parent-row" data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right">{#snippet navigation()}<button class="go-back" title="Go back" aria-label="Go back" onclick={() => navigate(path.slice(0, -1))}><ArrowIcon direction="up" /></button>{/snippet}</ContentView></div>{/if}
       <div class="level" class:empty={rows.length === 0} data-testid="pad-level" data-etag={session.etag ?? ""}>

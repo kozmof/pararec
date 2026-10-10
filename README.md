@@ -60,13 +60,13 @@ pnpm test:e2e
 
 CI installs browser system dependencies and runs all these checks. Browser downloads require access to Playwright's download hosts.
 
-## Editing and recovery
+## Editing and saving
 
 Use Shift+Left and Shift+Right to switch columns. Shift+Enter splits the current note into a new sibling row with left and right cells. Ctrl+Enter splits a left note into a new left cell or creates a child row from a right note. Alt+Up and Alt+Down move notes or rows. Ctrl+. enters children and Ctrl+, returns to the parent. Ctrl+Z undoes text and structure together. Ctrl+Shift+Z or Ctrl+Y redoes an action. The editor also accepts Cmd for Ctrl shortcuts on macOS.
 
 If the file changes outside the app, saving stops and offers Reload or Overwrite. Reload replaces your notes with the disk version and clears history. Overwrite saves your local notes against the current disk version.
 
-Unsaved notes are also stored in the browser's IndexedDB. On reload, Restore recovers them and Discard keeps the disk version. A changed disk document requires confirmation before recovery replaces it. Keep using the same browser and origin to access that recovery snapshot. Recovery storage failures appear in the app.
+Unsaved edits stay in memory until saved to the document file. Reloading or closing the page can lose edits that have not been saved. The app warns before leaving with unsaved changes.
 
 A load error offers Retry. Start the local server if it is unreachable, check file permissions if it cannot read the file, or fix invalid JSON and schema errors before retrying.
 

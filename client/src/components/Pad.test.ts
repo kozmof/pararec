@@ -4,7 +4,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { tick } from "svelte";
 import Pad from "./Pad.svelte";
-import { IndexedRecovery } from "../lib/api/recovery.js";
 import { TreeStore } from "../lib/tree/tree-store.svelte.js";
 const fixture = JSON.parse(readFileSync("fixtures/three-levels.json", "utf8"));
 function response(value = fixture) {
@@ -15,9 +14,6 @@ function content(id: string) {
 }
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
-  vi.spyOn(IndexedRecovery.prototype, "read").mockResolvedValue(null);
-  vi.spyOn(IndexedRecovery.prototype, "write").mockResolvedValue();
-  vi.spyOn(IndexedRecovery.prototype, "clear").mockResolvedValue();
   vi.stubGlobal(
     "fetch",
     vi.fn().mockImplementation(() => Promise.resolve(response())),
@@ -183,7 +179,6 @@ it.each([
     expect(await screen.findByRole("alert")).toHaveTextContent(message as string);
     expect(screen.queryByTestId("editor-sink")).not.toBeInTheDocument();
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(IndexedRecovery.prototype.write).not.toHaveBeenCalled();
     await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
     expect(fetch).toHaveBeenCalledTimes(2);
