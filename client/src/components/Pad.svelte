@@ -363,9 +363,9 @@
     {#if recoverySnapshot}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="Recover unsaved notes" aria-modal="true"><p>{confirmRestore ? "The disk document has changed since these notes were saved locally. Confirm restoring your notes over the current disk version." : "Unsaved notes are available from an earlier session."}</p><button onclick={restoreRecovery}>{confirmRestore ? "Confirm restore" : "Restore"}</button><button onclick={discardRecovery}>Discard</button></dialog>{/if}
     <div inert={disabled}>
       {#if parent}<div class="level parent-row" data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right">{#snippet navigation()}<button class="go-back" title="Go back" aria-label="Go back" onclick={() => navigate(path.slice(0, -1))}><ArrowIcon direction="up" /></button>{/snippet}</ContentView></div>{/if}
-      <div class="level" data-testid="pad-level" data-etag={session.etag ?? ""}>
+      <div class="level" class:empty={rows.length === 0} data-testid="pad-level" data-etag={session.etag ?? ""}>
         {#each rows as container (container.id)}<ContainerRow {container} onenter={enter} />
-        {:else}<button bind:this={addButton} class="add-row" onclick={addRow}>Add row</button>{/each}
+        {:else}<button bind:this={addButton} class="add-row" aria-label="Add row" title="Add row" onclick={addRow}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" /></svg></button>{/each}
       </div>
     </div>
   {/if}
@@ -379,11 +379,13 @@
   .title-input:hover { border-color: #ddd; }
   .title-input:focus { outline: none; }
   .level { border: 1px solid #ddd; }
+  .level.empty { border: 0; display: flex; justify-content: center; }
   .parent-row { border-bottom: 0; display: flex; flex-direction: column; }
   .go-back { align-self: flex-end; margin: 0 8px 8px auto; padding: 4px; width: 24px; height: 24px; color: #9ca3af; box-sizing: border-box; border: 1px solid currentColor; border-radius: 50%; background: transparent; display: inline-flex; align-items: center; justify-content: center; }
   .go-back:hover { color: #6b7280; }
   .save-status { color: #666; font-size: 13px; }
-  .add-row { width: 100%; padding: 20px; cursor: pointer; }
+  .add-row { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; box-sizing: border-box; margin: 8px; padding: 0; color: #6b7280; background: transparent; border: 1px solid #ddd; border-radius: 50%; cursor: pointer; }
+  .add-row:focus { outline: none; }
   dialog { border: 1px solid #b78b40; padding: 16px; margin-bottom: 16px; }
   button { cursor: pointer; }
 </style>
