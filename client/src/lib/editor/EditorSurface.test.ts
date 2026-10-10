@@ -324,7 +324,7 @@ describe("EditorSurface", () => {
     const doc = new EditorDocument("a\n");
     render(EditorSurface, { props: { doc, readonly: true } });
     expect(screen.queryByTestId("editor-sink")).toBeNull();
-    await fireEvent.keyDown(screen.getByTestId("editor-surface"), { key: "b" });
+    await fireEvent.keyDown(screen.getByTestId("editor-preview"), { key: "b" });
     expect(doc.text()).toBe("a\n");
     doc.dispose();
   });

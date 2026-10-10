@@ -1,16 +1,34 @@
 <script lang="ts">
-  import { onMount, tick, untrack } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
   import EditorSurface from "../lib/editor/EditorSurface.svelte";
   import { sameCaret } from "../lib/editor/document-store.svelte.js";
   import type { EditorDocument, Caret } from "../lib/editor/document-store.svelte.js";
   import type { Entry, Boundary, Command } from "../lib/editor/content-host.js";
-  let { doc, entry, onBoundary, onCommand, onKeydown, onHeight, onCaret, initialMeasurements, side }: { doc: EditorDocument; entry: Entry; side: "left" | "right"; onBoundary: (direction: Boundary, goalX: number) => void; onCommand: (command: Command, caret?: Caret) => void; onKeydown?: (event: KeyboardEvent) => boolean; onHeight?: (height: number) => void; onCaret?: (caret: Caret) => void; initialMeasurements?: { width: number; heights: number[] } } = $props();
-  const mountedDoc = untrack(() => doc);
+  let { doc, active = true, entry, onBoundary, onCommand, onKeydown, onHeight, onCaret, initialMeasurements, side }: { doc: EditorDocument; active?: boolean; entry: Entry; side: "left" | "right"; onBoundary: (direction: Boundary, goalX: number) => void; onCommand: (command: Command, caret?: Caret) => void; onKeydown?: (event: KeyboardEvent) => boolean; onHeight?: (height: number) => void; onCaret?: (caret: Caret) => void; initialMeasurements?: { width: number; heights: number[] } } = $props();
   let caret = $state<Caret>({ line: 0, column: 0 });
   let anchor = $state<Caret | null>(null);
   let surface = $state<EditorSurface>();
-  let active = true;
+  let closingDoc = untrack(() => doc);
   export function focusAt(event: MouseEvent): void { surface?.focusAt(event); }
+  export function focus(): void { surface?.focus(); }
+  $effect(() => {
+    if (!active) {
+      untrack(() => { closingDoc.closeHistoryGroup(); anchor = null; });
+      return;
+    }
+    const target = entry;
+    const currentDoc = doc;
+    closingDoc = currentDoc;
+    const currentSurface = surface;
+    if (!currentSurface) return;
+    untrack(() => {
+      if (target.kind === "caret") currentSurface.placeAtCaret(currentDoc.clamp(target));
+      else currentSurface.placeAtEdge(target.edge, target.goalX);
+    });
+    let cancelled = false;
+    void tick().then(() => { if (!cancelled) currentSurface.focus(); });
+    return () => { cancelled = true; };
+  });
   function keydown(event: KeyboardEvent): boolean {
     if (event.isComposing) return false;
     onCaret?.({ ...caret });
@@ -34,7 +52,7 @@
     if (event.altKey && event.key === "ArrowDown") command = "moveDown";
     if (event.key === "Backspace" && !accel && !event.altKey && !event.shiftKey) {
       if ((!anchor || sameCaret(anchor, caret)) && side === "left" && caret.line === 0 && caret.column === 0) command = "join";
-      if (side === "right" && mountedDoc.text() === "") command = "deleteContainer";
+      if (side === "right" && doc.text() === "") command = "deleteContainer";
     }
     if (command) { event.stopPropagation(); onCommand(command, { ...caret }); return true; }
     if (!accel && !event.altKey && !event.shiftKey) {
@@ -45,17 +63,6 @@
     }
     return false;
   }
-  onMount(() => {
-    void tick().then(async () => {
-      await tick();
-      if (!active) return;
-      if (entry.kind === "caret") caret = mountedDoc.clamp({ line: entry.line, column: entry.column, affinity: entry.affinity });
-      else surface?.placeAtEdge(entry.edge, entry.goalX);
-      await tick();
-      if (!active) return;
-      surface?.focus();
-    });
-    return () => { active = false; mountedDoc.closeHistoryGroup(); };
-  });
+  onDestroy(() => closingDoc.closeHistoryGroup());
 </script>
-<EditorSurface doc={mountedDoc} bind:caret bind:anchor bind:this={surface} autoHeight onKeydown={keydown} {onHeight} {onCaret} {initialMeasurements} />
+<EditorSurface {doc} readonly={!active} bind:caret bind:anchor bind:this={surface} autoHeight onKeydown={keydown} {onHeight} {onCaret} {initialMeasurements} />

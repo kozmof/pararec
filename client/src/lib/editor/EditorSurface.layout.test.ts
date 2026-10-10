@@ -36,7 +36,7 @@ function mount(text: string, props: Record<string, unknown> = {}) {
   const doc = new EditorDocument(text);
   opened.push(doc);
   const view = render(EditorSurface, { props: { doc, ...props } });
-  return { doc, view, surface: screen.getByTestId("editor-surface") as HTMLDivElement };
+  return { doc, view, surface: screen.getByTestId(props.readonly ? "editor-preview" : "editor-surface") as HTMLDivElement };
 }
 const line = (at: number) => document.querySelector(`[data-line="${at}"]`) as HTMLElement;
 beforeEach(() => {

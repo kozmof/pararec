@@ -116,3 +116,33 @@ it("gives the native IME a full line box at the caret across wrapping", async ()
   expect(sink.style.lineHeight).toBe("20px");
   expect(sink).toHaveAttribute("wrap", "off");
 });
+
+it("limits activation geometry and preserves shifted line elements when editing a large note", async () => {
+  const createMeasure = vi.mocked(measurement.domLineMeasurer).getMockImplementation()!;
+  let measuredRows = 0;
+  vi.mocked(measurement.domLineMeasurer).mockImplementation(element => {
+    const measure = createMeasure(element);
+    return { ...measure, visualRows(line) { measuredRows++; return measure.visualRows(line); } };
+  });
+  doc = new EditorDocument(Array.from({ length: 1000 }, (_, line) => `line${line}`).join("\n"));
+  render(EditorSurface, { props: { doc, autoHeight: true, caret: { line: 0, column: 2 } } });
+  await tick();
+  await tick();
+  expect(measuredRows).toBeLessThan(20);
+  const surface = screen.getByTestId("editor-surface");
+  const unchanged = surface.querySelector('[data-line="500"]');
+  const unchangedText = unchanged?.textContent;
+  measuredRows = 0;
+  await key("Enter");
+  expect(surface.querySelector('[data-line="501"]')).toBe(unchanged);
+  expect(unchanged?.textContent).toBe(unchangedText);
+  expect(measuredRows).toBeLessThan(20);
+  expect(doc.lineCount).toBe(1001);
+  measuredRows = 0;
+  await key("Backspace");
+  expect(surface.querySelector('[data-line="500"]')).toBe(unchanged);
+  expect(measuredRows).toBeLessThan(20);
+  expect(doc.lineCount).toBe(1000);
+  await key("!");
+  expect(doc.lineText(0)).toBe("li!ne0");
+});

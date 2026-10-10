@@ -786,3 +786,79 @@ it("updates total layer depth when creating children and undoing them", async ()
   await key("z", { ctrlKey: true });
   await waitFor(() => expect(status).toHaveTextContent("1:1"));
 });
+
+it("activates a 5000-line preview without replacing or measuring every line", async () => {
+  const text = JSON.parse(readFileSync("fixtures/long.json", "utf8")).root[0].right.text;
+  const target = disk.root[1].right;
+  target.text = text;
+  await opened();
+  const note = content(target.id);
+  const preview = note.querySelector('[data-testid="editor-preview"]');
+  const lines = [...note.querySelectorAll<HTMLElement>("[data-line]")];
+  expect(lines.length).toBeGreaterThanOrEqual(5000);
+  const geometry = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+  await fireEvent.mouseDown(lines[0]!.firstElementChild!, { button: 0, clientX: 12, clientY: 0 });
+  await waitFor(() => expect(note.querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  expect(note.querySelector('[data-testid="editor-surface"]')).toBe(preview);
+  expect([...note.querySelectorAll("[data-line]")].every((line, index) => line === lines[index])).toBe(true);
+  expect(geometry.mock.calls.length).toBeLessThan(50);
+  geometry.mockRestore();
+  // jsdom has no text geometry; use Home for a deterministic insertion column.
+  await key("Home");
+  await key("!");
+  await save();
+  expect(disk.root[1].right.text).toBe("!" + text);
+}, 20000);
+
+it("activates and edits a preview after its document was evicted from the cache", async () => {
+  disk.root = Array.from({ length: 60 }, (_, index) => ({
+    id: `row-${index}`, left: [{ id: `left-${index}`, text: "Left" }],
+    right: { id: `right-${index}`, text: "Right", children: [] },
+  }));
+  await opened();
+  content("left-1").focus();
+  await waitFor(() => expect(content("left-1").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await key("!");
+  await save();
+  expect(disk.root[1].left[0].text).toBe("!Left");
+});
+
+it("keeps the 5000-line editor and unchanged line elements mounted during undo and redo", async () => {
+  disk = JSON.parse(readFileSync("fixtures/long.json", "utf8"));
+  await opened();
+  const sink = screen.getByTestId("editor-sink");
+  const surface = screen.getByTestId("editor-surface");
+  const unchangedLine = surface.querySelector('[data-line="2500"]');
+  const initialText = disk.root[0].right.text;
+  await key("!");
+  await key("z", { ctrlKey: true });
+  expect(screen.getByTestId("editor-sink")).toBe(sink);
+  expect(screen.getByTestId("editor-surface")).toBe(surface);
+  expect(surface.querySelector('[data-line="2500"]')).toBe(unchangedLine);
+  expect(surface.querySelector('[data-line="0"]')?.textContent).toBe(initialText.split("\n")[0]);
+  await key("y", { ctrlKey: true });
+  expect(screen.getByTestId("editor-sink")).toBe(sink);
+  expect(surface.querySelector('[data-line="2500"]')).toBe(unchangedLine);
+  expect(surface.querySelector('[data-line="0"]')?.textContent).toBe("!" + initialText.split("\n")[0]);
+  await key("?");
+  await save();
+  expect(disk.root[0].right.text).toBe("!?" + initialText);
+}, 20000);
+
+it("keeps unchanged long-fixture lines mounted across Enter, undo, redo, and joining", async () => {
+  disk = JSON.parse(readFileSync("fixtures/long.json", "utf8"));
+  const initialText = disk.root[0].right.text;
+  await opened();
+  const surface = screen.getByTestId("editor-surface");
+  const unchanged = surface.querySelector('[data-line="2500"]');
+  await key("Enter");
+  expect(surface.querySelector('[data-line="2501"]')).toBe(unchanged);
+  await key("z", { ctrlKey: true });
+  expect(surface.querySelector('[data-line="2500"]')).toBe(unchanged);
+  await key("y", { ctrlKey: true });
+  expect(surface.querySelector('[data-line="2501"]')).toBe(unchanged);
+  await key("Backspace");
+  expect(surface.querySelector('[data-line="2500"]')).toBe(unchanged);
+  await save();
+  expect(disk.root[0].right.text).toBe(initialText);
+}, 20000);

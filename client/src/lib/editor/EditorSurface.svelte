@@ -13,6 +13,7 @@
   import { arithmeticMeasurer, domLineMeasurer } from "./line-measurer.js";
   import { moveVisualRow, visualRowEdge, visualCaret, rowAt } from "./visual-navigation.js";
   import EditorLine from "./EditorLine.svelte";
+  import { LineIdentity } from "./line-identity.js";
   import {
     MeasuredLayout, estimateLineHeight, captureScrollAnchor, anchorScrollTop,
     spliceScrollAnchor, type ScrollAnchor,
@@ -80,16 +81,21 @@
    * and removes them when lines leave the DOM. This map does not drive rendering.
    */
   const lineEls: Record<number, HTMLDivElement | undefined> = {};
-  const rowStarts = new Map<number, { text: string; width: number; rows: { top: number; column: number }[] }>();
+  const rowStarts = new WeakMap<HTMLDivElement, { text: string; width: number; rows: { top: number; column: number }[] }>();
 
   function lineEl(node: HTMLDivElement, lineNumber: number) {
     lineEls[lineNumber] = node;
     resizeObserver?.observe(node);
     return {
+      update(nextLine: number) {
+        if (lineEls[lineNumber] === node) delete lineEls[lineNumber];
+        lineNumber = nextLine;
+        lineEls[lineNumber] = node;
+      },
       destroy() {
         resizeObserver?.unobserve(node);
-        delete lineEls[lineNumber];
-        rowStarts.delete(lineNumber);
+        if (lineEls[lineNumber] === node) delete lineEls[lineNumber];
+        rowStarts.delete(node);
       },
     };
   }
@@ -154,7 +160,8 @@
   onMount(() => {
     resizeObserver = new ResizeObserver(entries => {
       const anchor = scrollAnchor();
-      const cached = anchor ? rowStarts.get(anchor.line) : undefined;
+      const anchorElement = anchor ? lineEls[anchor.line] : undefined;
+      const cached = anchorElement ? rowStarts.get(anchorElement) : undefined;
       const oldRow = anchor && cached ? cached.rows[rowAt(cached.rows.map(row => ({ ...row, height: LINE_HEIGHT })), anchor.offset)] : undefined;
       let changed = false;
       let rewrapped = false;
@@ -210,7 +217,12 @@
       OVERSCAN,
     );
   });
-  const lines = $derived(doc.visibleLines(window_.startLine, window_.visibleLineCount, 0));
+  const lineIdentity = new LineIdentity();
+  const lines = $derived.by(() => {
+    void layoutVersion;
+    return lineIdentity.reconcile(doc.visibleLines(window_.startLine, window_.visibleLineCount, 0))
+      .map(line => ({ ...line, top: layout.top(line.lineNumber) + PAD_Y }));
+  });
   const contentHeight = $derived.by(() => {
     void layoutVersion;
     return layout.totalHeight;
@@ -227,8 +239,10 @@
   $effect(() => {
     void lines;
     void viewportWidth;
-    void caret;
-    void anchor;
+    if (!autoHeight) {
+      void caret;
+      void anchor;
+    }
     void preedit;
     void composing;
     let active = true;
@@ -243,11 +257,14 @@
         const height = element?.getBoundingClientRect().height ?? 0;
         if (height > 0 && line < layout.lineCount)
           changed = layout.setHeight(line, height) || changed;
-        if (element && height > 0) {
+        // Only the scroll anchor needs its previous wrapped-row positions when
+        // the viewport changes width. Measuring every line delays activation
+        // of large auto-height notes, which have no internal scroll anchor.
+        if (element && height > 0 && anchor?.line === line) {
           const text = element.textContent ?? "";
-          const cached = rowStarts.get(line);
+          const cached = rowStarts.get(element);
           if (!cached || cached.text !== text || cached.width !== viewportWidth) {
-            rowStarts.set(line, { text, width: viewportWidth, rows: measure.visualRows(line).map(row => ({
+            rowStarts.set(element, { text, width: viewportWidth, rows: measure.visualRows(line).map(row => ({
               top: row.top, column: measure.pointToColumn(line, 0, row.top),
             })) });
           }
@@ -312,6 +329,9 @@
 
   export function focus(): void {
     sinkEl?.focus();
+  }
+  export function placeAtCaret(next: Caret): void {
+    setCaret(next, false);
   }
   export function atBoundary(direction: "up" | "down" | "left" | "right"): boolean {
     if (selection) return false;
@@ -752,7 +772,7 @@
   style:cursor={readonly ? "default" : "text"}
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
   onmousedown={handleMousedown}
-  data-testid="editor-surface"
+  data-testid={readonly ? "editor-preview" : "editor-surface"}
 >
   <!-- Size the scroll area for the whole document, including virtualized lines. Keep this element unpadded because its children are absolutely positioned. Apply text padding to lines and caret or selection coordinates instead. -->
   <div
@@ -779,9 +799,9 @@
     {/each}
 
     <!-- Text: only the window, absolutely positioned by line number. -->
-    {#each lines as line (line.lineNumber)}
+    {#each lines as line (line.key)}
       <EditorLine line={line.lineNumber} text={line.content}
-        top={layout.top(line.lineNumber) + PAD_Y} padding={PAD_X} rowHeight={LINE_HEIGHT}
+        top={line.top} padding={PAD_X} rowHeight={LINE_HEIGHT}
         preedit={composing && line.lineNumber === caret.line ? preedit : ""}
         column={caret.column} register={lineEl} />
     {/each}
