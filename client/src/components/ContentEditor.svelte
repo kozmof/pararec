@@ -39,8 +39,6 @@
       if (command) { event.stopPropagation(); onCommand(command); return true; }
     }
     let command: Command | undefined;
-    if (event.altKey && event.key === "ArrowLeft") command = "otherColumnLeft";
-    if (event.altKey && event.key === "ArrowRight") command = "otherColumnRight";
     if (accel && event.key === ".") command = "enter";
     if (accel && event.key === ",") command = "leave";
     if (accel && event.key.toLowerCase() === "s") command = "save";

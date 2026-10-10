@@ -12,8 +12,6 @@ export type Command =
   | "focusRight"
   | "focusUp"
   | "focusDown"
-  | "otherColumnLeft"
-  | "otherColumnRight"
   | "enter"
   | "leave"
   | "save"

@@ -76,14 +76,14 @@ describe("integrated content editing", () => {
   });
   it("moves between columns and adjacent right notes at boundaries", async () => {
     await opened();
-    await key("ArrowLeft", { altKey: true });
+    await key("ArrowLeft", { shiftKey: true });
     await waitFor(() =>
       expect(
         content(disk.root[0].left[0].id).querySelector('[data-testid="editor-sink"]'),
       ).toHaveFocus(),
     );
     await key("X");
-    await key("ArrowRight", { altKey: true });
+    await key("ArrowRight", { shiftKey: true });
     await waitFor(() =>
       expect(
         content(disk.root[0].right.id).querySelector('[data-testid="editor-sink"]'),
@@ -240,7 +240,7 @@ it("Shift+Enter splits a right note into a sibling and saves both halves togethe
 
 it("splits and joins left notes and restores the caret at the join point", async () => {
   await opened();
-  await key("ArrowLeft", { altKey: true });
+  await key("ArrowLeft", { shiftKey: true });
   await waitFor(() =>
     expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
   );
@@ -296,7 +296,7 @@ it("Alt+Down moves rows and left notes across neighbouring rows while preserving
     expect(content("flat-1-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
   );
   await key("!");
-  await key("ArrowLeft", { altKey: true });
+  await key("ArrowLeft", { shiftKey: true });
   await waitFor(() =>
     expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
   );

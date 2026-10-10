@@ -312,8 +312,6 @@
     }
     const current = tree.index.get(focused)!;
     if (command === "enter") { if (current.side === "right" && current.container.right.children.length) enter(current.container.id); }
-    else if (command === "otherColumnLeft" && current.side === "right" && current.container.id !== parent?.id) void restoreFocus(current.container.left[0].id);
-    else if (command === "otherColumnRight" && current.side === "left") void restoreFocus(current.container.right.id);
 
   }
   $effect(() => {
