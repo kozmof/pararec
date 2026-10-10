@@ -1,6 +1,6 @@
 # Pararec
 
-Pararec is a two-column editor for nested notes. It saves notes to a JSON file through a local server. The editor supports Japanese composition, soft wrapping, keyboard structure commands, and app-wide undo and redo.
+Pararec is a two-column editor for nested notes. 
 
 ## Setup
 
