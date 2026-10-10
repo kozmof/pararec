@@ -1,6 +1,6 @@
 # Pararec
 
-Pararec is recursive two-column notes. 
+Pararec is a recursive two-column note app.
 
 ## Setup
 
