@@ -526,6 +526,12 @@ it("Shift arrows move focus through columns, children, and the next record", asy
   await move("ArrowUp", "child-a-left");
   await move("ArrowRight", "child-a-right");
   await move("ArrowDown", "child-b-right");
+  await move("ArrowUp", "child-a-right");
+  await move("ArrowUp", "flat-1-right");
+  await move("ArrowUp", "flat-1-right"); // No right cell above the first row.
+  await move("ArrowRight", "child-a-left");
+  await move("ArrowRight", "child-a-right");
+  await move("ArrowDown", "child-b-right");
   await move("ArrowDown", "flat-2-right");
   await move("ArrowUp", "child-b-left");
   await move("ArrowUp", "child-a-left");
@@ -684,4 +690,45 @@ it("autosaves the title while the title field remains focused", async () => {
   await fireEvent.input(title, { target: { value: "Autosaved title" } });
   await waitFor(() => expect(disk.title).toBe("Autosaved title"), { timeout: 2500 });
   expect(title).toHaveFocus();
+});
+
+it.each([false, true])("Shift Left from a right cell selects the first left record (nested: %s)", async nested => {
+  const row = {
+    id: "multiple-left",
+    left: [1, 2, 3].map(number => ({ id: `multiple-left-${number}`, text: `Left ${number}` })),
+    right: { id: "multiple-right", text: "Right note", children: [] },
+  };
+  if (nested) disk.root[0].right.children = [row];
+  else disk.root[0] = row;
+  await opened();
+  if (nested) content("multiple-right").focus();
+  await waitFor(() => expect(content("multiple-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await key("ArrowLeft", { shiftKey: true });
+  await waitFor(() => expect(content("multiple-left-1").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await key("!");
+  await save();
+  const saved = nested ? disk.root[0].right.children[0] : disk.root[0];
+  expect(saved.left.map(note => note.text)).toEqual(["!Left 1", "Left 2", "Left 3"]);
+});
+
+it.each([false, true])("Shift Right from any left record goes directly to the row's right cell (nested: %s)", async nested => {
+  const row = {
+    id: "multiple-left",
+    left: [1, 2, 3].map(number => ({ id: `multiple-left-${number}`, text: `Left ${number}` })),
+    right: { id: "multiple-right", text: "Right note", children: [] },
+  };
+  if (nested) disk.root[0].right.children = [row];
+  else disk.root[0] = row;
+  await opened();
+  for (const note of row.left) {
+    content(note.id).focus();
+    await waitFor(() => expect(content(note.id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    await key("ArrowRight", { shiftKey: true });
+    await waitFor(() => expect(content("multiple-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  }
+  await key("!");
+  await save();
+  const saved = nested ? disk.root[0].right.children[0] : disk.root[0];
+  expect(saved.left).toEqual(row.left);
+  expect(saved.right.text).toBe("!Right note");
 });

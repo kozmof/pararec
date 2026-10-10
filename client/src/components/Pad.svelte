@@ -237,16 +237,20 @@
     if (direction === "left" || direction === "right") {
       const notes = [...pad.querySelectorAll<HTMLElement>("[data-content-id]")].map(element => element.dataset.contentId!);
       const at = notes.indexOf(focused);
-      target = notes[at + (direction === "left" ? -1 : 1)];
+      const firstLeft = current.container.left[0].id;
+      if (direction === "right" && current.side === "left") {
+        target = current.container.right.id;
+      } else {
+        target = direction === "left" && current.side === "right" && notes.includes(firstLeft)
+          ? firstLeft : notes[at + (direction === "left" ? -1 : 1)];
+      }
     } else {
       const backwards = direction === "up";
-      if (backwards && nested && current.side === "right") {
-        target = current.container.left.at(-1)?.id;
-      } else if (current.side === "right") {
+      if (current.side === "right") {
         const at = visibleRows.findIndex(row => row.id === current.container.id);
         const next = visibleRows[at + (backwards ? -1 : 1)];
         const enteringChild = !backwards && next && current.container.right.children.some(child => child.id === next.id);
-        const enteringPreviousChildren = backwards && next && !topIds.has(next.id);
+        const enteringPreviousChildren = backwards && !nested && next && !topIds.has(next.id);
         target = enteringChild ? next.left[0].id
           : enteringPreviousChildren ? next.left.at(-1)?.id : next?.right.id;
       } else {
