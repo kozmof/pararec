@@ -88,7 +88,7 @@ it("merges backspace history across Unicode and newline boundaries", () => {
     if (!edit) return;
     history.record({ schema: edit.before, path: [], focus: { contentId: "r", ...edit.beforeCaret! } },
       { schema: edit.after, path: [], focus: { contentId: "r", ...edit.afterCaret! } },
-      { contentId: "r", intent: "backspace", group: edit.group }, edit.textChange);
+      { contentId: "r", intent: "backspace", group: edit.group }, edit.textChange, edit.textPatch);
   });
   const doc = cache.get("r");
   doc.delete({ line: 2, column: 0 }, { line: 2, column: 1 }, { line: 2, column: 1 });

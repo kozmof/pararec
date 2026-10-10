@@ -2,10 +2,14 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { IndexedRecovery, type RecoverySnapshot } from "./recovery.js";
 let data: Map<string, unknown>;
 let abortNext: boolean;
+let blocked: (() => void)[] | null;
+let writes: number[];
 // Exercise the adapter's transaction completion and failure handling without browser layout.
 beforeEach(() => {
   data = new Map();
   abortNext = false;
+  blocked = null;
+  writes = [];
   const database = {
     createObjectStore: vi.fn(),
     transaction() {
@@ -17,7 +21,7 @@ beforeEach(() => {
       } = {};
       function request(action: () => unknown) {
         const request: { result?: unknown } = {};
-        queueMicrotask(() => {
+        const complete = () => {
           if (abortNext) {
             abortNext = false;
             transaction.error = new Error("Quota exceeded");
@@ -26,7 +30,8 @@ beforeEach(() => {
             request.result = action();
             transaction.oncomplete?.();
           }
-        });
+        };
+        queueMicrotask(() => blocked ? blocked.push(complete) : complete());
         return request;
       }
       transaction.objectStore = () => ({
@@ -34,6 +39,7 @@ beforeEach(() => {
         put: (value: unknown, key: string) =>
           request(() => {
             data.set(key, JSON.parse(JSON.stringify(value)));
+            writes.push((value as RecoverySnapshot).savedAt);
             return key;
           }),
         delete: (key: string) => request(() => data.delete(key)),
@@ -80,6 +86,19 @@ it("serializes writes and clears so a new edit survives an older save acknowledg
     latest = recovery.write({ ...snapshot, savedAt: 2 });
   await Promise.all([first, clear, latest]);
   expect((await recovery.read())?.savedAt).toBe(2);
+});
+it("retains only the latest pending snapshot while a storage transaction is stalled", async () => {
+  const recovery = new IndexedRecovery("document");
+  blocked = [];
+  const first = recovery.write(snapshot);
+  await vi.waitFor(() => expect(blocked).toHaveLength(1));
+  const pending = Array.from({ length: 500 }, (_, i) => recovery.write({ ...snapshot, savedAt: i + 2 }));
+  const completions = blocked!;
+  blocked = null;
+  completions.forEach(complete => complete());
+  await Promise.all([first, ...pending]);
+  expect(writes).toEqual([1, 501]);
+  expect((await recovery.read())?.savedAt).toBe(501);
 });
 it("separates recovery records for different document endpoints", async () => {
   const one = new IndexedRecovery("origin/one"),

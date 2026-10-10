@@ -24,6 +24,24 @@ const typing = (time: number, extra: Partial<TypingGroup> = {}): TypingGroup => 
   ...extra,
 });
 describe("app snapshot history", () => {
+  it("replays compact patches after repeated snapshot serialization", () => {
+    const history = new AppHistory();
+    const original = "日本👩🏽‍💻\n".repeat(1000);
+    let before = snapshot(original);
+    for (let i = 0; i < 100; i++) {
+      const after = snapshot("x".repeat(i + 1) + original);
+      history.record(before, after, undefined,
+        { contentId: "right", from: i, oldEnd: i, newEnd: i + 1 },
+        { removed: "", inserted: "x" });
+      JSON.stringify(after.schema);
+      before = after;
+    }
+    for (let i = 99; i >= 0; i--)
+      expect(history.undo()!.schema.root[0].right.text).toBe("x".repeat(i) + original);
+    for (let i = 1; i <= 100; i++)
+      expect(history.redo()!.schema.root[0].right.text).toBe("x".repeat(i) + original);
+  });
+
   it("merges changed text ranges and reverses their coordinates for undo", () => {
     const history = new AppHistory();
     const a = snapshot("abc\ndef"), b = snapshot("abcX\ndef"), c = snapshot("abcXY\ndef");
@@ -144,7 +162,14 @@ it("restores and replays 20 mixed text and structure actions", async () => {
       )!;
       tree.applyMany(plan.ops);
     }
-    history.record(before, { ...before, schema: tree.schema });
+    const after = { ...before, schema: tree.schema };
+    if (i % 2 === 0) {
+      const removed = before.schema.root[0].right.text;
+      const inserted = after.schema.root[0].right.text;
+      history.record(before, after, undefined,
+        { contentId: "right", from: 0, oldEnd: removed.length, newEnd: inserted.length },
+        { removed, inserted });
+    } else history.record(before, after);
   }
   const last = tree.schema;
   for (let i = 0; i < 20; i++) tree.restore(history.undo()!.schema);

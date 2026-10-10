@@ -81,7 +81,7 @@
       const afterCaret = edit.afterCaret ?? beforeCaret;
       history.record({ schema: edit.before, path: [...path], focus: { contentId: edit.contentId, ...beforeCaret } },
         { schema: edit.after, path: [...path], focus: { contentId: edit.contentId, ...afterCaret } },
-        edit.kind === "edit" && edit.groupable && edit.intent && edit.intent !== "replace" ? { contentId: edit.contentId, intent: edit.intent, group: edit.group } : undefined, edit.textChange);
+        edit.kind === "edit" && edit.groupable && edit.intent && edit.intent !== "replace" ? { contentId: edit.contentId, intent: edit.intent, group: edit.group } : undefined, edit.textChange, edit.textPatch);
       liveCaret = { ...afterCaret };
     }
     if (!tree || !session) return;

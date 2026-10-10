@@ -1,9 +1,21 @@
 import type { TreeStore } from "../tree/tree-store.svelte.js";
 import type { Schema } from "../../schema.js";
 import { EditorDocument, type DocumentEdit } from "./document-store.svelte.js";
-import { query } from "@kozmof/reed";
-import type { TextChange } from "../history/history.svelte.js";
-export type ContentChange = { contentId: string; before: Schema; after: Schema; textChange: TextChange } & Pick<
+import { query, rendering, type DocumentState } from "@kozmof/reed";
+import type { TextChange, TextPatch } from "../history/history.svelte.js";
+function span(state: DocumentState, from: number, to: number): string {
+  if (from === to) return "";
+  const start = query.findLineAtCharPosition(state, from)!;
+  const end = query.findLineAtCharPosition(state, to)!;
+  const lines: string[] = [];
+  for (let line = start.lineNumber; line <= end.lineNumber; line++) {
+    const text = rendering.getLineContent(state, line) ?? "";
+    lines.push(text.slice(line === start.lineNumber ? start.charOffsetInLine : 0,
+      line === end.lineNumber ? end.charOffsetInLine : undefined));
+  }
+  return lines.join("\n");
+}
+export type ContentChange = { contentId: string; before: Schema; after: Schema; textChange: TextChange; textPatch: TextPatch } & Pick<
   DocumentEdit,
   "beforeCaret" | "afterCaret" | "kind" | "group" | "intent" | "groupable"
 >;
@@ -51,6 +63,8 @@ export class ContentCache {
           before,
           after: this.tree.schema,
           textChange,
+          textPatch: { removed: span(edit.before, textChange.from, textChange.oldEnd),
+            inserted: span(edit.after, textChange.from, textChange.newEnd) },
           beforeCaret: edit.beforeCaret,
           afterCaret: edit.afterCaret,
           kind: edit.kind,

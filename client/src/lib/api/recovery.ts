@@ -10,6 +10,7 @@ export interface RecoveryStorage {
 export class IndexedRecovery implements RecoveryStorage {
   #queue: Promise<unknown> = Promise.resolve();
   #database: Promise<IDBDatabase> | null = null;
+  #pendingWrite: { snapshot: RecoverySnapshot; promise: Promise<void> } | null = null;
   constructor(private key: string = `${location.origin}/api/document`) {}
   #open(): Promise<IDBDatabase> {
     if (!this.#database)
@@ -45,6 +46,7 @@ export class IndexedRecovery implements RecoveryStorage {
     return next;
   }
   async read(): Promise<RecoverySnapshot | null> {
+    this.#pendingWrite = null;
     const value = await this.#run<RecoverySnapshot | undefined>("readonly", (store) =>
       store.get(this.key),
     );
@@ -52,10 +54,23 @@ export class IndexedRecovery implements RecoveryStorage {
       ? { schema: parseSchema(value.schema), base: parseSchema(value.base), savedAt: value.savedAt }
       : null;
   }
-  async write(snapshot: RecoverySnapshot): Promise<void> {
-    await this.#run("readwrite", (store) => store.put(snapshot, this.key));
+  write(snapshot: RecoverySnapshot): Promise<void> {
+    if (this.#pendingWrite) {
+      this.#pendingWrite.snapshot = snapshot;
+      return this.#pendingWrite.promise;
+    }
+    const pending = { snapshot, promise: Promise.resolve() };
+    pending.promise = this.#run<void>("readwrite", (store) => {
+      if (this.#pendingWrite === pending) this.#pendingWrite = null;
+      return store.put(pending.snapshot, this.key);
+    });
+    this.#pendingWrite = pending;
+    return pending.promise.finally(() => {
+      if (this.#pendingWrite === pending) this.#pendingWrite = null;
+    });
   }
   async clear(): Promise<void> {
+    this.#pendingWrite = null;
     await this.#run("readwrite", (store) => store.delete(this.key));
   }
 }
