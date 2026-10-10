@@ -60,22 +60,23 @@ async function key(key: string, shiftKey = false) {
   await tick();
 }
 
-it("moves by visual row and inserts at the previous row's end", async () => {
+it("moves by visual row and inserts after horizontal movement", async () => {
   doc = new EditorDocument("abcdefghij");
   render(EditorSurface, { props: { doc, caret: { line: 0, column: 2 } } });
   await key("ArrowDown");
-  await key("End");
+  await key("ArrowRight");
   expect(screen.getByTestId("editor-sink").style.top).toBe("28px");
   await key("!");
-  expect(doc.text()).toBe("abcdefgh!ij");
+  expect(doc.text()).toBe("abcdefg!hij");
 });
 
-it("draws selection across two visual rows and resets the horizontal goal after Home", async () => {
+it("draws selection across two visual rows and resets the horizontal goal after moving left", async () => {
   doc = new EditorDocument("abcdefghij");
   render(EditorSurface, { props: { doc, caret: { line: 0, column: 2 } } });
   await key("ArrowDown", true);
   expect(screen.getAllByTestId("editor-selection")).toHaveLength(2);
-  await key("Home");
+  await key("ArrowLeft");
+  await key("ArrowLeft");
   await key("ArrowUp");
   await key("!");
   expect(doc.text()).toBe("!abcdefghij");

@@ -257,9 +257,8 @@
       return;
     }
     if (command === "save") { void session?.flush(); return; }
-    if (command === "leave") { if (path.length) navigate(path.slice(0, -1)); return; }
     if (!tree || !focused) return;
-    if (["split", "newSibling", "newChild", "join", "deleteContainer", "moveUp", "moveDown"].includes(command)) {
+    if (["split", "newSibling", "newChild", "moveUp", "moveDown"].includes(command)) {
       const action = structureAction(tree.schema, tree.index, path, focused, caret, command as StructureCommand);
       if (!action || disabled) return;
       const before = snapshot({ contentId: focused, ...caret });
@@ -277,8 +276,6 @@
       void restoreFocus(action.focus?.contentId, action.focus?.entry);
       return;
     }
-    const current = tree.index.get(focused)!;
-    if (command === "enter") { if (current.side === "right" && current.container.right.children.length) enter(current.container.id); }
 
   }
   $effect(() => {
@@ -292,9 +289,7 @@
   });
   function keydown(event: KeyboardEvent) {
     if (event.isComposing || event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || disabled) return;
-    if (event.key === ",") { event.preventDefault(); command("leave"); }
-    else if (event.key === ".") { event.preventDefault(); command("enter"); }
-    else if (event.key.toLowerCase() === "z") { event.preventDefault(); command(event.shiftKey ? "redo" : "undo"); }
+    if (event.key.toLowerCase() === "z") { event.preventDefault(); command(event.shiftKey ? "redo" : "undo"); }
     else if (event.key.toLowerCase() === "y") { event.preventDefault(); command("redo"); }
     else if (event.key.toLowerCase() === "s") { event.preventDefault(); command("save"); }
   }

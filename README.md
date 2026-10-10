@@ -62,7 +62,23 @@ CI installs browser system dependencies and runs all these checks. Browser downl
 
 ## Editing and saving
 
-Use Shift+Left and Shift+Right to switch columns. Shift+Enter splits the current note into a new sibling row with left and right cells. Ctrl+Enter splits a left note into a new left cell or creates a child row from a right note. Alt+Up and Alt+Down move notes or rows. Ctrl+. enters children and Ctrl+, returns to the parent. Ctrl+Z undoes text and structure together. Ctrl+Shift+Z or Ctrl+Y redoes an action. The editor also accepts Cmd for Ctrl shortcuts on macOS.
+While editing a note, use the following shortcuts. On macOS, use Cmd in place of Ctrl.
+
+| Shortcut | Action |
+| --- | --- |
+| Arrow keys | Move the cursor within text. At a note boundary, move to the next cell in that direction. |
+| Shift+Left / Shift+Right | Move between cells and columns from any cursor position. |
+| Shift+Up / Shift+Down | Move to the cell above or below from any cursor position. |
+| Enter | Insert a line break. |
+| Shift+Enter | Split at the cursor into a new sibling row with left and right cells. Move the remaining text to the same column in the new row. |
+| Ctrl+Enter in a left cell | Split at the cursor into a new left cell in the same row. |
+| Ctrl+Enter in a right cell | Add an empty child row and focus its right cell. |
+| Alt+Up / Alt+Down | Move the current left cell or row up or down. |
+| Ctrl+A | Select all text in the current note. |
+| Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, or paste text. |
+| Ctrl+S | Save immediately. |
+| Ctrl+Z | Undo text or structure changes. |
+| Ctrl+Shift+Z / Ctrl+Y | Redo an action. |
 
 If the file changes outside the app, saving stops and offers Reload or Overwrite. Reload replaces your notes with the disk version and clears history. Overwrite saves your local notes against the current disk version.
 

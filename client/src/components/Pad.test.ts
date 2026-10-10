@@ -66,30 +66,17 @@ describe("pad navigation", () => {
       expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
     );
   });
-  it("navigates down and up with Control and suppresses composition keys", async () => {
+  it("ignores the removed layer navigation shortcuts", async () => {
     await opened();
     content("root-right").focus();
-    await key(".", true);
+    await key(".");
     expect(window.location.hash).toBe("#/");
-    await key(".");
-    await waitFor(() =>
-      expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
-    );
-    await key(".");
-    await waitFor(() =>
-      expect(
-        content("grandchild-right").querySelector('[data-testid="editor-sink"]'),
-      ).toHaveFocus(),
-    );
+    await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Root note" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/c/root"));
     await key(",");
-    await waitFor(() =>
-      expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
-    );
-    await key(",");
-    await waitFor(() =>
-      expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
-    );
+    expect(window.location.hash).toBe("#/c/root");
   });
+
   it("opens the deepest valid URL prefix and handles browser hash navigation", async () => {
     window.history.replaceState(null, "", "#/c/root/child/missing/grandchild");
     await opened();
@@ -223,7 +210,7 @@ it("shows the current layer and whole-document depth while navigating", async ()
   await opened();
   const status = screen.getByRole("status", { name: "Current layer" });
   expect(status).toHaveTextContent("1:3");
-  await key(".");
+  await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Root note" }));
   await waitFor(() => expect(status).toHaveTextContent("2:3"));
   await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Child note" }));
   await waitFor(() => expect(status).toHaveTextContent("3:3"));

@@ -46,6 +46,28 @@ async function key(key: string, extra = {}) {
   await tick();
   await tick();
 }
+async function placeAtEdge(edge: "start" | "end") {
+  if (edge === "start") {
+    const surface = screen.getByTestId("editor-surface");
+    const text = surface.querySelector('[data-line="0"] [data-from]')?.firstChild;
+    const original = Object.getOwnPropertyDescriptor(document, "caretPositionFromPoint");
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: () => ({ offsetNode: text, offset: 0 }),
+    });
+    try {
+      await fireEvent.mouseDown(surface, { button: 0, clientX: 12, clientY: 8 });
+      await tick();
+    } finally {
+      if (original) Object.defineProperty(document, "caretPositionFromPoint", original);
+      else Reflect.deleteProperty(document, "caretPositionFromPoint");
+    }
+  } else {
+    await key("a", { ctrlKey: true });
+    await key("ArrowLeft");
+    await key("ArrowRight");
+  }
+}
 async function save() {
   await key("s", { ctrlKey: true });
   await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
@@ -96,7 +118,7 @@ describe("integrated content editing", () => {
         content(disk.root[0].right.id).querySelector('[data-testid="editor-sink"]'),
       ).toHaveFocus(),
     );
-    await key("End", { ctrlKey: true });
+    await placeAtEdge("end");
     await key("ArrowRight");
     await waitFor(() =>
       expect(
@@ -212,25 +234,24 @@ it("Shift+Enter splits a right note into a sibling and saves both halves togethe
   expect(disk.root[1].left[0].text).toBe("");
 });
 
-it("splits and joins left notes and restores the caret at the join point", async () => {
+it("splits left notes without joining them on Backspace", async () => {
   await opened();
   await key("ArrowLeft", { shiftKey: true });
   await waitFor(() =>
     expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
   );
   await fireEvent.input(screen.getByTestId("editor-sink"), { target: { value: "alpha\nbeta" } });
-  await key("Home", { ctrlKey: true });
+  await placeAtEdge("start");
   await key("ArrowRight");
   await key("ArrowRight");
   await key("Enter", { ctrlKey: true });
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
   await key("Backspace");
-  await waitFor(() =>
-    expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
-  );
   await key("!");
   await save();
-  expect(disk.root[0].left).toEqual([{ id: "flat-1-left", text: "al!\npha\nbeta" }]);
+  expect(disk.root[0].left).toHaveLength(2);
+  expect(disk.root[0].left[0].text).toBe("al");
+  expect(disk.root[0].left[1].text).toBe("!pha\nbeta");
 });
 
 it("Ctrl+Enter creates children and enters the level for a new grandchild", async () => {
@@ -247,18 +268,15 @@ it("Ctrl+Enter creates children and enters the level for a new grandchild", asyn
   expect(window.location.hash).toBe(`#/c/flat-1/${child.id}`);
 });
 
-it("deletes an empty row, disposes its notes, and focuses the next right note", async () => {
+it("keeps an empty row when Backspace is pressed in its right cell", async () => {
   disk.root[0].right.text = "";
   await opened();
   await key("Backspace");
-  await waitFor(() =>
-    expect(content("flat-2-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
-  );
+  expect(content("flat-1-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus();
   await key("!");
   await save();
-  expect(disk.root).toHaveLength(1);
-  expect(disk.root[0].right.text).toBe("!Second note");
-  expect(content("flat-1-right")).toBeNull();
+  expect(disk.root).toHaveLength(2);
+  expect(disk.root[0].right.text).toBe("!");
 });
 
 it("Alt+Down moves rows and left notes across neighbouring rows while preserving caret", async () => {
@@ -417,7 +435,7 @@ it("returns to the recorded level when undoing after navigating away", async () 
   await waitFor(() => expect(window.location.hash).toMatch(/^#\/c\/flat-1\//));
   const recorded = window.location.hash;
   await key("X");
-  await key(",", { ctrlKey: true });
+  await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
   await waitFor(() => expect(window.location.hash).toBe("#/c/flat-1"));
   await key("z", { ctrlKey: true });
   await waitFor(() => expect(window.location.hash).toBe(recorded));
@@ -454,7 +472,7 @@ it("starts a new typing group after undo and discards the old redo", async () =>
   expect(disk).toEqual(original);
 });
 
-it("undoes a left-note join as one action with both original ids", async () => {
+it("keeps left-note boundaries and history unchanged on Backspace", async () => {
   disk.root[0].left = [
     { id: "flat-1-left", text: "first" },
     { id: "other-left", text: "second" },
@@ -504,7 +522,7 @@ it.each([false, true])("arrows follow the same cell routes (Shift: %s)", async s
     await waitFor(() => expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
   };
   const move = async (arrow: string, id: string) => {
-    if (!shiftKey) await key(arrow === "ArrowUp" || arrow === "ArrowLeft" ? "Home" : "End", { ctrlKey: true });
+    if (!shiftKey) await placeAtEdge(arrow === "ArrowUp" || arrow === "ArrowLeft" ? "start" : "end");
     await key(arrow, { shiftKey });
     await focused(id);
   };
@@ -536,7 +554,7 @@ it.each([false, true])("arrows follow the same cell routes (Shift: %s)", async s
   await move("ArrowLeft", "flat-2-left");
   await move("ArrowUp", "flat-1-left");
   await move("ArrowLeft", "flat-1-left"); // No destination keeps focus in place.
-  await key("Home", { ctrlKey: true });
+  await placeAtEdge("start");
   await key("!");
   await save();
   expect(disk.root[0].left[0].text).toBe("!Parent left");
@@ -600,7 +618,7 @@ it("edits the parent row in a deeper layer and preserves edits when leaving and 
   await save();
   expect(disk.root[0].right.children[0].right.text).toBe("!Child note");
   expect(disk.root[0].right.children[0].left[0].text).toBe("");
-  await key(",", { ctrlKey: true });
+  await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
   await waitFor(() => expect(window.location.hash).toBe("#/c/root"));
   expect(content("child-right")).toHaveTextContent("!Child note");
   expect(content("child-left")).toHaveTextContent("");
@@ -698,10 +716,10 @@ it.each([[false, false], [false, true], [true, false], [true, true]])("Left sele
   await opened();
   if (nested) content("multiple-right").focus();
   await waitFor(() => expect(content("multiple-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-  if (!shiftKey) await key("Home", { ctrlKey: true });
+  if (!shiftKey) await placeAtEdge("start");
   await key("ArrowLeft", { shiftKey });
   await waitFor(() => expect(content("multiple-left-1").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-  await key("Home", { ctrlKey: true });
+  await placeAtEdge("start");
   await key("!");
   await save();
   const saved = nested ? disk.root[0].right.children[0] : disk.root[0];
@@ -720,7 +738,7 @@ it.each([[false, false], [false, true], [true, false], [true, true]])("Right fro
   for (const note of row.left) {
     content(note.id).focus();
     await waitFor(() => expect(content(note.id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-    if (!shiftKey) await key("End", { ctrlKey: true });
+    if (!shiftKey) await placeAtEdge("end");
     await key("ArrowRight", { shiftKey });
     await waitFor(() => expect(content("multiple-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
   }
@@ -797,8 +815,8 @@ it("activates a 5000-line preview without replacing or measuring every line", as
   expect([...note.querySelectorAll("[data-line]")].every((line, index) => line === lines[index])).toBe(true);
   expect(geometry.mock.calls.length).toBeLessThan(100);
   geometry.mockRestore();
-  // jsdom has no text geometry; use Home for a deterministic insertion column.
-  await key("Home");
+  // Place the cursor at the text origin without relying on browser geometry.
+  await placeAtEdge("start");
   await key("!");
   await save();
   expect(disk.root[1].right.text).toBe("!" + text);
@@ -832,7 +850,7 @@ it("keeps a 50,010-line window bounded through input, newlines, history, and sel
   await key("z", { ctrlKey: true });
   await key("y", { ctrlKey: true });
   bounded();
-  await key("End", { ctrlKey: true });
+  await placeAtEdge("end");
   expect(surface.querySelector('[data-line="50009"]')).toBeInTheDocument();
   await key("?");
   bounded();
@@ -852,7 +870,7 @@ it("undoes and redoes 500,000-line typing in place without decoding or rebuildin
     `${line + 1}: 日本語の長い文章。こんにちは 👩🏽‍💻 葛󠄀 é`).join("\n");
   const initialText = disk.root[0].right.text;
   await opened();
-  await key("End", { ctrlKey: true });
+  await placeAtEdge("end");
   const surface = screen.getByTestId("editor-surface");
   const sink = screen.getByTestId("editor-sink");
   const dispose = vi.spyOn(EditorDocument.prototype, "dispose");

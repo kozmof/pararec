@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 const fixture = JSON.parse(readFileSync("fixtures/three-levels.json", "utf8"));
 
-test("nested levels support mouse, keyboard, reload, and browser history", async ({ page }) => {
+test("nested levels support navigation controls, reload, and browser history", async ({ page }) => {
   await page.route("**/api/document", (route) =>
     route.fulfill({ json: fixture, headers: { ETag: '"fixture"' } }),
   );
@@ -14,12 +14,12 @@ test("nested levels support mouse, keyboard, reload, and browser history", async
   await expect(child).toBeVisible();
   await expect(grandchild).toHaveCount(0);
   await child.focus();
-  await page.keyboard.press("ControlOrMeta+.");
+  await page.getByRole("button", { name: "Go deeper into Child note" }).click();
   await expect(page).toHaveURL(/#\/c\/root\/child$/);
   await expect(grandchild.getByTestId("editor-sink")).toBeFocused();
-  await page.keyboard.press("ControlOrMeta+,");
+  await page.getByRole("button", { name: "Go back" }).click();
   await expect(child.getByTestId("editor-sink")).toBeFocused();
-  await page.keyboard.press("ControlOrMeta+,");
+  await page.getByRole("button", { name: "Go back" }).click();
   await expect(root).toBeVisible();
   await expect(child.getByTestId("editor-sink")).toBeFocused();
   await page.getByRole("button", { name: "Go deeper into Child note" }).click();

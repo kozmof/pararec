@@ -39,6 +39,20 @@ describe("EditorSurface", () => {
     expect(doc.text()).toBe("abc\n");
   });
 
+  it.each([
+    { ctrlKey: false, shiftKey: false },
+    { ctrlKey: true, shiftKey: false },
+    { ctrlKey: false, shiftKey: true },
+    { ctrlKey: true, shiftKey: true },
+  ])("ignores Home and End with modifiers %j", async (modifiers) => {
+    const { doc, sink } = mount("abc\ndef", { caret: { line: 0, column: 1 } });
+    sink.focus();
+    await fireEvent.keyDown(sink, { key: "Home", ...modifiers });
+    await fireEvent.keyDown(sink, { key: "End", ...modifiers });
+    await userEvent.keyboard("!");
+    expect(doc.text()).toBe("a!bc\ndef");
+  });
+
   it("inserts a newline on Enter", async () => {
     const { doc, sink } = mount("ab\n", { caret: { line: 0, column: 1 } });
     sink.focus();
@@ -131,7 +145,7 @@ describe("EditorSurface", () => {
     expect(doc.text()).toBe("alpha!\nbravo\n");
 
     // Walk the caret away from the edit, onto the line below.
-    await userEvent.keyboard("{ArrowDown}{End}");
+    await userEvent.keyboard("{ArrowDown}");
     await userEvent.keyboard("{Control>}z{/Control}");
     expect(doc.text()).toBe("alpha\nbravo\n");
 

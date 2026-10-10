@@ -27,12 +27,15 @@ test("Japanese text wraps with visual-row navigation and selection", async ({ pa
   await page.keyboard.insertText(text);
   await expect(line).toHaveText(text);
   await expect.poll(async () => (await line.boundingBox())!.height).toBeGreaterThan(40);
-  await page.keyboard.press("ControlOrMeta+Home");
+  const box = (await line.boundingBox())!;
+  await page.mouse.click(box.x + 13, box.y + 10);
   const start = (await sink.boundingBox())!;
   await page.keyboard.press("ArrowDown");
   await expect.poll(async () => Math.round((await sink.boundingBox())!.y - start.y)).toBe(20);
-  await page.keyboard.press("Home");
-  await page.keyboard.press("Shift+End");
+  await page.mouse.move(box.x + 15, box.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 55, box.y + 30);
+  await page.mouse.up();
   await expect.poll(() => page.getByTestId("editor-selection").count()).toBeGreaterThan(0);
   await page.keyboard.press("ControlOrMeta+a");
   await expect.poll(() => page.getByTestId("editor-selection").count()).toBeGreaterThan(2);
@@ -52,7 +55,7 @@ test("pad supports text, selection, undo, and redo", async ({ page }) => {
   const sink = page.getByTestId("editor-sink");
   const line = page.getByTestId("editor-surface").locator('[data-line="0"]');
   await sink.focus();
-  await page.keyboard.press("ControlOrMeta+End");
+  for (let column = 0; column < "First note".length; column++) await page.keyboard.press("ArrowRight");
   await page.keyboard.type("!");
   await expect(line).toHaveText("First note!");
   await page.keyboard.press("ControlOrMeta+z");
@@ -72,7 +75,7 @@ test("pad commits composition once and undoes it as one action", async ({ page }
   await sink.focus();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.insertText("note");
-  await page.keyboard.press("ControlOrMeta+Home");
+  for (let column = 0; column < "note".length; column++) await page.keyboard.press("ArrowLeft");
   await composition(sink, "compositionstart", "");
   await composition(sink, "compositionupdate", "にほんご");
   await expect(page.locator("[data-preedit]")).toHaveText("にほんご");
@@ -181,7 +184,7 @@ test("IME input follows text edges when collapsed caret ranges are empty", async
       return this.collapsed ? new DOMRect() : boundingRect.call(this);
     };
   });
-  await page.keyboard.press("End");
+  for (let column = 0; column < "First note".length; column++) await page.keyboard.press("ArrowRight");
   await expect
     .poll(async () =>
       page

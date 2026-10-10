@@ -12,8 +12,6 @@ export type Command =
   | "focusRight"
   | "focusUp"
   | "focusDown"
-  | "enter"
-  | "leave"
   | "save"
   | "undo"
   | "redo";

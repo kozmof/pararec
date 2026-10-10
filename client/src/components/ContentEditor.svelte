@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from "svelte";
   import EditorSurface from "../lib/editor/EditorSurface.svelte";
-  import { sameCaret } from "../lib/editor/document-store.svelte.js";
   import type { EditorDocument, Caret } from "../lib/editor/document-store.svelte.js";
   import type { Entry, Boundary, Command } from "../lib/editor/content-host.js";
   let { doc, active = true, entry, onBoundary, onCommand, onKeydown, onHeight, onCaret, initialMeasurements, side }: { doc: EditorDocument; active?: boolean; entry: Entry; side: "left" | "right"; onBoundary: (direction: Boundary, goalX: number) => void; onCommand: (command: Command, caret?: Caret) => void; onKeydown?: (event: KeyboardEvent) => boolean; onHeight?: (height: number) => void; onCaret?: (caret: Caret) => void; initialMeasurements?: { width: number; heights: number[] } } = $props();
@@ -39,8 +38,6 @@
       if (command) { event.stopPropagation(); onCommand(command); return true; }
     }
     let command: Command | undefined;
-    if (accel && event.key === ".") command = "enter";
-    if (accel && event.key === ",") command = "leave";
     if (accel && event.key.toLowerCase() === "s") command = "save";
     if (accel && event.key.toLowerCase() === "z") command = event.shiftKey ? "redo" : "undo";
     if (accel && event.key.toLowerCase() === "y") command = "redo";
@@ -48,10 +45,6 @@
     if (event.key === "Enter" && accel && !event.shiftKey && !event.altKey) command = side === "left" ? "split" : "newChild";
     if (event.altKey && event.key === "ArrowUp") command = "moveUp";
     if (event.altKey && event.key === "ArrowDown") command = "moveDown";
-    if (event.key === "Backspace" && !accel && !event.altKey && !event.shiftKey) {
-      if ((!anchor || sameCaret(anchor, caret)) && side === "left" && caret.line === 0 && caret.column === 0) command = "join";
-      if (side === "right" && doc.text() === "") command = "deleteContainer";
-    }
     if (command) { event.stopPropagation(); onCommand(command, { ...caret }); return true; }
     if (!accel && !event.altKey && !event.shiftKey) {
       const direction = ({ ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" } as Record<string, Boundary>)[event.key];

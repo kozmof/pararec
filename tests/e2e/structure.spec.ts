@@ -23,7 +23,6 @@ test("structure shortcuts build and rearrange notes with valid saved snapshots",
   });
   await page.goto("/");
   await expect(page.getByTestId("editor-sink")).toBeFocused();
-  await page.keyboard.press("Home");
   for (let column = 0; column < 6; column++) await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Shift+Enter");
   await expect(page.getByTestId("editor-sink")).toBeFocused();

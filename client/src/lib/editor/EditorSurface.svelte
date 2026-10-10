@@ -11,7 +11,7 @@
   } from "./geometry.js";
 
   import { arithmeticMeasurer, domLineMeasurer } from "./line-measurer.js";
-  import { moveVisualRow, visualRowEdge, visualCaret, rowAt } from "./visual-navigation.js";
+  import { moveVisualRow, visualCaret, rowAt } from "./visual-navigation.js";
   import EditorLine from "./EditorLine.svelte";
   import { LineIdentity } from "./line-identity.js";
   import { compareLines } from "./document-change.js";
@@ -514,14 +514,6 @@
           anchor = { line: 0, column: 0 };
           caret = { line: lastLine, column: doc.lineText(lastLine).length };
           return;
-        case "Home":
-          event.preventDefault();
-          moveTo({ line: 0, column: 0 }, extend);
-          return;
-        case "End":
-          event.preventDefault();
-          moveTo({ line: lastLine, column: doc.lineText(lastLine).length }, extend);
-          return;
       }
       // Leave clipboard accelerators to the browser, which dispatches the handled clipboard
       // events.
@@ -565,14 +557,6 @@
           { line: pageLine(1), column: caret.column },
           extend,
         );
-        return;
-      case "Home":
-        event.preventDefault();
-        moveTo(visualRowEdge(caret, "start", navigationMeasure()), extend);
-        return;
-      case "End":
-        event.preventDefault();
-        moveTo(visualRowEdge(caret, "end", navigationMeasure()), extend);
         return;
     }
 
