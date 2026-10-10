@@ -1,6 +1,6 @@
 # Pararec
 
-Pararec is a two-column editor for nested notes. 
+Pararec is recursive two-column notes. 
 
 ## Setup
 
