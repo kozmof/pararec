@@ -858,8 +858,10 @@ it("keeps the 10x fixture window bounded through input, newlines, history, and s
   expect(disk.root[0].right.text).toBe("!" + initialText + "?");
 }, 20000);
 
-it("undoes and redoes 100x-fixture typing in place without decoding or rebuilding the document", async () => {
-  disk = JSON.parse(readFileSync("fixtures/long-100x.json", "utf8"));
+it("undoes and redoes 500,000-line typing in place without decoding or rebuilding the document", async () => {
+  disk = JSON.parse(readFileSync("fixtures/long.json", "utf8"));
+  disk.root[0].right.text = Array.from({ length: 500_000 }, (_, line) =>
+    `${line + 1}: 日本語の長い文章。こんにちは 👩🏽‍💻 葛󠄀 é`).join("\n");
   const initialText = disk.root[0].right.text;
   await opened();
   await key("End", { ctrlKey: true });
