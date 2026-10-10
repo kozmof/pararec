@@ -3,7 +3,7 @@ const http = @import("http.zig");
 const store_module = @import("store.zig");
 const Io = std.Io;
 
-const usage = "Usage: pararec serve <document.json> [--port 4545] [--static ./dist]";
+const usage = "Usage: pararec open <document.json> [--port 4545] [--static ./dist]";
 
 const Options = struct {
     document_path: []const u8,
@@ -12,7 +12,7 @@ const Options = struct {
 };
 
 fn parseArgs(args: []const []const u8) !Options {
-    if (args.len < 2 or !std.mem.eql(u8, args[0], "serve") or std.mem.startsWith(u8, args[1], "--")) return error.InvalidArguments;
+    if (args.len < 2 or !std.mem.eql(u8, args[0], "open") or std.mem.startsWith(u8, args[1], "--")) return error.InvalidArguments;
     var options: Options = .{ .document_path = args[1] };
     var index: usize = 2;
     var seen_port = false;
@@ -73,19 +73,20 @@ pub fn main(init: std.process.Init) !void {
 }
 
 test "CLI defaults and explicit options" {
-    const options = try parseArgs(&.{ "serve", "notes.json" });
+    const options = try parseArgs(&.{ "open", "notes.json" });
     try std.testing.expectEqual(@as(u16, 4545), options.port);
     try std.testing.expectEqualStrings("dist", options.static_path);
-    const explicit = try parseArgs(&.{ "serve", "notes.json", "--port", "9000", "--static", "client/public" });
+    const explicit = try parseArgs(&.{ "open", "notes.json", "--port", "9000", "--static", "client/public" });
     try std.testing.expectEqual(@as(u16, 9000), explicit.port);
     try std.testing.expectEqualStrings("client/public", explicit.static_path);
 }
 
 test "CLI rejects missing and invalid arguments" {
     try std.testing.expectError(error.InvalidArguments, parseArgs(&.{}));
-    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "serve", "notes.json", "--port" }));
-    try std.testing.expectError(error.InvalidPort, parseArgs(&.{ "serve", "notes.json", "--port", "0" }));
-    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "serve", "notes.json", "--unknown", "x" }));
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "serve", "notes.json" }));
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "open", "notes.json", "--port" }));
+    try std.testing.expectError(error.InvalidPort, parseArgs(&.{ "open", "notes.json", "--port", "0" }));
+    try std.testing.expectError(error.InvalidArguments, parseArgs(&.{ "open", "notes.json", "--unknown", "x" }));
 }
 
 test {

@@ -41,7 +41,7 @@ before(async () => {
   await new Promise((resolve) => socket.close(resolve));
   server = spawn(
     path.resolve("local/zig-out/bin/pararec"),
-    ["serve", documentPath, "--port", String(port), "--static", path.join(directory, "static")],
+    ["open", documentPath, "--port", String(port), "--static", path.join(directory, "static")],
     { stdio: ["ignore", "ignore", "pipe"] },
   );
   let output = "";

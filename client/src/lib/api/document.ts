@@ -6,7 +6,7 @@ export async function loadDocument(signal?: AbortSignal): Promise<LoadedDocument
     response = await fetch("/api/document", { signal, cache: "no-store" });
   } catch (cause) {
     if (signal?.aborted) throw cause;
-    throw new Error("Cannot reach the local server. Start pararec serve and retry.", { cause });
+    throw new Error("Cannot reach the local server. Start pararec open and retry.", { cause });
   }
   const titleHeader = response.headers.get("X-Document-Title");
   const metadata: { defaultTitle?: string } = {};

@@ -15,10 +15,10 @@ pnpm build
 
 ## Run
 
-Serve one document from the repository root.
+Open one document from the repository root.
 
 ```sh
-./local/zig-out/bin/pararec serve document.json
+./local/zig-out/bin/pararec open document.json
 ```
 
 Open `http://127.0.0.1:4545`. A missing document opens an empty pad. Activate Add row to create the first note. Edits save after one second of inactivity and when you leave a note. Ctrl+S or Cmd+S saves immediately.
@@ -26,7 +26,7 @@ Open `http://127.0.0.1:4545`. A missing document opens an empty pad. Activate Ad
 Choose another port or static directory when needed.
 
 ```sh
-./local/zig-out/bin/pararec serve fixtures/flat.json --port 4546 --static ./dist
+./local/zig-out/bin/pararec open fixtures/flat.json --port 4546 --static ./dist
 ```
 
 ## Develop

@@ -61,7 +61,7 @@ it.each([
 });
 it("explains how to recover when the local server cannot be reached", async () => {
   vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
-  await expect(loadDocument()).rejects.toThrow("Start pararec serve and retry");
+  await expect(loadDocument()).rejects.toThrow("Start pararec open and retry");
 });
 it("preserves request cancellation rather than reporting a server outage", async () => {
   const controller = new AbortController();
