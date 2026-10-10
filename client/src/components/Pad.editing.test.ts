@@ -90,13 +90,13 @@ describe("integrated content editing", () => {
     await key("ArrowRight");
     await waitFor(() =>
       expect(
-        content(disk.root[1].right.id).querySelector('[data-testid="editor-sink"]'),
+        content(disk.root[1].left[0].id).querySelector('[data-testid="editor-sink"]'),
       ).toHaveFocus(),
     );
     await key("!");
     await save();
     expect(disk.root[0].left[0].text.startsWith("X")).toBe(true);
-    expect(disk.root[1].right.text.startsWith("!")).toBe(true);
+    expect(disk.root[1].left[0].text.startsWith("!")).toBe(true);
   });
   it("Reload replaces cached text and the ETag before the next save", async () => {
     await opened();
@@ -500,7 +500,7 @@ it("keeps paste separate from adjacent typing", async () => {
   expect(disk).toEqual(original);
 });
 
-it("Shift arrows move focus through columns, children, and the next record", async () => {
+it.each([false, true])("arrows follow the same cell routes (Shift: %s)", async shiftKey => {
   disk.root[0].left[0].text = "Parent left";
   disk.root[0].right.children = [
     { id: "child-a", left: [{ id: "child-a-left", text: "Child left" }], right: { id: "child-a-right", text: "Child right", children: [] } },
@@ -511,7 +511,8 @@ it("Shift arrows move focus through columns, children, and the next record", asy
     await waitFor(() => expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
   };
   const move = async (arrow: string, id: string) => {
-    await key(arrow, { shiftKey: true });
+    if (!shiftKey) await key(arrow === "ArrowUp" || arrow === "ArrowLeft" ? "Home" : "End", { ctrlKey: true });
+    await key(arrow, { shiftKey });
     await focused(id);
   };
   await key("ArrowRight"); // Navigation must work inside text, without reaching an edge.
@@ -542,6 +543,7 @@ it("Shift arrows move focus through columns, children, and the next record", asy
   await move("ArrowLeft", "flat-2-left");
   await move("ArrowUp", "flat-1-left");
   await move("ArrowLeft", "flat-1-left"); // No destination keeps focus in place.
+  await key("Home", { ctrlKey: true });
   await key("!");
   await save();
   expect(disk.root[0].left[0].text).toBe("!Parent left");
@@ -692,7 +694,7 @@ it("autosaves the title while the title field remains focused", async () => {
   expect(title).toHaveFocus();
 });
 
-it.each([false, true])("Shift Left from a right cell selects the first left record (nested: %s)", async nested => {
+it.each([[false, false], [false, true], [true, false], [true, true]])("Left selects the first left record (nested: %s, Shift: %s)", async (nested, shiftKey) => {
   const row = {
     id: "multiple-left",
     left: [1, 2, 3].map(number => ({ id: `multiple-left-${number}`, text: `Left ${number}` })),
@@ -703,15 +705,17 @@ it.each([false, true])("Shift Left from a right cell selects the first left reco
   await opened();
   if (nested) content("multiple-right").focus();
   await waitFor(() => expect(content("multiple-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-  await key("ArrowLeft", { shiftKey: true });
+  if (!shiftKey) await key("Home", { ctrlKey: true });
+  await key("ArrowLeft", { shiftKey });
   await waitFor(() => expect(content("multiple-left-1").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await key("Home", { ctrlKey: true });
   await key("!");
   await save();
   const saved = nested ? disk.root[0].right.children[0] : disk.root[0];
   expect(saved.left.map(note => note.text)).toEqual(["!Left 1", "Left 2", "Left 3"]);
 });
 
-it.each([false, true])("Shift Right from any left record goes directly to the row's right cell (nested: %s)", async nested => {
+it.each([[false, false], [false, true], [true, false], [true, true]])("Right from any left record goes to its right cell (nested: %s, Shift: %s)", async (nested, shiftKey) => {
   const row = {
     id: "multiple-left",
     left: [1, 2, 3].map(number => ({ id: `multiple-left-${number}`, text: `Left ${number}` })),
@@ -723,7 +727,8 @@ it.each([false, true])("Shift Right from any left record goes directly to the ro
   for (const note of row.left) {
     content(note.id).focus();
     await waitFor(() => expect(content(note.id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-    await key("ArrowRight", { shiftKey: true });
+    if (!shiftKey) await key("End", { ctrlKey: true });
+    await key("ArrowRight", { shiftKey });
     await waitFor(() => expect(content("multiple-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
   }
   await key("!");

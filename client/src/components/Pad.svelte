@@ -214,18 +214,10 @@
     await restoreFocus();
   }
   function boundary(direction: Boundary, goalX: number) {
-    if (!tree || !focused) return;
-    const current = tree.index.get(focused)!;
-    const visible = [...pad.querySelectorAll<HTMLElement>("[data-content-id]")];
-    const depth = visible.find(element => element.dataset.contentId === focused)?.closest<HTMLElement>("[data-depth]")?.dataset.depth;
-    const notes = visible.filter(element => tree!.index.get(element.dataset.contentId!)?.side === current.side && element.closest<HTMLElement>("[data-depth]")?.dataset.depth === depth);
-    const at = notes.findIndex(element => element.dataset.contentId === focused);
     const backwards = direction === "up" || direction === "left";
-    const target = notes[at + (backwards ? -1 : 1)];
-    if (!target) return;
-    void restoreFocus(target.dataset.contentId, { kind: "edge", edge: backwards ? "end" : "start", ...((direction === "up" || direction === "down") ? { goalX } : {}) });
+    moveCell(direction, { kind: "edge", edge: backwards ? "end" : "start", ...((direction === "up" || direction === "down") ? { goalX } : {}) });
   }
-  function moveCell(direction: Boundary) {
+  function moveCell(direction: Boundary, nextEntry: Entry = { kind: "edge", edge: "start" }) {
     if (!tree || !focused || disabled) return;
     const current = tree.index.get(focused);
     if (!current || current.side === "container") return;
@@ -266,7 +258,7 @@
         }
       }
     }
-    if (target) void restoreFocus(target, { kind: "edge", edge: "start" });
+    if (target) void restoreFocus(target, nextEntry);
   }
   function command(command: Command, caret: Caret = { line: 0, column: 0 }) {
     const direction = ({ focusLeft: "left", focusRight: "right", focusUp: "up", focusDown: "down" } as Partial<Record<Command, Boundary>>)[command];
