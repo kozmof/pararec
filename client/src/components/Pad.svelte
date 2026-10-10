@@ -271,7 +271,9 @@
       if (target) {
         const editingTitle = document.activeElement === titleInput;
         const nextPath = validPath(target.schema, target.path);
-        const keepEditor = focused !== null && focused === target.focus?.contentId && pathHash(path) === pathHash(nextPath);
+        // Moving a focused subtree can blur its textarea in browsers. Structural
+        // restores must reactivate it after the DOM has settled.
+        const keepEditor = !!target.textChange && focused !== null && focused === target.focus?.contentId && pathHash(path) === pathHash(nextPath);
         if (!keepEditor) focused = null;
         liveCaret = null;
         const previous = target.textChange ? tree.index.get(target.textChange.contentId) : undefined;

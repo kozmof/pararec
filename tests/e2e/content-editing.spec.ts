@@ -1,3 +1,4 @@
+import { composition } from "./composition.js";
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 const fixture = JSON.parse(readFileSync("fixtures/flat.json", "utf8"));
@@ -7,6 +8,7 @@ test("Japanese composition saves, survives reload, and handles an external confl
 }) => {
   let disk = structuredClone(fixture),
     etag = '"v1"';
+  disk.root[0].right.text = "note";
   await page.route("**/api/document", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({ json: disk, headers: { ETag: etag } });
@@ -23,16 +25,18 @@ test("Japanese composition saves, survives reload, and handles an external confl
   await page.goto("/");
   let sink = page.getByTestId("editor-sink");
   await expect(sink).toBeFocused();
-  await sink.dispatchEvent("compositionstart");
-  await sink.dispatchEvent("compositionupdate", { data: "にほん" });
-  await sink.dispatchEvent("compositionend", { data: "日本" });
+  await composition(sink, "compositionstart", "");
+  await composition(sink, "compositionupdate", "にほんご");
+  await expect(page.locator("[data-preedit]")).toHaveText("にほんご");
+  await composition(sink, "compositionend", "日本語");
+  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText("日本語note");
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
-  expect(disk.root[0].right.text).toBe("日本First note");
+  expect(disk.root[0].right.text).toBe("日本語note");
   await page.reload();
   sink = page.getByTestId("editor-sink");
   await expect(sink).toBeFocused();
-  await expect(page.locator('[data-content-id="flat-1-right"]')).toContainText("日本First note");
+  await expect(page.locator('[data-content-id="flat-1-right"]')).toContainText("日本語note");
   disk.root[0].right.text = "External";
   etag = '"external"';
   await page.keyboard.type("!");

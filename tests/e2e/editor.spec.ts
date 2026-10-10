@@ -1,3 +1,4 @@
+import { composition } from "./composition.js";
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import type { Schema } from "../../client/src/schema.js";
@@ -69,23 +70,25 @@ test("pad commits composition once and undoes it as one action", async ({ page }
   await expect(page.getByTestId("editor-sink")).toBeFocused();
   const sink = page.getByTestId("editor-sink");
   await sink.focus();
-  await sink.dispatchEvent("compositionstart", { data: "" });
-  await sink.dispatchEvent("compositionupdate", { data: "にほん" });
-  await expect(page.locator("[data-preedit]")).toHaveText("にほん");
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.insertText("note");
+  await composition(sink, "compositionstart", "");
+  await composition(sink, "compositionupdate", "にほんご");
+  await expect(page.locator("[data-preedit]")).toHaveText("にほんご");
   await sink.dispatchEvent("keydown", { key: "Enter", isComposing: true });
   await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toContainText(
-    "First note",
+    "note",
   );
-  await sink.dispatchEvent("compositionend", { data: "日本" });
+  await composition(sink, "compositionend", "日本語");
   await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText(
-    "日本First note",
+    "日本語note",
   );
   await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText(
-    "First note",
+    "note",
   );
   await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText(
-    "First note",
+    "note",
   );
 });
 
@@ -119,8 +122,8 @@ test("click placement and the IME sink follow span measurements", async ({ page 
   expect(nativeBox).toMatchObject({ height: 20, width: 2, lineHeight: "20px" });
   expect(Math.abs(nativeBox.dx)).toBeLessThan(1);
   expect(Math.abs(nativeBox.dy)).toBeLessThan(1);
-  await sink.dispatchEvent("compositionstart", { data: "" });
-  await sink.dispatchEvent("compositionupdate", { data: "日本" });
+  await composition(sink, "compositionstart", "");
+  await composition(sink, "compositionupdate", "日本");
   await expect(line.locator("[data-from]")).toHaveCount(3);
   await expect(line.locator("[data-preedit]")).toHaveAttribute("data-from", "6");
   await expect
@@ -138,7 +141,7 @@ test("click placement and the IME sink follow span measurements", async ({ page 
       }),
     )
     .toBeLessThan(2);
-  await sink.dispatchEvent("compositionend", { data: "日本" });
+  await composition(sink, "compositionend", "日本");
   await expect(line).toHaveText("First!日本 note");
 });
 
@@ -157,9 +160,9 @@ test("grapheme deletion and composition cancellation preserve whole text", async
   await page.keyboard.press("ControlOrMeta+z");
   await expect(line).toHaveText("a👩‍🚀b");
   await page.keyboard.press("ControlOrMeta+a");
-  await sink.dispatchEvent("compositionstart", { data: "" });
-  await sink.dispatchEvent("compositionupdate", { data: "にほん" });
-  await sink.dispatchEvent("compositionend", { data: "" });
+  await composition(sink, "compositionstart", "");
+  await composition(sink, "compositionupdate", "にほん");
+  await composition(sink, "compositionend", "");
   await expect(line).toHaveText("a👩‍🚀b");
 });
 
@@ -195,8 +198,8 @@ test("IME input follows text edges when collapsed caret ranges are empty", async
         }),
     )
     .toBeLessThan(2);
-  await page.getByTestId("editor-sink").dispatchEvent("compositionstart");
-  await page.getByTestId("editor-sink").dispatchEvent("compositionupdate", { data: "日本" });
+  await composition(page.getByTestId("editor-sink"), "compositionstart", "");
+  await composition(page.getByTestId("editor-sink"), "compositionupdate", "日本");
   await expect
     .poll(async () =>
       page.locator("[data-preedit]").evaluate((el) => {

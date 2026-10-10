@@ -58,20 +58,21 @@ const content = (id: string) => document.querySelector(`[data-content-id="${id}"
 
 describe("integrated content editing", () => {
   it("commits Japanese composition once, excludes preedit from saving, and survives remount", async () => {
+    disk.root[0].right.text = "note";
     const view = render(Pad);
     await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
     const sink = screen.getByTestId("editor-sink");
     await fireEvent.compositionStart(sink);
-    await fireEvent.compositionUpdate(sink, { data: "にほん" });
+    await fireEvent.compositionUpdate(sink, { data: "にほんご" });
     await fireEvent.keyDown(sink, { key: "s", ctrlKey: true, isComposing: true });
     expect(puts).toHaveLength(0);
-    await fireEvent.compositionEnd(sink, { data: "日本" });
+    await fireEvent.compositionEnd(sink, { data: "日本語" });
     await save();
-    expect(disk.root[0].right.text).toBe("日本First note");
+    expect(disk.root[0].right.text).toBe("日本語note");
     expect(puts).toHaveLength(1);
     view.unmount();
     await opened();
-    expect(content(disk.root[0].right.id)).toHaveTextContent("日本First note");
+    expect(content(disk.root[0].right.id)).toHaveTextContent("日本語note");
   });
   it("moves between columns and adjacent right notes at boundaries", async () => {
     await opened();
@@ -201,17 +202,18 @@ it("retains goalX across a shorter Content between longer Contents", async () =>
 });
 
 it("does not forward composition keys to pad navigation even without isComposing", async () => {
+  disk.root[0].right.text = "note";
   await opened();
   const sink = screen.getByTestId("editor-sink");
   await fireEvent.compositionStart(sink);
-  await fireEvent.compositionUpdate(sink, { data: "日本" });
+  await fireEvent.compositionUpdate(sink, { data: "日本語" });
   await fireEvent.keyDown(sink, { key: ",", ctrlKey: true });
   await fireEvent.keyDown(sink, { key: "s", ctrlKey: true });
   expect(puts).toHaveLength(0);
   expect(sink).toHaveFocus();
-  await fireEvent.compositionEnd(sink, { data: "日本" });
+  await fireEvent.compositionEnd(sink, { data: "日本語" });
   await save();
-  expect(disk.root[0].right.text).toBe("日本First note");
+  expect(disk.root[0].right.text).toBe("日本語note");
 });
 
 it("forwards all undo shortcuts to app history instead of native Reed history", async () => {
@@ -310,17 +312,18 @@ it("Alt+Down moves rows and left notes across neighbouring rows while preserving
 });
 
 it("keeps structure shortcuts inside the IME until composition commits", async () => {
+  disk.root[0].right.text = "note";
   await opened();
   const sink = screen.getByTestId("editor-sink");
   await fireEvent.compositionStart(sink);
-  await fireEvent.compositionUpdate(sink, { data: "にほん" });
+  await fireEvent.compositionUpdate(sink, { data: "にほんご" });
   await fireEvent.keyDown(sink, { key: "Enter", shiftKey: true });
   await fireEvent.keyDown(sink, { key: "Enter", ctrlKey: true });
   await fireEvent.keyDown(sink, { key: "ArrowDown", altKey: true });
-  await fireEvent.compositionEnd(sink, { data: "日本" });
+  await fireEvent.compositionEnd(sink, { data: "日本語" });
   await save();
   expect(disk.root).toHaveLength(2);
-  expect(disk.root[0].right.text).toBe("日本First note");
+  expect(disk.root[0].right.text).toBe("日本語note");
   expect(disk.root[0].right.children).toEqual([]);
 });
 
@@ -345,7 +348,10 @@ it("undoes text, row movement, and text as three separate actions", async () => 
   await key("Y");
   await key("z", { ctrlKey: true });
   expect(content("flat-1-right")).toHaveTextContent("XFirst note");
+  const beforeStructuralUndo = screen.getByTestId("editor-sink");
   await key("z", { ctrlKey: true });
+  expect(screen.getByTestId("editor-sink")).not.toBe(beforeStructuralUndo);
+  expect(screen.getByTestId("editor-sink")).toHaveFocus();
   await save();
   expect(disk.root.map((row) => row.id)).toEqual(["flat-1", "flat-2"]);
   expect(disk.root[0].right.text).toBe("XFirst note");
@@ -353,8 +359,12 @@ it("undoes text, row movement, and text as three separate actions", async () => 
   await save();
   expect(disk).toEqual(original);
   await key("y", { ctrlKey: true });
+  const beforeStructuralRedo = screen.getByTestId("editor-sink");
   await key("y", { ctrlKey: true });
+  expect(screen.getByTestId("editor-sink")).not.toBe(beforeStructuralRedo);
+  expect(screen.getByTestId("editor-sink")).toHaveFocus();
   await key("y", { ctrlKey: true });
+  expect(screen.getByTestId("editor-sink")).toHaveFocus();
   await save();
   expect(disk.root.map((row) => row.id)).toEqual(["flat-2", "flat-1"]);
   expect(disk.root[1].right.text).toBe("XYFirst note");
@@ -373,20 +383,22 @@ it("restores both halves and the caret when undoing a split", async () => {
 });
 
 it("undoes a composition independently from adjacent typing", async () => {
+  disk.root[0].right.text = "note";
+  const initial = clone(disk);
   await opened();
   await key("X");
   const sink = screen.getByTestId("editor-sink");
   await fireEvent.compositionStart(sink);
-  await fireEvent.compositionUpdate(sink, { data: "にほん" });
-  await fireEvent.compositionEnd(sink, { data: "日本" });
+  await fireEvent.compositionUpdate(sink, { data: "にほんご" });
+  await fireEvent.compositionEnd(sink, { data: "日本語" });
   await key("Y");
   await key("z", { ctrlKey: true });
-  expect(content("flat-1-right")).toHaveTextContent("X日本First note");
+  expect(content("flat-1-right")).toHaveTextContent("X日本語note");
   await key("z", { ctrlKey: true });
-  expect(content("flat-1-right")).toHaveTextContent("XFirst note");
+  expect(content("flat-1-right")).toHaveTextContent("Xnote");
   await key("z", { ctrlKey: true });
   await save();
-  expect(disk).toEqual(original);
+  expect(disk).toEqual(initial);
 });
 
 it("clears history when a conflict reload replaces the document", async () => {
