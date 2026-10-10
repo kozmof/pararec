@@ -50,7 +50,7 @@ pub const Store = struct {
     pub fn read(self: *Store, io: Io, gpa: Allocator) !Document {
         try self.mutex.lock(io);
         defer self.mutex.unlock(io);
-        const bytes = try self.dir.readFileAlloc(io, self.basename, gpa, .limited(64 * 1024 * 1024));
+        const bytes = try self.dir.readFileAlloc(io, self.basename, gpa, .limited(schema.max_document_size));
         return .{ .bytes = bytes, .tag = etag(bytes) };
     }
 
@@ -64,7 +64,7 @@ pub const Store = struct {
         try self.mutex.lock(io);
         defer self.mutex.unlock(io);
         try schema.validate(gpa, document);
-        const current = self.dir.readFileAlloc(io, self.basename, gpa, .limited(64 * 1024 * 1024)) catch |err| switch (err) {
+        const current = self.dir.readFileAlloc(io, self.basename, gpa, .limited(schema.max_document_size)) catch |err| switch (err) {
             error.FileNotFound => null,
             else => return err,
         };

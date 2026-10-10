@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
 import path from "node:path";
@@ -220,31 +220,58 @@ test("document API over real sockets", async (t) => {
       undefined,
     );
   });
-  await t.test("body limit applies to Content-Length and chunked requests", async () => {
+  await t.test("rejects declared bodies above 512 MiB and accepts large chunked documents", async () => {
     const before = await request();
     assert.equal(
       (
         await request("PUT", "/api/document", {
           origin: origin(),
           "if-match": "*",
-          "content-length": String(16 * 1024 * 1024 + 1),
+          "content-length": String(512 * 1024 * 1024 + 1),
         })
       ).status,
       413,
     );
-    const oversized = "x".repeat(16 * 1024 * 1024 + 1);
-    assert.equal(
-      (
-        await request(
-          "PUT",
-          "/api/document",
-          { origin: origin(), "if-match": "*", "transfer-encoding": "chunked" },
-          oversized,
-        )
-      ).status,
-      413,
-    );
     assert.equal(await readFile(documentPath, "utf8"), before.body);
+    const large = {
+      ...empty,
+      root: [{ id: "large", left: [{ id: "large-l", text: "" }],
+        right: { id: "large-r", text: "x".repeat(17 * 1024 * 1024), children: [] } }],
+    };
+    try {
+      assert.equal(
+        (
+          await request(
+            "PUT",
+            "/api/document",
+            { origin: origin(), "if-match": "*", "transfer-encoding": "chunked" },
+            JSON.stringify(large),
+          )
+        ).status,
+        200,
+      );
+      assert.equal(JSON.parse(await readFile(documentPath, "utf8")).root[0].right.text.length, 17 * 1024 * 1024);
+    } finally {
+      await writeFile(documentPath, before.body);
+    }
+  });
+  await t.test("loads valid JSON documents larger than the old 64 MiB file limit", async () => {
+    const before = await readFile(documentPath);
+    const padding = Buffer.alloc(1024 * 1024, " ");
+    const file = await open(documentPath, "w");
+    try {
+      for (let block = 0; block < 65; block++) await file.write(padding);
+      await file.write(JSON.stringify(empty));
+    } finally { await file.close(); }
+    try {
+      const response = await fetch(`${origin()}/api/document`);
+      assert.equal(response.status, 200);
+      const digest = createHash("sha256");
+      let bytes = 0;
+      for await (const chunk of response.body) { bytes += chunk.length; digest.update(chunk); }
+      assert.equal(bytes, 65 * 1024 * 1024 + Buffer.byteLength(JSON.stringify(empty)));
+      assert.equal(response.headers.get("etag"), `"${digest.digest("hex").slice(0, 32)}"`);
+    } finally { await writeFile(documentPath, before); }
   });
   await t.test("static files and unknown routes are handled separately", async () => {
     assert.equal((await request("GET", "/favicon.svg")).status, 200);

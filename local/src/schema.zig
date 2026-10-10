@@ -21,7 +21,8 @@ pub fn defaultTitle(filename: []const u8) []const u8 {
     const basename = std.fs.path.basename(filename);
     return basename[0 .. basename.len - std.fs.path.extension(basename).len];
 }
-pub const max_body_size = 16 * 1024 * 1024;
+pub const max_document_size = 512 * 1024 * 1024;
+pub const max_body_size = max_document_size;
 
 pub fn parse(gpa: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(Schema) {
     if (!std.unicode.utf8ValidateSlice(bytes)) return error.InvalidUtf8;

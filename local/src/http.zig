@@ -99,6 +99,7 @@ fn handleRequest(io: Io, gpa: std.mem.Allocator, config: Config, request: *http.
             .GET => {
                 const title = try std.json.Stringify.valueAlloc(gpa, schema.defaultTitle(config.store.basename), .{ .escape_unicode = true });
                 const document = config.store.read(io, gpa) catch |err| {
+                    if (err == error.StreamTooLong) return jsonError(request, .payload_too_large, "DocumentTooLarge");
                     if (err == error.FileNotFound) return request.respond("{\"error\":\"FileNotFound\"}\n", .{ .status = .not_found, .extra_headers = &.{
                         .{ .name = "content-type", .value = "application/json" },
                         .{ .name = "cache-control", .value = "no-store" },
@@ -131,7 +132,7 @@ fn handleRequest(io: Io, gpa: std.mem.Allocator, config: Config, request: *http.
                 defer raw.deinit();
                 if (raw.value.object.get("title") == null) parsed.value.title = schema.defaultTitle(config.store.basename);
                 schema.validate(gpa, parsed.value) catch |err| return jsonError(request, .bad_request, @errorName(err));
-                const tag = config.store.put(io, gpa, parsed.value, precondition) catch |err| return jsonError(request, if (err == error.PreconditionFailed) .precondition_failed else .internal_server_error, @errorName(err));
+                const tag = config.store.put(io, gpa, parsed.value, precondition) catch |err| return jsonError(request, if (err == error.PreconditionFailed) .precondition_failed else if (err == error.StreamTooLong) .payload_too_large else .internal_server_error, @errorName(err));
                 return request.respond("{}\n", .{ .keep_alive = false, .extra_headers = &.{
                     .{ .name = "content-type", .value = "application/json" },
                     .{ .name = "etag", .value = &tag },

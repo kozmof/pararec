@@ -23,6 +23,8 @@ export async function loadDocument(signal?: AbortSignal): Promise<LoadedDocument
       ...metadata,
     };
   if (!response.ok) {
+    if (response.status === 413)
+      throw new Error("The document exceeds the local server's 512 MiB size limit. Use a smaller document and retry.");
     if (response.status === 500)
       throw new Error(
         "The local server could not read the document. Check the file and its permissions, then retry.",

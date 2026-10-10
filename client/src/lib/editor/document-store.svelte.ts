@@ -305,6 +305,7 @@ export class EditorDocument {
 
   #textState: DocumentState | undefined;
   #textValue = "";
+  #textEdit: { base: string; from: number; to: number; inserted: string } | undefined;
 
   #updateText({ action, prevState, nextState }: ContentChangeEvent): void {
     if (action.type === "APPLY_REMOTE" || this.#textState?.pieceTable !== prevState.pieceTable) return;
@@ -316,7 +317,24 @@ export class EditorDocument {
     const to = action.type === "INSERT" ? from : offset(action.end);
     if (from === undefined || to === undefined) return;
     const inserted = action.type === "DELETE" ? "" : normalizeLineBreaks(action.text);
-    this.#textValue = this.#textValue.slice(0, from) + inserted + this.#textValue.slice(to);
+    let edit = this.#textEdit;
+    // Slicing the previous concatenated snapshot can flatten the entire document.
+    // Keep nearby edits in a small window over an unchanged base instead.
+    if (!edit || from < edit.from - 4096 || to > edit.from + edit.inserted.length + 4096) {
+      edit = { base: this.#textValue, from, to, inserted };
+    } else {
+      const start = Math.min(from, edit.from);
+      const end = edit.to + Math.max(0, to - edit.from - edit.inserted.length);
+      const window = edit.base.slice(start, edit.from) + edit.inserted + edit.base.slice(edit.to, end);
+      edit = {
+        base: edit.base,
+        from: start,
+        to: end,
+        inserted: window.slice(0, from - start) + inserted + window.slice(to - start),
+      };
+    }
+    this.#textEdit = edit;
+    this.#textValue = edit.base.slice(0, edit.from) + edit.inserted + edit.base.slice(edit.to);
     this.#textState = nextState;
   }
 
@@ -326,6 +344,7 @@ export class EditorDocument {
     if (state.pieceTable !== this.#textState?.pieceTable) {
       this.#textValue = scan.getValue(state.pieceTable);
       this.#textState = state;
+      this.#textEdit = undefined;
     }
     return this.#textValue;
   }
@@ -343,6 +362,7 @@ export class EditorDocument {
     // comparison when ContentCache checks the restored document.
     this.#textValue = text;
     this.#textState = this.state;
+    this.#textEdit = undefined;
     this.closeHistoryGroup();
   }
 

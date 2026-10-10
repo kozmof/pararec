@@ -35,6 +35,36 @@ describe("sameCaret", () => {
 });
 
 describe("EditorDocument", () => {
+  it("keeps nearby and distant edit windows consistent with immutable snapshots", () => {
+    const d = doc("日本👩🏽‍💻\n" + "original text\n".repeat(1000));
+    let expected = d.text();
+    const snapshots: string[] = [];
+    const caret = (offset: number) => {
+      const lines = expected.slice(0, offset).split("\n");
+      return { line: lines.length - 1, column: lines.at(-1)!.length };
+    };
+    try {
+      for (const [from, to, text] of [
+        [20, 20, "abc"], [21, 22, "XY"], [18, 25, "\n"],
+        [23, 23, "nearby"], [10, 28, "replacement"],
+        [9000, 9000, "distant"], [8998, 9009, "joined"],
+        [12, 15, "back"],
+      ] as const) {
+        snapshots.push(expected);
+        d.replace(caret(from), caret(to), text);
+        expected = expected.slice(0, from) + text + expected.slice(to);
+        expect(d.text()).toBe(expected);
+      }
+      d.undo();
+      expect(d.text()).toBe(snapshots.at(-1));
+      d.redo();
+      expect(d.text()).toBe(expected);
+      expect(snapshots[0]).toBe("日本👩🏽‍💻\n" + "original text\n".repeat(1000));
+    } finally {
+      d.dispose();
+    }
+  });
+
   it("updates cached Unicode text without decoding the document for local edits", () => {
     const d = doc("日本👩🏽‍💻\né tail\nlast");
     const decode = vi.spyOn(scan, "getValue");
