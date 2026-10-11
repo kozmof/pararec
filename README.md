@@ -29,6 +29,36 @@ Choose another port or static directory when needed.
 ./local/zig-out/bin/pararec open fixtures/flat.json --port 4546 --static ./dist
 ```
 
+## Configuration
+
+Edit the document JSON to change its title and layout. Save any pending edits in the app first, then edit the file and reload the page. Keep your existing `root` records when adding settings.
+
+This example shows an empty document with the default layout settings.
+
+```json
+{
+  "version": 1,
+  "title": "My notes",
+  "config": {
+    "showTitles": true,
+    "maxWidth": 1100,
+    "outerWidthRate": { "left": 35, "right": 65 },
+    "innerIdthRate": { "left": 35, "right": 65 }
+  },
+  "root": []
+}
+```
+
+| Field | Default | Effect |
+| --- | --- | --- |
+| `title` | File name without its extension | Document title. Also editable at the top of the app. |
+| `config.showTitles` | `true` | Show the document title. Set to `false` to hide it and remove its space. |
+| `config.maxWidth` | `1100` | Maximum width of the notes area in pixels. |
+| `config.outerWidthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for rows in the current layer. |
+| `config.innerIdthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for child rows shown inside a right cell. |
+
+Omitted fields use their defaults. Width values must be positive, finite numbers. Column rates are proportions and do not need to total 100. For example, `{ "left": 1, "right": 2 }` makes the right column twice as wide as the left. Use the exact key `innerIdthRate` as shown.
+
 ## Develop
 
 Start Vite, the CSS watcher, and the local server together.
