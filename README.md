@@ -1,6 +1,6 @@
 # Pararec
 
-Pararec is a recursive two-column note app.
+Pararec is a recursive two-column notebook.
 
 ## Setup
 
@@ -47,7 +47,7 @@ This example shows an empty document with the default layout settings.
 
 | Field | Default | Effect |
 | --- | --- | --- |
-| `title` | File name without its extension | Document title. Also editable at the top of the app. |
+| `title` | File name without its extension | Document title. |
 | `config.showTitles` | `true` | Show the document title. Set to `false` to hide it and remove its space. |
 | `config.maxWidth` | `1100` | Maximum width of the notes area in pixels. |
 | `config.outerWidthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for rows in the current layer. |
