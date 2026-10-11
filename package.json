@@ -25,9 +25,10 @@
     "test:local": "cd local && zig build test",
     "test:api": "pnpm build:local && node --test tests/api.test.mjs tests/locking.test.mjs",
     "test:e2e": "playwright test",
-    "test:performance": "node tests/run-performance.mjs",
+    "test:performance": "pnpm build && node tests/run-performance.mjs",
     "test:unit": "vitest run",
-    "test:release": "pnpm build && playwright test --config playwright.production.config.ts"
+    "test:release": "pnpm build && playwright test --config playwright.production.config.ts",
+    "test:readiness": "pnpm check && pnpm lint && pnpm test:unit && pnpm test:local && pnpm test:api && pnpm test:release && pnpm test:performance && node tests/check-native-ime.mjs"
   },
   "dependencies": {
     "@kozmof/reed": "^4.0.1"

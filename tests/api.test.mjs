@@ -222,7 +222,7 @@ test("document API over real sockets", async (t) => {
     );
   });
   await t.test(
-    "rejects declared bodies above 512 MiB and accepts large chunked documents",
+    "rejects declared bodies above 32 MiB and accepts large chunked documents",
     async () => {
       const before = await request();
       assert.equal(
@@ -230,7 +230,7 @@ test("document API over real sockets", async (t) => {
           await request("PUT", "/api/document", {
             origin: origin(),
             "if-match": "*",
-            "content-length": String(512 * 1024 * 1024 + 1),
+            "content-length": String(32 * 1024 * 1024 + 1),
           })
         ).status,
         413,
@@ -278,7 +278,9 @@ test("document API over real sockets", async (t) => {
       await file.close();
     }
     try {
-      const response = await fetch(`${origin()}/api/document`);
+      const response = await fetch(`${origin()}/api/document`, {
+        headers: { Connection: "close" },
+      });
       assert.equal(response.status, 200);
       const digest = createHash("sha256");
       let bytes = 0;
@@ -311,6 +313,45 @@ test("document API over real sockets", async (t) => {
     assert.equal((await put(empty, { "if-none-match": "*" })).status, 200);
   });
 });
+
+test(
+  "idle connections are capped and expire without blocking health checks",
+  { timeout: 40_000 },
+  async () => {
+    const sockets = [];
+    try {
+      // Leave fifteen connections waiting for an incomplete request head.
+      for (let i = 0; i < 15; i++) {
+        const socket = net.createConnection({ host: "127.0.0.1", port });
+        sockets.push(socket);
+        socket.on("error", () => {});
+        await once(socket, "connect");
+        socket.write("GET /api/health HTTP/1.1\r\n");
+      }
+      assert.equal((await request("GET", "/api/health")).status, 200);
+      const last = net.createConnection({ host: "127.0.0.1", port });
+      sockets.push(last);
+      last.on("error", () => {});
+      await once(last, "connect");
+      last.write("GET /api/health HTTP/1.1\r\n");
+      // All sixteen admitted connections must close at the absolute deadline.
+      const closed = Promise.all(
+        sockets.map((socket) => new Promise((resolve) => socket.once("close", resolve))),
+      );
+      const extra = net.createConnection({ host: "127.0.0.1", port });
+      extra.on("error", () => {});
+      sockets.push(extra);
+      const rejected = new Promise((resolve) => extra.once("close", resolve));
+      extra.resume();
+      await rejected;
+      assert.equal(last.destroyed, false);
+      await closed;
+      assert.equal((await request("GET", "/api/health")).status, 200);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+    }
+  },
+);
 
 // Transpile the pure client modules so this socket test exercises the shipped commands.
 test("structure-generated snapshots are accepted by the local server", async () => {

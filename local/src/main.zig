@@ -76,7 +76,9 @@ pub fn main(init: std.process.Init) !void {
     };
     defer static_dir.close(io);
     var store: store_module.Store = .{ .dir = document_dir, .basename = basename };
-    const config: http.Config = .{ .static_dir = static_dir, .store = &store, .port = options.port, .document_id = document_id[1..33] };
+    var document_request: Io.Mutex = .init;
+    var connections = std.atomic.Value(usize).init(0);
+    const config: http.Config = .{ .static_dir = static_dir, .store = &store, .port = options.port, .document_id = document_id[1..33], .document_request = &document_request };
     const address = try Io.net.IpAddress.parseIp4("127.0.0.1", options.port);
     var listener = try address.listen(io, .{ .reuse_address = true });
     defer listener.deinit(io);
@@ -88,10 +90,31 @@ pub fn main(init: std.process.Init) !void {
             std.log.err("accept failed: {t}", .{err});
             continue;
         };
-        group.concurrent(io, http.handleConnection, .{ io, init.gpa, config, stream }) catch {
-            http.handleConnection(io, init.gpa, config, stream);
+        if (connections.fetchAdd(1, .acq_rel) >= 16) {
+            _ = connections.fetchSub(1, .acq_rel);
+            stream.close(io);
+            continue;
+        }
+        group.concurrent(io, handleBoundedConnection, .{ io, init.gpa, config, stream, &connections }) catch {
+            _ = connections.fetchSub(1, .acq_rel);
+            stream.close(io);
         };
     }
+}
+
+// Bound the whole connection, including incomplete headers and bodies.
+fn handleBoundedConnection(io: Io, gpa: std.mem.Allocator, config: http.Config, stream: Io.net.Stream, connections: *std.atomic.Value(usize)) void {
+    defer _ = connections.fetchSub(1, .acq_rel);
+    const Result = union(enum) { handled: void, deadline: Io.Cancelable!void };
+    var buffer: [2]Result = undefined;
+    var select = Io.Select(Result).init(io, &buffer);
+    defer select.cancelDiscard();
+    select.concurrent(.handled, http.handleConnection, .{ io, gpa, config, stream }) catch {
+        stream.close(io);
+        return;
+    };
+    select.concurrent(.deadline, Io.sleep, .{ io, Io.Duration.fromSeconds(30), .awake }) catch return;
+    _ = select.await() catch return;
 }
 
 test "CLI defaults and explicit options" {

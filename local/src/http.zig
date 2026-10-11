@@ -9,6 +9,7 @@ pub const Config = struct {
     store: *store_module.Store,
     port: u16,
     document_id: []const u8,
+    document_request: *Io.Mutex,
 };
 
 pub fn handleConnection(io: Io, gpa: std.mem.Allocator, config: Config, stream: Io.net.Stream) void {
@@ -96,6 +97,9 @@ fn handleRequest(io: Io, gpa: std.mem.Allocator, config: Config, request: *http.
             return request.respond("{\"status\":\"ok\"}\n", .{ .extra_headers = &.{.{ .name = "content-type", .value = "application/json" }} });
         }
         if (!std.mem.eql(u8, path, "/api/document")) return jsonError(request, .not_found, "NotFound");
+        // Admit before buffering or parsing to bound concurrent document memory use.
+        try config.document_request.lock(io);
+        defer config.document_request.unlock(io);
         switch (request.head.method) {
             .GET => {
                 const title = try std.json.Stringify.valueAlloc(gpa, schema.defaultTitle(config.store.basename), .{ .escape_unicode = true });

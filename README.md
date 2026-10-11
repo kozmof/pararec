@@ -137,9 +137,15 @@ Run the browser performance scenarios separately when collecting measurements.
 pnpm test:performance
 ```
 
-Each scenario attaches a JSON report with host and browser details. The 5,000-line note records 100 input-to-DOM samples after five warmups, including tree and history updates. Browser draft recovery is enabled during these scenarios, but the input-to-DOM measurement does not wait for its asynchronous storage transaction. It excludes physical input, native IME, and painting. The 1,000-row level records navigation-to-ready time and DOM size. Measurements use the development client and report the 8 ms input target without enforcing it as a timing assertion. Run on representative hardware before deciding whether to add virtualization.
+Each scenario attaches a JSON report with host and browser details. The 5,000-line note records 100 input-to-DOM samples after five warmups, including tree and history updates. Browser draft recovery is enabled during these scenarios, but the input-to-DOM measurement does not wait for its asynchronous storage transaction. It excludes physical input, native IME, and painting. The 1,000-row level records navigation-to-ready time and DOM size. The suite fails when p95 input-to-DOM latency reaches 8 ms or navigation-to-ready reaches 10 seconds. Measurements use the production client and server. Run on representative hardware before release.
 
-Follow [the native IME checks](docs/ime-checks.md) on macOS and Windows.
+Follow [the native IME checks](docs/ime-checks.md) on macOS and Windows. Run `pnpm test:readiness` for the release checks. This command also requires native IME results recorded for the current code.
+
+## Server limits
+
+The server is intended for local use and listens only on `127.0.0.1`. It accepts at most 16 connections and closes each connection after 30 seconds, including incomplete requests. Excess connections are closed immediately. Document requests wait for one shared permit before reading or parsing data.
+
+Uploads are limited to 32 MiB. Files read from disk and formatted saves are limited to 128 MiB. Requests above the upload limit return HTTP 413. Keep individual documents below the upload limit to allow continued editing and saving. Split larger notebooks into separate files.
 
 ## Document API
 

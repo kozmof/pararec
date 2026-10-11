@@ -15,7 +15,7 @@ These checks require a person using the native input method. Record pending chec
 
 ## Release results
 
-All six checks remain pending until a tester records a result for the release commit. CI browser tests do not complete this table.
+All six checks remain pending until a tester records a result for the release commit. CI browser tests do not complete this table. Record the full tested commit hash and use `Pass` in the last column only when all six checks pass. Run `node tests/check-native-ime.mjs` to verify the release evidence. `pnpm test:readiness` includes this gate. Results remain valid when only this evidence file changes after the tested commit.
 
 | Operating system | Browser | Input method | Browser version | Date | Commit | Checks 1–6 |
 | --- | --- | --- | --- | --- | --- | --- |

@@ -7,7 +7,7 @@ const child = spawn(
   [
     require.resolve("@playwright/test/cli"),
     "test",
-    "tests/e2e/performance.spec.ts",
+    "--config=playwright.performance.config.ts",
     "--workers=1",
     "--output=test-results/performance",
   ],
