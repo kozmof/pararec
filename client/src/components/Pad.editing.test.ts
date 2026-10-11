@@ -244,7 +244,7 @@ it("splits left notes without joining them on Backspace", async () => {
   await placeAtEdge("start");
   await key("ArrowRight");
   await key("ArrowRight");
-  await key("Enter", { ctrlKey: true });
+  await key("Enter", { altKey: true });
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
   await key("Backspace");
   await key("!");
@@ -771,16 +771,25 @@ it("Shift Enter from a left cell creates a sibling row and can be undone", async
   expect(disk.root[0].left[0].text).toBe("left tail");
 });
 
-it.each(["left", "right"])("Alt Enter no longer creates records from the %s column", async side => {
+it("Ctrl+Enter and Ctrl+Delete do not change left-cell structure", async () => {
+  disk.root[0].left[0].text = "left text";
   await opened();
-  if (side === "left") {
-    content("flat-1-left").focus();
-    await waitFor(() => expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-  }
-  await key("Enter", { altKey: true });
+  content("flat-1-left").focus();
+  await waitFor(() => expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await key("Enter", { ctrlKey: true });
+  await key("Delete", { ctrlKey: true });
   await save();
   expect(disk.root).toHaveLength(2);
   expect(disk.root[0].left).toHaveLength(1);
+  expect(disk.root[0].left[0].text).toBe("left text");
+});
+
+it("Alt+Enter and Alt+Delete do not change right-cell structure", async () => {
+  await opened();
+  await key("Enter", { altKey: true });
+  await key("Delete", { altKey: true });
+  await save();
+  expect(disk.root).toHaveLength(2);
   expect(disk.root[0].right.children).toEqual([]);
 });
 
@@ -952,12 +961,12 @@ it("deletes a row with Shift+Delete and restores it with undo and redo", async (
   await save();
   expect(disk.root).toHaveLength(before.length - 1);
 });
-it("deletes left cells with Ctrl+Delete and restores them with undo", async () => {
+it("deletes left cells with Alt+Delete and restores them with undo", async () => {
   disk.root[0].left.push({ id: "extra-left", text: "extra" });
   await opened();
   content("extra-left").focus();
   await tick();
-  await key("Delete", { ctrlKey: true });
+  await key("Delete", { altKey: true });
   await save();
   expect(disk.root[0].left.some(note => note.id === "extra-left")).toBe(false);
   await key("z", { ctrlKey: true });
