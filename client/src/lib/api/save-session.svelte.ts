@@ -1,5 +1,5 @@
 import type { Schema } from "../../schema.js";
-import { loadDocument, type LoadedDocument } from "./document.js";
+import { loadDocument, loadDocumentETag, type LoadedDocument } from "./document.js";
 import { SaveConflict, saveDocument } from "./save.js";
 
 export class SaveSession {
@@ -87,7 +87,7 @@ export class SaveSession {
     this.#cancelTimer();
     await this.#flight;
     try {
-      this.etag = (await loadDocument()).etag;
+      this.etag = await loadDocumentETag();
       this.status = "dirty";
       this.error = "";
     } catch (error) {

@@ -46,3 +46,17 @@ export async function loadDocument(signal?: AbortSignal): Promise<LoadedDocument
     throw new Error(`The document file is invalid (${detail}). Fix the file and retry.`, { cause });
   }
 }
+
+/** Read a write precondition even when the disk document cannot be parsed. */
+export async function loadDocumentETag(): Promise<string | null> {
+  const response = await fetch("/api/document", { cache: "no-store" });
+  try {
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`Unable to read disk version (${response.status})`);
+    const etag = response.headers.get("ETag");
+    if (!etag) throw new Error("Document response is missing its ETag");
+    return etag;
+  } finally {
+    await response.body?.cancel();
+  }
+}

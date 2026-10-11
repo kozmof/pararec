@@ -466,3 +466,24 @@ describe("EditorSurface test hooks", () => {
     expect(document.querySelectorAll("[data-testid='editor-selection']")).toHaveLength(0);
   });
 });
+
+it("removes window drag listeners when destroyed during selection", async () => {
+  const doc = new EditorDocument("hello");
+  const component = render(EditorSurface, { props: { doc } });
+  const added = vi.spyOn(globalThis, "addEventListener");
+  const removed = vi.spyOn(globalThis, "removeEventListener");
+  try {
+    await fireEvent.mouseDown(screen.getByText("hello"), { button: 0, clientX: 14, clientY: 10 });
+    const move = added.mock.calls.find(([name]) => name === "mousemove");
+    const up = added.mock.calls.find(([name]) => name === "mouseup");
+    expect(move).toBeDefined();
+    expect(up).toBeDefined();
+    component.unmount();
+    expect(removed).toHaveBeenCalledWith("mousemove", move![1]);
+    expect(removed).toHaveBeenCalledWith("mouseup", up![1]);
+  } finally {
+    added.mockRestore();
+    removed.mockRestore();
+    doc.dispose();
+  }
+});

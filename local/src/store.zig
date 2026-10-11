@@ -65,6 +65,10 @@ pub const Store = struct {
     const Fault = union(enum) { none, before_replace, after_replace, after_check: *const fn (Io, Io.Dir, []const u8) anyerror!void };
 
     fn putImpl(self: *Store, io: Io, gpa: Allocator, document: schema.Schema, precondition: Precondition, fault: Fault) !ETag {
+        return self.putLimited(io, gpa, document, precondition, fault, schema.max_document_size);
+    }
+
+    fn putLimited(self: *Store, io: Io, gpa: Allocator, document: schema.Schema, precondition: Precondition, fault: Fault, max_size: u64) !ETag {
         try self.mutex.lock(io);
         defer self.mutex.unlock(io);
         try schema.validate(gpa, document);
@@ -76,12 +80,6 @@ pub const Store = struct {
         if (!precondition.check(current)) return error.PreconditionFailed;
         if (fault == .after_check) try fault.after_check(io, self.dir, self.basename);
 
-        if (current) |old| {
-            const backup = try std.mem.concat(gpa, u8, &.{ self.basename, ".bak" });
-            defer gpa.free(backup);
-            try writeAtomic(self.dir, io, backup, old, true);
-        }
-
         var file = try self.dir.createFileAtomic(io, self.basename, .{ .replace = current != null });
         defer file.deinit(io);
         var file_writer = file.file.writer(io, &.{});
@@ -92,8 +90,15 @@ pub const Store = struct {
         try hashed.writer.flush();
         try file_writer.interface.flush();
         var digest: [32]u8 = undefined;
+        if ((try file.file.stat(io)).size > max_size) return error.StreamTooLong;
         hashed.hasher.final(&digest);
         try file.file.sync(io);
+        if (current) |old| {
+            const backup = try std.mem.concat(gpa, u8, &.{ self.basename, ".bak" });
+            defer gpa.free(backup);
+            try writeAtomic(self.dir, io, backup, old, true);
+        }
+
         if (fault == .before_replace) return error.InjectedWriteFailure;
         if (current) |old| {
             // Catch external writes made while preparing the backup and replacement.
@@ -249,4 +254,22 @@ test "a file appearing after the creation check is not replaced" {
     const loaded = try store.read(io, gpa);
     defer loaded.deinit(gpa);
     try std.testing.expectEqualStrings("external process wrote this", loaded.bytes);
+}
+
+test "formatted output exceeding the limit preserves existing and missing documents" {
+    var tmp = std.testing.tmpDir(.{ .iterate = true });
+    defer tmp.cleanup();
+    const io = std.testing.io;
+    const gpa = std.testing.allocator;
+    var store: Store = .{ .dir = tmp.dir, .basename = "document.json" };
+    const old = "{\"version\":1,\"root\":[]}";
+    try tmp.dir.writeFile(io, .{ .sub_path = "document.json", .data = old });
+    const empty: schema.Schema = .{ .version = 1, .root = &.{} };
+    try std.testing.expectError(error.StreamTooLong, store.putLimited(io, gpa, empty, .{ .match = &etag(old) }, .none, old.len));
+    const loaded = try store.read(io, gpa);
+    defer loaded.deinit(gpa);
+    try std.testing.expectEqualStrings(old, loaded.bytes);
+    var missing: Store = .{ .dir = tmp.dir, .basename = "missing.json" };
+    try std.testing.expectError(error.StreamTooLong, missing.putLimited(io, gpa, empty, .create, .none, old.len));
+    try std.testing.expectError(error.FileNotFound, missing.read(io, gpa));
 }

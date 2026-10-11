@@ -167,3 +167,75 @@ describe("serialized saving", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 });
+
+it.each(["{broken", '{"version":2,"root":[]}'])("overwrites an invalid disk document: %s", async (body) => {
+  fetchMock
+    .mockResolvedValueOnce(new Response(null, { status: 412 }))
+    .mockResolvedValueOnce(new Response(body, { headers: { ETag: '"invalid"' } }));
+  session.changed(next);
+  await session.flush();
+  await session.overwrite();
+  expect(fetchMock.mock.calls[2][1].headers["If-Match"]).toBe('"invalid"');
+  expect(session.status).toBe("saved");
+  expect(session.dirty).toBe(false);
+});
+
+it("acknowledges an uncertain save after verifying the disk snapshot", async () => {
+  fetchMock
+    .mockResolvedValueOnce(new Response('{"error":"SaveOutcomeUncertain"}', { status: 500 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify(next), { headers: { ETag: '"written"' } }));
+  session.changed(next);
+  await session.flush();
+  expect(session.status).toBe("saved");
+  expect(session.dirty).toBe(false);
+  expect(session.etag).toBe('"written"');
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+it("requires a conflict choice when an uncertain save reads back different content", async () => {
+  fetchMock
+    .mockResolvedValueOnce(new Response('{"error":"SaveOutcomeUncertain"}', { status: 500 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify(schema), { headers: { ETag: '"external"' } }));
+  session.changed(next);
+  await session.flush();
+  expect(session.status).toBe("conflict");
+  expect(session.dirty).toBe(true);
+  await session.flush();
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+it("keeps edits dirty if readback after an uncertain save fails", async () => {
+  fetchMock
+    .mockResolvedValueOnce(new Response('{"error":"SaveOutcomeUncertain"}', { status: 500 }))
+    .mockRejectedValueOnce(new Error("Offline"));
+  session.changed(next);
+  await session.flush();
+  expect(session.status).toBe("failed");
+  expect(session.dirty).toBe(true);
+});
+
+it("preserves server error codes in save failures", async () => {
+  fetchMock.mockResolvedValueOnce(new Response('{"error":"AccessDenied"}', { status: 500 }));
+  session.changed(next);
+  await session.flush();
+  expect(session.status).toBe("failed");
+  expect(session.error).toContain("AccessDenied");
+});
+
+it("saves edits queued during uncertain-write verification against the verified ETag", async () => {
+  const readback = deferred<Response>();
+  fetchMock
+    .mockResolvedValueOnce(new Response('{"error":"SaveOutcomeUncertain"}', { status: 500 }))
+    .mockReturnValueOnce(readback.promise);
+  session.changed(next);
+  const flush = session.flush();
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  const newer = { ...next, title: "Newer notes" };
+  session.changed(newer);
+  readback.resolve(new Response(JSON.stringify(next), { headers: { ETag: '"verified"' } }));
+  await flush;
+  expect(fetchMock.mock.calls[2][1].headers["If-Match"]).toBe('"verified"');
+  expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual(newer);
+  expect(session.status).toBe("saved");
+  expect(session.dirty).toBe(false);
+});

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick, untrack } from "svelte";
+  import { onDestroy, onMount, tick, untrack } from "svelte";
   import { css, cx } from "../../../../styled-system/css";
   import type { Caret, EditorDocument } from "./document-store.svelte.js";
   import { orderCarets, sameCaret } from "./document-store.svelte.js";
@@ -726,6 +726,9 @@
     handleMousedown(event);
   }
 
+  let stopDrag: (() => void) | undefined;
+  onDestroy(() => stopDrag?.());
+
   function handleMousedown(event: MouseEvent): void {
     if (readonly) return;
     if (event.button !== 0) return;
@@ -744,6 +747,7 @@
 
     // Dragging is tracked on the window rather than the surface so a selection that runs
     // off the panel keeps extending instead of stopping at the edge.
+    stopDrag?.();
     const onMove = (move: MouseEvent) => {
       const to = caretFromEvent(move);
       if (to) setCaret(to, true);
@@ -751,7 +755,9 @@
     const onUp = () => {
       globalThis.removeEventListener("mousemove", onMove);
       globalThis.removeEventListener("mouseup", onUp);
+      stopDrag = undefined;
     };
+    stopDrag = onUp;
     globalThis.addEventListener("mousemove", onMove);
     globalThis.addEventListener("mouseup", onUp);
   }
