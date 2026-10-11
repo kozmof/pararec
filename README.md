@@ -73,6 +73,9 @@ While editing a note, use the following shortcuts. On macOS, use Cmd in place of
 | Shift+Enter | Split at the cursor into a new sibling row with left and right cells. Move the remaining text to the same column in the new row. |
 | Ctrl+Enter in a left cell | Split at the cursor into a new left cell in the same row. |
 | Ctrl+Enter in a right cell | Add an empty child row and focus its right cell. |
+| Shift+Delete | Remove the current row, including its children. |
+| Ctrl+Delete in a left cell | Remove the current left cell, unless it is the last one in the row. |
+| Ctrl+Delete in a right cell | Remove all child rows of the current note. |
 | Alt+Up / Alt+Down | Move the current left cell or row up or down. |
 | Ctrl+A | Select all text in the current note. |
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, or paste text. |

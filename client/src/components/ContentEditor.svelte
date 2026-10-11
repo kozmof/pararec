@@ -43,6 +43,8 @@
     if (accel && event.key.toLowerCase() === "y") command = "redo";
     if (event.key === "Enter" && event.shiftKey && !accel && !event.altKey) command = "newSibling";
     if (event.key === "Enter" && accel && !event.shiftKey && !event.altKey) command = side === "left" ? "split" : "newChild";
+    if (event.key === "Delete" && event.shiftKey && !accel && !event.altKey) command = "removeRow";
+    if (event.key === "Delete" && accel && !event.shiftKey && !event.altKey) command = side === "left" ? "removeLeft" : "removeChildren";
     if (event.altKey && event.key === "ArrowUp") command = "moveUp";
     if (event.altKey && event.key === "ArrowDown") command = "moveDown";
     if (command) { event.stopPropagation(); onCommand(command, { ...caret }); return true; }

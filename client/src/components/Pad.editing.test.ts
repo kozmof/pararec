@@ -937,3 +937,42 @@ it("keeps unchanged long-fixture lines mounted across Enter, undo, redo, and joi
   await save();
   expect(disk.root[0].right.text).toBe(initialText);
 }, 20000);
+
+it("deletes a row with Shift+Delete and restores it with undo and redo", async () => {
+  await opened();
+  const before = clone(disk.root);
+  await key("Delete", { shiftKey: true });
+  await save();
+  expect(disk.root).toHaveLength(before.length - 1);
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk.root).toEqual(before);
+  expect(screen.getByTestId("editor-sink")).toHaveFocus();
+  await key("y", { ctrlKey: true });
+  await save();
+  expect(disk.root).toHaveLength(before.length - 1);
+});
+it("deletes left cells with Ctrl+Delete and restores them with undo", async () => {
+  disk.root[0].left.push({ id: "extra-left", text: "extra" });
+  await opened();
+  content("extra-left").focus();
+  await tick();
+  await key("Delete", { ctrlKey: true });
+  await save();
+  expect(disk.root[0].left.some(note => note.id === "extra-left")).toBe(false);
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk.root[0].left.at(-1)?.text).toBe("extra");
+});
+it("deletes children with Ctrl+Delete and restores their text with undo", async () => {
+  disk.root[0].right.children = [{ id: "child-delete", left: [{ id: "child-delete-left", text: "child left" }], right: { id: "child-delete-right", text: "child right", children: [] } }];
+  const before = clone(disk.root[0]);
+  await opened();
+  await key("Delete", { ctrlKey: true });
+  await save();
+  expect(disk.root[0].right.children).toEqual([]);
+  expect(disk.root[0].right.text).toBe(before.right.text);
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk.root[0]).toEqual(before);
+});

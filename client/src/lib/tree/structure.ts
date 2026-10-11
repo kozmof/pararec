@@ -10,6 +10,9 @@ export type StructureCommand =
   | "split"
   | "newSibling"
   | "newChild"
+  | "removeRow"
+  | "removeLeft"
+  | "removeChildren"
   | "join"
   | "deleteContainer"
   | "moveUp"
@@ -104,6 +107,35 @@ export function structureAction(
           },
         ],
         focus: { contentId: child.right.id, entry: { kind: "edge", edge: "start" } },
+      };
+    }
+    case "removeLeft": {
+      if (current.side !== "left" || container.left.length === 1) return null;
+      const destination = container.left[current.index + 1] ?? container.left[current.index - 1];
+      return {
+        path,
+        ops: [{ type: "removeContent", id: contentId }],
+        focus: { contentId: destination.id, entry: { kind: "edge", edge: "start" } },
+      };
+    }
+    case "removeChildren": {
+      if (current.side !== "right" || !container.right.children.length) return null;
+      return {
+        path,
+        ops: container.right.children.map(child => ({ type: "removeContainer", id: child.id, expected: child })),
+        focus,
+      };
+    }
+    case "removeRow": {
+      const neighbour = siblings[containerEntry.index + 1] ?? siblings[containerEntry.index - 1];
+      const destination = neighbour
+        ? current.side === "left" ? neighbour.left[0].id : neighbour.right.id
+        : current.parentId !== null ? index.get(current.parentId)!.container.right.id : null;
+      const nextPath = path.includes(container.id) ? path.slice(0, path.indexOf(container.id)) : path;
+      return {
+        path: nextPath,
+        ops: [{ type: "removeContainer", id: container.id, expected: container }],
+        focus: destination ? { contentId: destination, entry: { kind: "edge", edge: "start" } } : null,
       };
     }
     case "join": {

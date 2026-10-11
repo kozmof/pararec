@@ -42,6 +42,39 @@ function action(
   return result;
 }
 describe("structure actions", () => {
+  it("removes a populated left cell and preserves the last left cell", () => {
+    const tree = store();
+    const result = action(tree, "a-l0", "removeLeft")!;
+    expect(tree.schema.root[0].left.map(note => note.id)).toEqual(["a-l1"]);
+    expect(result.focus?.contentId).toBe("a-l1");
+    expect(action(tree, "a-l1", "removeLeft")).toBeNull();
+  });
+  it("removes all child subtrees while keeping the right note and caret", () => {
+    const tree = new TreeStore({ version: 1, root: [row("a", ["left"], "first\nsecond", [row("child", ["child left"], "child right", [row("grandchild")])])] });
+    const result = action(tree, "a-r", "removeChildren", 0, 2)!;
+    expect(tree.schema.root[0].right.children).toEqual([]);
+    expect(tree.schema.root[0].right.text).toBe("first\nsecond");
+    expect(result.focus).toEqual({ contentId: "a-r", entry: { kind: "caret", line: 0, column: 2 } });
+    expect(action(tree, "a-r", "removeChildren")).toBeNull();
+  });
+  it.each(["a-l0", "a-r"])("removes a populated row and descendants from %s", id => {
+    const tree = store();
+    const result = action(tree, id, "removeRow")!;
+    expect(tree.schema.root.map(row => row.id)).toEqual(["b"]);
+    expect(result.focus?.contentId).toBe(id === "a-r" ? "b-r" : "b-l0");
+  });
+  it("removes the last child and returns focus to its parent", () => {
+    const tree = store();
+    const result = action(tree, "child-r", "removeRow", 0, 0, ["a"])!;
+    expect(result.focus?.contentId).toBe("a-r");
+    expect(result.path).toEqual(["a"]);
+  });
+  it("removes the final root row without a focus target", () => {
+    const tree = store();
+    action(tree, "a-r", "removeRow");
+    expect(action(tree, "b-r", "removeRow")?.focus).toBeNull();
+    expect(tree.schema.root).toEqual([]);
+  });
   it("splits a left note at a multiline grapheme boundary and preserves the first id", () => {
     const tree = store(),
       result = action(tree, "a-l0", "split", 1, 2)!;
