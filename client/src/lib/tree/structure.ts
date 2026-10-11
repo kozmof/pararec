@@ -1,4 +1,4 @@
-import type { Schema } from "../../schema.js";
+import { MAX_CONTAINER_DEPTH, type Schema } from "../../schema.js";
 import type { Caret } from "../editor/document-store.svelte.js";
 import type { Entry } from "../editor/content-host.js";
 import { GraphemeCache } from "../editor/graphemes.js";
@@ -75,9 +75,8 @@ export function structureAction(
       };
     }
     case "newSibling": {
-      const sibling = createContainer();
+      const sibling = createContainer(current.side === "left" ? text.slice(offset) : "", current.side === "right" ? text.slice(offset) : "");
       const destination = current.side === "left" ? sibling.left[0] : sibling.right;
-      destination.text = text.slice(offset);
       return {
         path,
         ops: [
@@ -94,6 +93,7 @@ export function structureAction(
     }
     case "newChild": {
       if (current.side !== "right") return null;
+      if (containerPath(index, container.id).length >= MAX_CONTAINER_DEPTH) return null;
       const child = createContainer();
       return {
         path:

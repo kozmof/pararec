@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSchema, type Container, type Schema } from "../../schema.js";
+import { MAX_CONTAINER_DEPTH, parseSchema, type Container, type Schema } from "../../schema.js";
 import { buildIndex } from "./index.js";
 import { applyOp, type Op } from "./ops.js";
 import { TreeStore } from "./tree-store.svelte.js";
@@ -181,4 +181,60 @@ it("undoes an inserted subtree after a later edit is undone", () => {
   store.apply(undoEdit);
   store.apply(undoInsert);
   expect(store.schema).toEqual(before);
+});
+
+function deepRows(depth: number): Container[] {
+  let children: Container[] = [];
+  for (let at = depth; at > 0; at--) children = [row(`depth-${at}`, children)];
+  return children;
+}
+
+it("freezes published snapshots and protects the live index", () => {
+  const store = new TreeStore(fixture());
+  const before = store.schema;
+  expect(Reflect.set(before.root[0].right, "text", "corrupt")).toBe(false);
+  expect(Object.isFrozen(before.root)).toBe(true);
+  expect(Object.isFrozen(before.config.outerWidthRate)).toBe(true);
+  expect("clear" in store.index).toBe(false);
+  expect("set" in store.index).toBe(false);
+  store.index.forEach((entry, _key, view) => {
+    expect(view).toBe(store.index);
+    expect(Object.isFrozen(entry)).toBe(true);
+  });
+  store.apply({ type: "setText", id: "a-r", text: "changed" });
+  expect(Object.isFrozen(store.schema.root[0].right)).toBe(true);
+  store.restore(before);
+  expect(store.schema).toBe(before);
+  check(store);
+});
+
+it("normalizes and owns unfamiliar restored snapshots", () => {
+  const store = new TreeStore(fixture());
+  const external = { ...fixture(), title: "a\r\nb", future: true };
+  store.restore(external);
+  expect(store.schema.title).toBe("a\nb");
+  expect("future" in store.schema).toBe(false);
+  expect(store.schema).not.toBe(external);
+  external.title = "mutated";
+  expect(store.schema.title).toBe("a\nb");
+  const before = store.schema;
+  expect(() => store.restore({ ...external, root: deepRows(MAX_CONTAINER_DEPTH + 1) })).toThrow("depth");
+  expect(store.schema).toBe(before);
+  check(store);
+});
+
+it("rejects subtree inserts and moves beyond the nesting limit atomically", () => {
+  const store = new TreeStore({ version: 1, root: [...deepRows(MAX_CONTAINER_DEPTH), row("movable", [row("child")])] });
+  const before = store.schema;
+  const entries = [...store.index];
+  expect(() => store.apply({ type: "insertContainer", parentId: `depth-${MAX_CONTAINER_DEPTH}`, index: 0, container: row("extra") })).toThrow("depth");
+  expect(() => store.apply({ type: "moveContainer", id: "movable", parentId: `depth-${MAX_CONTAINER_DEPTH - 1}`, index: 0 })).toThrow("depth");
+  expect(() => store.applyMany([
+    { type: "setText", id: "movable-r", text: "staged" },
+    { type: "insertContainer", parentId: `depth-${MAX_CONTAINER_DEPTH}`, index: 0, container: row("extra") },
+  ])).toThrow("depth");
+  expect(store.schema).toBe(before);
+  expect(store.revision).toBe(0);
+  expect([...store.index]).toEqual(entries);
+  check(store);
 });

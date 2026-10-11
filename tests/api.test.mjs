@@ -389,3 +389,33 @@ test("document settings persist and the default title uses the filename", async 
   assert.equal(saved.status, 200);
   assert.deepEqual(JSON.parse(await readFile(documentPath, "utf8")), settings);
 });
+
+test("shared client/server validation cases", async () => {
+  const cases = JSON.parse(await readFile("fixtures/schema-validation.json", "utf8"));
+  await writeFile(documentPath, JSON.stringify(empty));
+  for (const { name, valid, document } of cases) {
+    const before = await request();
+    const response = await put(document, { "if-match": before.headers.etag });
+    assert.equal(response.status, valid ? 200 : 400, name);
+    if (!valid) assert.equal(await readFile(documentPath, "utf8"), before.body, name);
+  }
+});
+
+test("nesting boundary survives saving and deeper requests preserve disk", async () => {
+  const { MAX_CONTAINER_DEPTH } = await import("../client/src/schema.ts");
+  let root = [];
+  for (let depth = 0; depth < MAX_CONTAINER_DEPTH; depth++) {
+    root = [{ id: `r-${depth}`, left: [{ id: `l-${depth}`, text: "" }], right: { id: `n-${depth}`, text: "", children: root } }];
+  }
+  await writeFile(documentPath, JSON.stringify(empty));
+  const before = await request();
+  const saved = await put({ ...empty, root }, { "if-match": before.headers.etag });
+  assert.equal(saved.status, 200);
+  const disk = await readFile(documentPath, "utf8");
+  assert.equal(saved.headers.etag, etag(disk));
+  assert.deepEqual(JSON.parse(disk).root, root);
+  root = [{ id: "extra", left: [{ id: "extra-l", text: "" }], right: { id: "extra-r", text: "", children: root } }];
+  const rejected = await put({ ...empty, root }, { "if-match": saved.headers.etag });
+  assert.equal(rejected.status, 400);
+  assert.equal(await readFile(documentPath, "utf8"), disk);
+});

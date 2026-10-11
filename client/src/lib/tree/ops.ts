@@ -1,7 +1,7 @@
-import { parseSchema, type Container, type Content, type Schema } from "../../schema.js";
+import { MAX_CONTAINER_DEPTH, parseSchema, type Container, type Content, type Schema } from "../../schema.js";
 import { buildIndex, type TreeIndex } from "./index.js";
 
-function spliced<T>(items: T[], at: number, count: number, ...insert: T[]): T[] {
+function spliced<T>(items: readonly T[], at: number, count: number, ...insert: T[]): T[] {
   const result = items.slice();
   result.splice(at, count, ...insert);
   return result;
@@ -43,6 +43,17 @@ export function applyOp(
   function fresh(ids: Iterable<string>) {
     for (const id of ids) if (index.has(id)) throw new Error("Duplicate id");
   }
+  function checkDepth(parentId: string | null, containers: readonly Container[]) {
+    let depth = 0;
+    for (let id = parentId; id !== null; id = index.get(id)!.parentId) depth++;
+    const pending = [{ rows: containers, depth: depth + 1 }];
+    while (pending.length) {
+      const level = pending.pop()!;
+      if (level.rows.length && level.depth > MAX_CONTAINER_DEPTH)
+        throw new Error("Maximum container depth exceeded");
+      for (const row of level.rows) pending.push({ rows: row.right.children, depth: level.depth + 1 });
+    }
+  }
   // Rebuild only the changed row and its ancestors using the existing parent index.
   function replaceRow(tree: Schema, id: string, next: Container): Schema {
     const entry = index.get(id)!;
@@ -53,7 +64,7 @@ export function applyOp(
   function replaceLevel(
     tree: Schema,
     parentId: string | null,
-    change: (rows: Container[]) => Container[],
+    change: (rows: readonly Container[]) => Container[],
   ): Schema {
     if (parentId === null) return { ...tree, root: change(tree.root) };
     const entry = index.get(parentId)!;
@@ -88,6 +99,7 @@ export function applyOp(
       position(op.index, level(op.parentId).length);
       const container = parseSchema({ version: 1, root: [op.container] }).root[0];
       fresh(buildIndex({ ...schema, root: [container] }).keys());
+      checkDepth(op.parentId, [container]);
       return {
         schema: replaceLevel(schema, op.parentId, (rows) => spliced(rows, op.index, 0, container)),
         inverse: { type: "removeContainer", id: container.id, expected: container },
@@ -124,6 +136,7 @@ export function applyOp(
         parent = index.get(parent)!.parentId;
       }
       position(op.index, level(op.parentId).length - (entry.parentId === op.parentId ? 1 : 0));
+      checkDepth(op.parentId, [container]);
       const removed = replaceLevel(schema, entry.parentId, (rows) =>
         rows.filter((item) => item.id !== op.id),
       );
@@ -219,10 +232,10 @@ export function applyOp(
   }
 }
 
-export function createContainer(): Container {
+export function createContainer(leftText = "", rightText = ""): Container {
   return {
     id: crypto.randomUUID(),
-    left: [{ id: crypto.randomUUID(), text: "" }],
-    right: { id: crypto.randomUUID(), text: "", children: [] },
+    left: [{ id: crypto.randomUUID(), text: leftText }],
+    right: { id: crypto.randomUUID(), text: rightText, children: [] },
   };
 }

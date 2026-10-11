@@ -1,7 +1,7 @@
 <script lang="ts">
   import ContentView from "./ContentView.svelte";
   import type { Content } from "../schema.js";
-  let { contents }: { contents: Content[] } = $props();
+  let { contents }: { contents: readonly Content[] } = $props();
 </script>
 <div class="left-cell">
   {#each contents as content (content.id)}

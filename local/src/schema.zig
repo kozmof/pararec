@@ -21,13 +21,55 @@ pub fn defaultTitle(filename: []const u8) []const u8 {
     const basename = std.fs.path.basename(filename);
     return basename[0 .. basename.len - std.fs.path.extension(basename).len];
 }
+pub const max_container_depth = 64;
+pub const max_json_depth = 256;
+
 pub const max_document_size = 512 * 1024 * 1024;
 pub const max_body_size = max_document_size;
 
 pub fn parse(gpa: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(Schema) {
+    return parseWithDefaultTitle(gpa, bytes, "document");
+}
+
+// A wrapper distinguishes an omitted title from an explicit null without a second JSON tree.
+const InputTitle = struct {
+    value: ?[]const u8 = null,
+    pub fn jsonParse(gpa: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !InputTitle {
+        return .{ .value = try std.json.innerParse([]const u8, gpa, source, options) };
+    }
+};
+const InputSchema = struct {
+    version: u32,
+    title: InputTitle = .{},
+    config: Config = .{},
+    root: []const Container,
+};
+
+pub fn parseWithDefaultTitle(gpa: std.mem.Allocator, bytes: []const u8, title: []const u8) !std.json.Parsed(Schema) {
     if (!std.unicode.utf8ValidateSlice(bytes)) return error.InvalidUtf8;
     if (std.mem.startsWith(u8, bytes, "\xef\xbb\xbf")) return error.UnexpectedBom;
-    return std.json.parseFromSlice(Schema, gpa, bytes, .{ .ignore_unknown_fields = true });
+    // Bound nesting before the typed parser recurses, including in unknown fields.
+    var scanner = std.json.Scanner.initCompleteInput(gpa, bytes);
+    defer scanner.deinit();
+    var depth: usize = 0;
+    while (true) {
+        switch (try scanner.next()) {
+            .object_begin, .array_begin => {
+                depth += 1;
+                if (depth > max_json_depth) return error.MaximumDepthExceeded;
+            },
+            .object_end, .array_end => depth -= 1,
+            .end_of_document => break,
+            else => {},
+        }
+    }
+    const parsed = try std.json.parseFromSlice(InputSchema, gpa, bytes, .{ .ignore_unknown_fields = true });
+    return .{ .arena = parsed.arena, .value = .{
+        .version = parsed.value.version,
+        .title = parsed.value.title.value orelse title,
+        .config = parsed.value.config,
+        .root = parsed.value.root,
+    } };
 }
 
 pub fn validate(gpa: std.mem.Allocator, document: Schema) !void {
@@ -39,11 +81,13 @@ pub fn validate(gpa: std.mem.Allocator, document: Schema) !void {
     }
     var ids: std.StringHashMap(void) = .init(gpa);
     defer ids.deinit();
-    var pending: std.ArrayList([]const Container) = .empty;
+    const Level = struct { rows: []const Container, depth: usize };
+    var pending: std.ArrayList(Level) = .empty;
     defer pending.deinit(gpa);
-    try pending.append(gpa, document.root);
+    try pending.append(gpa, .{ .rows = document.root, .depth = 1 });
     while (pending.pop()) |level| {
-        for (level) |container| {
+        if (level.rows.len > 0 and level.depth > max_container_depth) return error.MaximumDepthExceeded;
+        for (level.rows) |container| {
             try addId(&ids, container.id);
             if (container.left.len == 0) return error.EmptyLeft;
             if (std.mem.eql(u8, container.id, container.right.id)) return error.RightIdMatchesContainer;
@@ -53,7 +97,7 @@ pub fn validate(gpa: std.mem.Allocator, document: Schema) !void {
             }
             try addId(&ids, container.right.id);
             try checkText(container.right.text);
-            try pending.append(gpa, container.right.children);
+            try pending.append(gpa, .{ .rows = container.right.children, .depth = level.depth + 1 });
         }
     }
 }
@@ -68,9 +112,11 @@ fn checkText(text: []const u8) !void {
 }
 
 pub fn serialize(gpa: std.mem.Allocator, document: Schema) ![]u8 {
-    const json = try std.json.Stringify.valueAlloc(gpa, document, .{ .whitespace = .indent_2, .emit_null_optional_fields = false });
-    defer gpa.free(json);
-    return std.mem.concat(gpa, u8, &.{ json, "\n" });
+    var output: std.Io.Writer.Allocating = .init(gpa);
+    defer output.deinit();
+    try std.json.Stringify.value(document, .{ .whitespace = .indent_2, .emit_null_optional_fields = false }, &output.writer);
+    try output.writer.writeByte('\n');
+    return output.toOwnedSlice();
 }
 
 const valid =
@@ -142,4 +188,53 @@ test "maxWidth defaults and validation" {
     for ([_]f64{ 0, -1, std.math.inf(f64), std.math.nan(f64) }) |width| {
         try std.testing.expectError(error.InvalidMaxWidth, validate(std.testing.allocator, .{ .version = 1, .root = &.{}, .config = .{ .maxWidth = width } }));
     }
+}
+
+test "default title preserves explicit titles and rejects null" {
+    const gpa = std.testing.allocator;
+    const omitted = try parseWithDefaultTitle(gpa, "{\"version\":1,\"root\":[]}", "filename");
+    defer omitted.deinit();
+    try std.testing.expectEqualStrings("filename", omitted.value.title);
+    const explicit = try parseWithDefaultTitle(gpa, "{\"version\":1,\"title\":\"document\",\"root\":[]}", "filename");
+    defer explicit.deinit();
+    try std.testing.expectEqualStrings("document", explicit.value.title);
+    const escaped = try parseWithDefaultTitle(gpa, "{\"version\":1,\"ti\\u0074le\":\"\",\"root\":[]}", "filename");
+    defer escaped.deinit();
+    try std.testing.expectEqualStrings("", escaped.value.title);
+    try std.testing.expectError(error.UnexpectedToken, parseWithDefaultTitle(gpa, "{\"version\":1,\"title\":null,\"root\":[]}", "filename"));
+}
+
+test "container depth boundary" {
+    const gpa = std.testing.allocator;
+    var rows: [max_container_depth + 1]Container = undefined;
+    var left: [max_container_depth + 1]Content = undefined;
+    var ids: [max_container_depth + 1][3][32]u8 = undefined;
+    for (0..rows.len) |at| {
+        left[at] = .{ .id = try std.fmt.bufPrint(&ids[at][0], "left-{d}", .{at}), .text = "" };
+        rows[at] = .{
+            .id = try std.fmt.bufPrint(&ids[at][1], "row-{d}", .{at}),
+            .left = left[at..][0..1],
+            .right = .{ .id = try std.fmt.bufPrint(&ids[at][2], "right-{d}", .{at}), .text = "", .children = if (at == 0) &.{} else rows[at - 1 ..][0..1] },
+        };
+    }
+    const boundary: Schema = .{ .version = 1, .root = rows[max_container_depth - 1 ..][0..1] };
+    try validate(gpa, boundary);
+    const bytes = try serialize(gpa, boundary);
+    defer gpa.free(bytes);
+    const parsed = try parse(gpa, bytes);
+    defer parsed.deinit();
+    try validate(gpa, parsed.value);
+    try std.testing.expectError(error.MaximumDepthExceeded, validate(gpa, .{ .version = 1, .root = rows[max_container_depth..][0..1] }));
+}
+
+test "excessive unknown JSON nesting is rejected before typed parsing" {
+    const gpa = std.testing.allocator;
+    var json: std.Io.Writer.Allocating = .init(gpa);
+    defer json.deinit();
+    try json.writer.writeAll("{\"version\":1,\"root\":[],\"unknown\":");
+    try json.writer.splatByteAll('[', max_json_depth);
+    try json.writer.writeByte('0');
+    try json.writer.splatByteAll(']', max_json_depth);
+    try json.writer.writeByte('}');
+    try std.testing.expectError(error.MaximumDepthExceeded, parse(gpa, json.written()));
 }

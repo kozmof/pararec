@@ -53,6 +53,8 @@ This example shows an empty document with the default layout settings.
 | `config.outerWidthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for rows in the current layer. |
 | `config.innerIdthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for child rows shown inside a right cell. |
 
+Documents support up to 64 nested container levels. Deeper documents are rejected by the client and server.
+
 Omitted fields use their defaults. Width values must be positive, finite numbers. Column rates are proportions and do not need to total 100. For example, `{ "left": 1, "right": 2 }` makes the right column twice as wide as the left. Use the exact key `innerIdthRate` as shown.
 
 ## Develop
@@ -147,4 +149,4 @@ curl -i -X PUT http://127.0.0.1:4545/api/document \
 
 To update a document, replace the creation header with `If-Match` containing the ETag from GET. A stale ETag returns `412`. PUT requires the matching Origin header, including for command-line clients.
 
-The server validates the schema, writes formatted JSON through an atomic replacement, and keeps the previous bytes in `<document>.bak`. Its mutex coordinates requests to this server. An external process can still change the file between the precondition check and replacement.
+The server validates the schema, writes formatted JSON through an atomic replacement, and keeps the previous bytes in `<document>.bak`. Its mutex coordinates requests to this server. The server checks the file again immediately before replacement and rejects changes detected while preparing the save. An external process can still change the file between that final check and replacement. Avoid editing the same file from another program during a save.

@@ -126,11 +126,8 @@ fn handleRequest(io: Io, gpa: std.mem.Allocator, config: Config, request: *http.
                 const reader = try request.readerExpectContinue(&buffer);
                 const body = reader.allocRemaining(gpa, .limited(schema.max_body_size)) catch |err| return jsonError(request, if (err == error.StreamTooLong) .payload_too_large else .bad_request, @errorName(err));
                 defer gpa.free(body);
-                var parsed = schema.parse(gpa, body) catch |err| return jsonError(request, .bad_request, @errorName(err));
+                const parsed = schema.parseWithDefaultTitle(gpa, body, schema.defaultTitle(config.store.basename)) catch |err| return jsonError(request, .bad_request, @errorName(err));
                 defer parsed.deinit();
-                const raw = try std.json.parseFromSlice(std.json.Value, gpa, body, .{});
-                defer raw.deinit();
-                if (raw.value.object.get("title") == null) parsed.value.title = schema.defaultTitle(config.store.basename);
                 schema.validate(gpa, parsed.value) catch |err| return jsonError(request, .bad_request, @errorName(err));
                 const tag = config.store.put(io, gpa, parsed.value, precondition) catch |err| return jsonError(request, if (err == error.PreconditionFailed) .precondition_failed else if (err == error.StreamTooLong) .payload_too_large else .internal_server_error, @errorName(err));
                 return request.respond("{}\n", .{ .keep_alive = false, .extra_headers = &.{

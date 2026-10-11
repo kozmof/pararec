@@ -9,6 +9,10 @@ pub const ETag = [34]u8;
 pub fn etag(bytes: []const u8) ETag {
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    return digestTag(digest);
+}
+
+fn digestTag(digest: [32]u8) ETag {
     var result: ETag = undefined;
     result[0] = '"';
     result[33] = '"';
@@ -72,8 +76,6 @@ pub const Store = struct {
         if (!precondition.check(current)) return error.PreconditionFailed;
         if (fault == .after_check) try fault.after_check(io, self.dir, self.basename);
 
-        const bytes = try schema.serialize(gpa, document);
-        defer gpa.free(bytes);
         if (current) |old| {
             const backup = try std.mem.concat(gpa, u8, &.{ self.basename, ".bak" });
             defer gpa.free(backup);
@@ -82,10 +84,25 @@ pub const Store = struct {
 
         var file = try self.dir.createFileAtomic(io, self.basename, .{ .replace = current != null });
         defer file.deinit(io);
-        try file.file.writeStreamingAll(io, bytes);
+        var file_writer = file.file.writer(io, &.{});
+        var buffer: [8192]u8 = undefined;
+        var hashed: Io.Writer.Hashed(std.crypto.hash.sha2.Sha256) = .initHasher(&file_writer.interface, .init(.{}), &buffer);
+        try std.json.Stringify.value(document, .{ .whitespace = .indent_2, .emit_null_optional_fields = false }, &hashed.writer);
+        try hashed.writer.writeByte('\n');
+        try hashed.writer.flush();
+        try file_writer.interface.flush();
+        var digest: [32]u8 = undefined;
+        hashed.hasher.final(&digest);
         try file.file.sync(io);
         if (fault == .before_replace) return error.InjectedWriteFailure;
-        if (current != null) {
+        if (current) |old| {
+            // Catch external writes made while preparing the backup and replacement.
+            // This is a best-effort check, not an atomic compare-and-swap with rename.
+            const latest = fileTag(self.dir, io, self.basename) catch |err| switch (err) {
+                error.FileNotFound => return error.PreconditionFailed,
+                else => return err,
+            };
+            if (!std.mem.eql(u8, &latest, &etag(old))) return error.PreconditionFailed;
             try file.replace(io);
         } else {
             // First creation also guards against a file appearing after the check.
@@ -96,9 +113,31 @@ pub const Store = struct {
         }
         if (fault == .after_replace) return error.SaveOutcomeUncertain;
         syncDir(self.dir, io) catch return error.SaveOutcomeUncertain;
-        return etag(bytes);
+        return digestTag(digest);
     }
 };
+
+// Hash the final disk check in fixed-size chunks instead of retaining another file copy.
+fn fileTag(dir: Io.Dir, io: Io, path: []const u8) !ETag {
+    const file = try dir.openFile(io, path, .{});
+    defer file.close(io);
+    var hash: std.crypto.hash.sha2.Sha256 = .init(.{});
+    var buffer: [8192]u8 = undefined;
+    var total: usize = 0;
+    while (true) {
+        const count = file.readStreaming(io, &.{&buffer}) catch |err| switch (err) {
+            error.EndOfStream => break,
+            else => return err,
+        };
+        if (count == 0) break;
+        total += count;
+        if (total > schema.max_document_size) return error.StreamTooLong;
+        hash.update(buffer[0..count]);
+    }
+    var digest: [32]u8 = undefined;
+    hash.final(&digest);
+    return digestTag(digest);
+}
 
 fn writeAtomic(dir: Io.Dir, io: Io, path: []const u8, bytes: []const u8, replace: bool) !void {
     var file = try dir.createFileAtomic(io, path, .{ .replace = replace });
@@ -185,7 +224,7 @@ fn simulateExternalWrite(io: Io, dir: Io.Dir, basename: []const u8) !void {
     try dir.writeFile(io, .{ .sub_path = basename, .data = "external process wrote this" });
 }
 
-test "external updates after the check are outside the mutex guarantee" {
+test "external updates while preparing a save are preserved" {
     var tmp = std.testing.tmpDir(.{ .iterate = true });
     defer tmp.cleanup();
     const io = std.testing.io;
@@ -193,11 +232,10 @@ test "external updates after the check are outside the mutex guarantee" {
     var store: Store = .{ .dir = tmp.dir, .basename = "document.json" };
     const empty: schema.Schema = .{ .version = 1, .root = &.{} };
     const first = try store.put(io, gpa, empty, .create);
-    const second = try store.putImpl(io, gpa, empty, .{ .match = &first }, .{ .after_check = simulateExternalWrite });
+    try std.testing.expectError(error.PreconditionFailed, store.putImpl(io, gpa, empty, .{ .match = &first }, .{ .after_check = simulateExternalWrite }));
     const loaded = try store.read(io, gpa);
     defer loaded.deinit(gpa);
-    try std.testing.expectEqual(second, loaded.tag);
-    try std.testing.expect(!std.mem.eql(u8, loaded.bytes, "external process wrote this"));
+    try std.testing.expectEqualStrings("external process wrote this", loaded.bytes);
 }
 
 test "a file appearing after the creation check is not replaced" {

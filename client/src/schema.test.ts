@@ -94,3 +94,21 @@ it("uses the existing width for older configs and preserves a custom width", () 
   expect(parseSchema({ version: 1, root: [] }).config.maxWidth).toBe(1100);
   expect(parseSchema({ version: 1, root: [], config: { maxWidth: 900 } }).config.maxWidth).toBe(900);
 });
+
+it("accepts 64 nested containers and rejects deeper documents", () => {
+  let root: import("./schema.js").Container[] = [];
+  for (let depth = 0; depth < 64; depth++) {
+    root = [{ id: `r-${depth}`, left: [{ id: `l-${depth}`, text: "" }], right: { id: `n-${depth}`, text: "", children: root } }];
+  }
+  expect(parseSchema({ version: 1, root }).root).toEqual(root);
+  root = [{ id: "extra", left: [{ id: "extra-l", text: "" }], right: { id: "extra-r", text: "", children: root } }];
+  expect(() => parseSchema({ version: 1, root })).toThrow("Maximum container depth");
+});
+
+const sharedCases = JSON.parse(readFileSync("fixtures/schema-validation.json", "utf8")) as {
+  name: string; valid: boolean; document: unknown;
+}[];
+it.each(sharedCases)("shared validation: $name", ({ valid, document }) => {
+  if (valid) expect(() => parseSchema(document)).not.toThrow();
+  else expect(() => parseSchema(document)).toThrow();
+});

@@ -1,26 +1,28 @@
+export const MAX_CONTAINER_DEPTH = 64;
+
 export type Content = {
-  id: string;
-  text: string;
+  readonly id: string;
+  readonly text: string;
 };
 
 export type Container = {
-  id: string;
-  left: Content[];
-  right: Content & { children: Container[] };
+  readonly id: string;
+  readonly left: readonly Content[];
+  readonly right: Content & { readonly children: readonly Container[] };
 };
 
 export type Config = {
-  showTitles: boolean;
-  maxWidth: number;
-  outerWidthRate: { left: number; right: number };
-  innerIdthRate: { left: number; right: number };
+  readonly showTitles: boolean;
+  readonly maxWidth: number;
+  readonly outerWidthRate: { readonly left: number; readonly right: number };
+  readonly innerIdthRate: { readonly left: number; readonly right: number };
 };
 
 export type Schema = {
-  title: string;
-  config: Config;
-  version: 1;
-  root: Container[];
+  readonly title: string;
+  readonly config: Config;
+  readonly version: 1;
+  readonly root: readonly Container[];
 };
 
 /** Parse the file format, discard unknown fields, and normalize loaded text. */
@@ -43,22 +45,23 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
     if (typeof note.text !== "string") throw new Error("Expected string text");
     return { id: id(note.id), text: note.text.replace(/\r\n?/g, "\n") };
   }
-  function level(input: unknown): Container[] {
+  function level(input: unknown, depth = 1): Container[] {
     if (!Array.isArray(input)) throw new Error("Expected a Container array");
+    if (input.length && depth > MAX_CONTAINER_DEPTH) throw new Error("Maximum container depth exceeded");
     return input.map((input) => {
       const row = object(input);
       const containerId = id(row.id);
       if (!Array.isArray(row.left) || row.left.length === 0) throw new Error("Empty left cell");
       const left = row.left.map(content);
       const right = content(row.right);
-      const children = level(object(row.right).children);
+      const children = level(object(row.right).children, depth + 1);
       return { id: containerId, left, right: { ...right, children } };
     });
   }
   const document = object(value);
   if (document.version !== 1) throw new Error("Unsupported version");
   let title = defaultTitle;
-  const config: Config = {
+  const config: { -readonly [K in keyof Config]: Config[K] } = {
     showTitles: true,
     maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },

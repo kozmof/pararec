@@ -1,16 +1,19 @@
 import { parseSchema, type Schema } from "../../schema.js";
-import { buildIndex, updateIndex } from "./index.js";
+import { buildIndex, updateIndex, readonlyIndex } from "./index.js";
 import { applyOp, type Op } from "./ops.js";
 
 export class TreeStore {
   #schema = $state.raw<Schema>();
   #revision = $state(0);
   #validated = new WeakSet<Schema>();
+  readonly #index;
   readonly index;
   constructor(value: unknown) {
     this.#schema = parseSchema(value);
     this.#validated.add(this.#schema);
-    this.index = buildIndex(this.#schema);
+    this.#index = buildIndex(this.#schema);
+    this.index = readonlyIndex(this.#index);
+    freezeSnapshot(this.#schema);
   }
   get schema(): Schema {
     return this.#schema!;
@@ -21,19 +24,21 @@ export class TreeStore {
   /** Restore a previously validated immutable app snapshot and rebuild its index. */
   restore(schema: Schema): void {
     if (!this.#validated.has(schema)) {
-      parseSchema(schema);
+      schema = parseSchema(schema);
+      freezeSnapshot(schema);
       this.#validated.add(schema);
     }
     const index = buildIndex(schema);
-    this.index.clear();
-    for (const [id, entry] of index) this.index.set(id, entry);
+    this.#index.clear();
+    for (const [id, entry] of index) this.#index.set(id, entry);
     this.#schema = schema;
     this.#revision++;
   }
   apply(op: Op): Op {
     const before = this.schema;
     const result = applyOp(before, op, this.index);
-    updateIndex(this.index, before.root, result.schema.root);
+    updateIndex(this.#index, before.root, result.schema.root);
+    freezeSnapshot(result.schema);
     this.#schema = result.schema;
     this.#validated.add(result.schema);
     this.#revision++;
@@ -52,10 +57,22 @@ export class TreeStore {
       staged = result.schema;
       inverses.unshift(result.inverse);
     }
-    updateIndex(this.index, before.root, staged.root);
+    updateIndex(this.#index, before.root, staged.root);
+    freezeSnapshot(staged);
     this.#schema = staged;
     this.#validated.add(staged);
     this.#revision++;
     return inverses;
   }
+}
+
+// Shared branches are visited once, so a text edit only freezes its new objects.
+const frozen = new WeakSet<object>();
+function freezeSnapshot(value: object): void {
+  if (frozen.has(value)) return;
+  for (const child of Object.values(value)) {
+    if (child !== null && typeof child === "object") freezeSnapshot(child);
+  }
+  Object.freeze(value);
+  frozen.add(value);
 }

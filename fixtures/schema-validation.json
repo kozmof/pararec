@@ -1,0 +1,12 @@
+[
+  { "name": "legacy defaults", "valid": true, "document": { "version": 1, "root": [] } },
+  { "name": "empty explicit title", "valid": true, "document": { "version": 1, "title": "", "root": [] } },
+  { "name": "unknown fields", "valid": true, "document": { "version": 1, "root": [], "future": { "title": "nested" } } },
+  { "name": "partial configuration", "valid": true, "document": { "version": 1, "root": [], "config": { "showTitles": false } } },
+  { "name": "unsupported version", "valid": false, "document": { "version": 2, "root": [] } },
+  { "name": "null title", "valid": false, "document": { "version": 1, "title": null, "root": [] } },
+  { "name": "zero maxWidth", "valid": false, "document": { "version": 1, "root": [], "config": { "maxWidth": 0 } } },
+  { "name": "incomplete ratio", "valid": false, "document": { "version": 1, "root": [], "config": { "outerWidthRate": { "left": 1 } } } },
+  { "name": "empty left cell", "valid": false, "document": { "version": 1, "root": [{ "id": "row", "left": [], "right": { "id": "right", "text": "", "children": [] } }] } },
+  { "name": "duplicate ID", "valid": false, "document": { "version": 1, "root": [{ "id": "row", "left": [{ "id": "left", "text": "" }], "right": { "id": "left", "text": "", "children": [] } }] } }
+]

@@ -53,7 +53,7 @@ export function containerPath(index: TreeIndex, id: string): string[] {
   }
   return path;
 }
-export function levelAt(schema: Schema, path: string[]): Container[] {
+export function levelAt(schema: Schema, path: string[]): readonly Container[] {
   let rows = schema.root;
   for (const id of validPath(schema, path))
     rows = rows.find((row) => row.id === id)!.right.children;
