@@ -74,7 +74,7 @@ test("read-only and focused notes have identical wrapping and click placement", 
   await expect(note).toContainText(`${disk.root[1].right.text.slice(0, 3)}!`);
 });
 
-test("failed edits stay in memory and reload reads the disk document without browser storage", async ({ page }) => {
+test("unavailable recovery storage warns while failed edits stay in memory", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, "indexedDB", {
       get() { throw new Error("Browser recovery storage must not be accessed"); },
@@ -83,10 +83,11 @@ test("failed edits stay in memory and reload reads the disk document without bro
   await page.route("**/api/document", (route) =>
     route.request().method() === "PUT"
       ? route.fulfill({ status: 500 })
-      : route.fulfill({ json: fixture, headers: { ETag: '"v1"' } }),
+      : route.fulfill({ json: fixture, headers: { ETag: '"v1"', "X-Document-Id": "storage-unavailable" } }),
   );
   await page.goto("/");
   await expect(page.getByTestId("editor-sink")).toBeFocused();
+  await expect(page.getByRole("alert")).toContainText("Browser draft recovery is unavailable");
   await page.keyboard.type("Unsaved ");
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByText("Save failed", { exact: true })).toBeVisible();

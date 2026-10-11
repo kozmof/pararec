@@ -8,6 +8,7 @@ pub const Config = struct {
     static_dir: Io.Dir,
     store: *store_module.Store,
     port: u16,
+    document_id: []const u8,
 };
 
 pub fn handleConnection(io: Io, gpa: std.mem.Allocator, config: Config, stream: Io.net.Stream) void {
@@ -104,6 +105,7 @@ fn handleRequest(io: Io, gpa: std.mem.Allocator, config: Config, request: *http.
                         .{ .name = "content-type", .value = "application/json" },
                         .{ .name = "cache-control", .value = "no-store" },
                         .{ .name = "x-document-title", .value = title },
+                        .{ .name = "x-document-id", .value = config.document_id },
                     } });
                     return jsonError(request, .internal_server_error, @errorName(err));
                 };
@@ -112,6 +114,7 @@ fn handleRequest(io: Io, gpa: std.mem.Allocator, config: Config, request: *http.
                     .{ .name = "content-type", .value = "application/json" },
                     .{ .name = "etag", .value = &document.tag },
                     .{ .name = "x-document-title", .value = title },
+                    .{ .name = "x-document-id", .value = config.document_id },
                     .{ .name = "cache-control", .value = "no-store" },
                 } });
             },

@@ -17,6 +17,7 @@ styled-system
 # Local documents and browser test output
 /document.json
 /document.json.bak
+/document.json.lock
 /playwright-report/
 /test-results/
 /.playwright-cache/

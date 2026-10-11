@@ -24,6 +24,8 @@
     "svelte.config.js",
     "vitest.config.ts",
     "playwright.config.ts",
-    "tests/e2e/**/*.ts"
+    "playwright.production.config.ts",
+    "tests/e2e/**/*.ts",
+    "tests/production/**/*.ts"
   ]
 }

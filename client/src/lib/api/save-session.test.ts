@@ -5,7 +5,8 @@ const schema: Schema = {
   version: 1,
   title: "document",
   config: {
-    showTitles: true, maxWidth: 1100,
+    showTitles: true,
+    maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
     innerIdthRate: { left: 35, right: 65 },
   },
@@ -15,7 +16,8 @@ const next: Schema = {
   version: 1,
   title: "document",
   config: {
-    showTitles: true, maxWidth: 1100,
+    showTitles: true,
+    maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
     innerIdthRate: { left: 35, right: 65 },
   },
@@ -78,9 +80,7 @@ describe("serialized saving", () => {
     void session.flush();
     expect(fetchMock).toHaveBeenCalledOnce();
     first.resolve(saved('"v2"'));
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(session.dirty).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][1].headers["If-Match"]).toBe('"v2"');
@@ -168,17 +168,20 @@ describe("serialized saving", () => {
   });
 });
 
-it.each(["{broken", '{"version":2,"root":[]}'])("overwrites an invalid disk document: %s", async (body) => {
-  fetchMock
-    .mockResolvedValueOnce(new Response(null, { status: 412 }))
-    .mockResolvedValueOnce(new Response(body, { headers: { ETag: '"invalid"' } }));
-  session.changed(next);
-  await session.flush();
-  await session.overwrite();
-  expect(fetchMock.mock.calls[2][1].headers["If-Match"]).toBe('"invalid"');
-  expect(session.status).toBe("saved");
-  expect(session.dirty).toBe(false);
-});
+it.each(["{broken", '{"version":2,"root":[]}'])(
+  "overwrites an invalid disk document: %s",
+  async (body) => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 412 }))
+      .mockResolvedValueOnce(new Response(body, { headers: { ETag: '"invalid"' } }));
+    session.changed(next);
+    await session.flush();
+    await session.overwrite();
+    expect(fetchMock.mock.calls[2][1].headers["If-Match"]).toBe('"invalid"');
+    expect(session.status).toBe("saved");
+    expect(session.dirty).toBe(false);
+  },
+);
 
 it("acknowledges an uncertain save after verifying the disk snapshot", async () => {
   fetchMock
@@ -195,7 +198,9 @@ it("acknowledges an uncertain save after verifying the disk snapshot", async () 
 it("requires a conflict choice when an uncertain save reads back different content", async () => {
   fetchMock
     .mockResolvedValueOnce(new Response('{"error":"SaveOutcomeUncertain"}', { status: 500 }))
-    .mockResolvedValueOnce(new Response(JSON.stringify(schema), { headers: { ETag: '"external"' } }));
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify(schema), { headers: { ETag: '"external"' } }),
+    );
   session.changed(next);
   await session.flush();
   expect(session.status).toBe("conflict");

@@ -32,7 +32,7 @@ for (const scenario of ["5000-line Content", "50000-line Content", "500000-line 
     const largeNote = scenario !== "1000-Container level";
     const schema = largeNote ? fixture(1, Number.parseInt(scenario, 10)) : fixture(1000);
     await page.route("**/api/document", (route) =>
-      route.fulfill({ json: schema, headers: { ETag: '"bench"' } }),
+      route.fulfill({ json: schema, headers: { ETag: '"bench"', "X-Document-Id": "performance-document" } }),
     );
     await page.addInitScript(() => {
       performance.mark("pad-navigation-start");

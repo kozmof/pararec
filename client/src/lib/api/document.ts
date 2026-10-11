@@ -1,6 +1,15 @@
 import { parseSchema, type Schema } from "../../schema.js";
-export type LoadedDocument = { schema: Schema; etag: string | null; defaultTitle?: string };
+import { boundedRequest } from "./request.js";
+export type LoadedDocument = {
+  schema: Schema;
+  etag: string | null;
+  defaultTitle?: string;
+  documentId?: string;
+};
 export async function loadDocument(signal?: AbortSignal): Promise<LoadedDocument> {
+  return boundedRequest((requestSignal) => readDocument(requestSignal), signal);
+}
+async function readDocument(signal: AbortSignal): Promise<LoadedDocument> {
   let response: Response;
   try {
     response = await fetch("/api/document", { signal, cache: "no-store" });
@@ -9,7 +18,9 @@ export async function loadDocument(signal?: AbortSignal): Promise<LoadedDocument
     throw new Error("Cannot reach the local server. Start pararec open and retry.", { cause });
   }
   const titleHeader = response.headers.get("X-Document-Title");
-  const metadata: { defaultTitle?: string } = {};
+  const metadata: { defaultTitle?: string; documentId?: string } = {};
+  const documentId = response.headers.get("X-Document-Id");
+  if (documentId) metadata.documentId = documentId;
   if (titleHeader) {
     try {
       const title: unknown = JSON.parse(titleHeader);
@@ -24,7 +35,9 @@ export async function loadDocument(signal?: AbortSignal): Promise<LoadedDocument
     };
   if (!response.ok) {
     if (response.status === 413)
-      throw new Error("The document exceeds the local server's 512 MiB size limit. Use a smaller document and retry.");
+      throw new Error(
+        "The document exceeds the local server's 512 MiB size limit. Use a smaller document and retry.",
+      );
     if (response.status === 500)
       throw new Error(
         "The local server could not read the document. Check the file and its permissions, then retry.",
@@ -48,15 +61,17 @@ export async function loadDocument(signal?: AbortSignal): Promise<LoadedDocument
 }
 
 /** Read a write precondition even when the disk document cannot be parsed. */
-export async function loadDocumentETag(): Promise<string | null> {
-  const response = await fetch("/api/document", { cache: "no-store" });
-  try {
-    if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`Unable to read disk version (${response.status})`);
-    const etag = response.headers.get("ETag");
-    if (!etag) throw new Error("Document response is missing its ETag");
-    return etag;
-  } finally {
-    await response.body?.cancel();
-  }
+export async function loadDocumentETag(signal?: AbortSignal): Promise<string | null> {
+  return boundedRequest(async (signal) => {
+    const response = await fetch("/api/document", { cache: "no-store", signal });
+    try {
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`Unable to read disk version (${response.status})`);
+      const etag = response.headers.get("ETag");
+      if (!etag) throw new Error("Document response is missing its ETag");
+      return etag;
+    } finally {
+      await response.body?.cancel();
+    }
+  }, signal);
 }

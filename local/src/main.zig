@@ -43,18 +43,40 @@ pub fn main(init: std.process.Init) !void {
         std.log.err("{s}\n{t}", .{ usage, err });
         return err;
     };
-    const parent = std.fs.path.dirname(options.document_path) orelse ".";
-    const basename = std.fs.path.basename(options.document_path);
+    const allocator = init.arena.allocator();
+    const requested_basename = std.fs.path.basename(options.document_path);
+    if (requested_basename.len == 0 or std.mem.eql(u8, requested_basename, ".") or std.mem.eql(u8, requested_basename, "..")) return error.InvalidDocumentPath;
+    // Resolve aliases before choosing the lock file and browser recovery identity.
+    const canonical_path = Io.Dir.cwd().realPathFileAlloc(io, options.document_path, allocator) catch |err| switch (err) {
+        error.FileNotFound => blk: {
+            const parent_path = std.fs.path.dirname(options.document_path) orelse ".";
+            const canonical_parent = try Io.Dir.cwd().realPathFileAlloc(io, parent_path, allocator);
+            break :blk try std.fs.path.join(allocator, &.{ canonical_parent, std.fs.path.basename(options.document_path) });
+        },
+        else => return err,
+    };
+    const parent = std.fs.path.dirname(canonical_path) orelse ".";
+    const basename = std.fs.path.basename(canonical_path);
     if (basename.len == 0 or std.mem.eql(u8, basename, ".") or std.mem.eql(u8, basename, "..")) return error.InvalidDocumentPath;
     const document_dir = try Io.Dir.cwd().openDir(io, parent, .{ .iterate = true });
     defer document_dir.close(io);
+    const lock_name = try std.mem.concat(allocator, u8, &.{ basename, ".lock" });
+    const document_lock = try document_dir.createFile(io, lock_name, .{ .truncate = false });
+    defer document_lock.close(io);
+    if (!try document_lock.tryLock(io, .exclusive)) {
+        std.log.err("document is already open in another Pararec process: {s}", .{canonical_path});
+        return error.DocumentAlreadyOpen;
+    }
+    defer document_lock.unlock(io);
+    // Keep the lock file in place. Unlinking it would let another process lock a new inode.
+    const document_id = store_module.etag(canonical_path);
     const static_dir = Io.Dir.cwd().openDir(io, options.static_path, .{}) catch |err| {
         std.log.err("cannot open static directory '{s}': {t} (run pnpm build:client first)", .{ options.static_path, err });
         return err;
     };
     defer static_dir.close(io);
     var store: store_module.Store = .{ .dir = document_dir, .basename = basename };
-    const config: http.Config = .{ .static_dir = static_dir, .store = &store, .port = options.port };
+    const config: http.Config = .{ .static_dir = static_dir, .store = &store, .port = options.port, .document_id = document_id[1..33] };
     const address = try Io.net.IpAddress.parseIp4("127.0.0.1", options.port);
     var listener = try address.listen(io, .{ .reuse_address = true });
     defer listener.deinit(io);

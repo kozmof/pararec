@@ -2,30 +2,30 @@ import { afterEach, expect, it, vi } from "vitest";
 import { loadDocument } from "./document.js";
 afterEach(() => vi.unstubAllGlobals());
 it("loads and validates the document with its ETag", async () => {
-  const fetch = vi
-    .fn()
-    .mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          version: 1,
-          title: "document",
-          config: {
-            showTitles: true, maxWidth: 1100,
-            outerWidthRate: { left: 35, right: 65 },
-            innerIdthRate: { left: 35, right: 65 },
-          },
-          root: [],
-        }),
-        { headers: { ETag: '"v1"' } },
-      ),
-    );
+  const fetch = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        version: 1,
+        title: "document",
+        config: {
+          showTitles: true,
+          maxWidth: 1100,
+          outerWidthRate: { left: 35, right: 65 },
+          innerIdthRate: { left: 35, right: 65 },
+        },
+        root: [],
+      }),
+      { headers: { ETag: '"v1"' } },
+    ),
+  );
   vi.stubGlobal("fetch", fetch);
   expect(await loadDocument()).toEqual({
     schema: {
       version: 1,
       title: "document",
       config: {
-        showTitles: true, maxWidth: 1100,
+        showTitles: true,
+        maxWidth: 1100,
         outerWidthRate: { left: 35, right: 65 },
         innerIdthRate: { left: 35, right: 65 },
       },
@@ -33,7 +33,10 @@ it("loads and validates the document with its ETag", async () => {
     },
     etag: '"v1"',
   });
-  expect(fetch).toHaveBeenCalledWith("/api/document", { signal: undefined, cache: "no-store" });
+  expect(fetch).toHaveBeenCalledWith("/api/document", {
+    signal: expect.any(AbortSignal),
+    cache: "no-store",
+  });
 });
 it("opens a missing file as an empty unsaved document", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
@@ -42,7 +45,8 @@ it("opens a missing file as an empty unsaved document", async () => {
       version: 1,
       title: "document",
       config: {
-        showTitles: true, maxWidth: 1100,
+        showTitles: true,
+        maxWidth: 1100,
         outerWidthRate: { left: 35, right: 65 },
         innerIdthRate: { left: 35, right: 65 },
       },
@@ -65,8 +69,8 @@ it("explains how to recover when the local server cannot be reached", async () =
 });
 it("preserves request cancellation rather than reporting a server outage", async () => {
   const controller = new AbortController();
-  controller.abort();
   const error = new DOMException("Aborted", "AbortError");
+  controller.abort(error);
   vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
   await expect(loadDocument(controller.signal)).rejects.toBe(error);
 });

@@ -1,13 +1,26 @@
 import { loadDocument } from "./document.js";
 import type { Schema } from "../../schema.js";
+import { boundedRequest } from "./request.js";
 export class SaveConflict extends Error {
   constructor() {
     super("The file changed on disk");
   }
 }
-export async function saveDocument(schema: Schema, etag: string | null): Promise<string> {
+export async function saveDocument(
+  schema: Schema,
+  etag: string | null,
+  signal?: AbortSignal,
+): Promise<string> {
+  return boundedRequest((requestSignal) => sendDocument(schema, etag, requestSignal), signal);
+}
+async function sendDocument(
+  schema: Schema,
+  etag: string | null,
+  signal: AbortSignal,
+): Promise<string> {
   const response = await fetch("/api/document", {
     method: "PUT",
+    signal,
     headers: {
       "Content-Type": "application/json",
       ...(etag === null ? { "If-None-Match": "*" } : { "If-Match": etag }),
@@ -17,10 +30,12 @@ export async function saveDocument(schema: Schema, etag: string | null): Promise
   if (response.status === 412) throw new SaveConflict();
   if (!response.ok) {
     const detail: unknown = await response.json().catch(() => null);
-    const code = detail && typeof detail === "object" && "error" in detail
-      && typeof detail.error === "string" ? detail.error : null;
+    const code =
+      detail && typeof detail === "object" && "error" in detail && typeof detail.error === "string"
+        ? detail.error
+        : null;
     if (code === "SaveOutcomeUncertain") {
-      const loaded = await loadDocument();
+      const loaded = await loadDocument(signal);
       if (loaded.etag !== null && JSON.stringify(loaded.schema) === JSON.stringify(schema))
         return loaded.etag;
       throw new SaveConflict();

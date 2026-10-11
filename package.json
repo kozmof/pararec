@@ -14,7 +14,7 @@
     "preview": "pnpm build && pnpm start",
     "check": "svelte-check --workspace client --tsconfig ../tsconfig.json --config ../svelte.config.js",
     "check:watch": "svelte-check --workspace client --tsconfig ../tsconfig.json --config ../svelte.config.js --watch",
-    "test": "TMPDIR=/tmp vitest",
+    "test": "vitest",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
@@ -23,10 +23,11 @@
     "dev:local": "cd local && zig build run -- open ../document.json --static ../client/public",
     "build:local": "cd local && zig build -Doptimize=ReleaseSafe",
     "test:local": "cd local && zig build test",
-    "test:api": "pnpm build:local && node --test tests/api.test.mjs",
-    "test:e2e": "TMPDIR=/tmp playwright test",
-    "test:performance": "TMPDIR=/tmp PARAREC_PERFORMANCE=1 playwright test tests/e2e/performance.spec.ts --workers=1 --output=test-results/performance",
-    "test:unit": "TMPDIR=/tmp vitest run"
+    "test:api": "pnpm build:local && node --test tests/api.test.mjs tests/locking.test.mjs",
+    "test:e2e": "playwright test",
+    "test:performance": "node tests/run-performance.mjs",
+    "test:unit": "vitest run",
+    "test:release": "pnpm build && playwright test --config playwright.production.config.ts"
   },
   "dependencies": {
     "@kozmof/reed": "^4.0.1"

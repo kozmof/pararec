@@ -16,7 +16,8 @@ const empty = {
   version: 1,
   title: "document",
   config: {
-    showTitles: true, maxWidth: 1100,
+    showTitles: true,
+    maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
     innerIdthRate: { left: 35, right: 65 },
   },
@@ -40,7 +41,7 @@ before(async () => {
   port = socket.address().port;
   await new Promise((resolve) => socket.close(resolve));
   server = spawn(
-    path.resolve("local/zig-out/bin/pararec"),
+    path.resolve(`local/zig-out/bin/pararec${process.platform === "win32" ? ".exe" : ""}`),
     ["open", documentPath, "--port", String(port), "--static", path.join(directory, "static")],
     { stdio: ["ignore", "ignore", "pipe"] },
   );
@@ -220,41 +221,52 @@ test("document API over real sockets", async (t) => {
       undefined,
     );
   });
-  await t.test("rejects declared bodies above 512 MiB and accepts large chunked documents", async () => {
-    const before = await request();
-    assert.equal(
-      (
-        await request("PUT", "/api/document", {
-          origin: origin(),
-          "if-match": "*",
-          "content-length": String(512 * 1024 * 1024 + 1),
-        })
-      ).status,
-      413,
-    );
-    assert.equal(await readFile(documentPath, "utf8"), before.body);
-    const large = {
-      ...empty,
-      root: [{ id: "large", left: [{ id: "large-l", text: "" }],
-        right: { id: "large-r", text: "x".repeat(17 * 1024 * 1024), children: [] } }],
-    };
-    try {
+  await t.test(
+    "rejects declared bodies above 512 MiB and accepts large chunked documents",
+    async () => {
+      const before = await request();
       assert.equal(
         (
-          await request(
-            "PUT",
-            "/api/document",
-            { origin: origin(), "if-match": "*", "transfer-encoding": "chunked" },
-            JSON.stringify(large),
-          )
+          await request("PUT", "/api/document", {
+            origin: origin(),
+            "if-match": "*",
+            "content-length": String(512 * 1024 * 1024 + 1),
+          })
         ).status,
-        200,
+        413,
       );
-      assert.equal(JSON.parse(await readFile(documentPath, "utf8")).root[0].right.text.length, 17 * 1024 * 1024);
-    } finally {
-      await writeFile(documentPath, before.body);
-    }
-  });
+      assert.equal(await readFile(documentPath, "utf8"), before.body);
+      const large = {
+        ...empty,
+        root: [
+          {
+            id: "large",
+            left: [{ id: "large-l", text: "" }],
+            right: { id: "large-r", text: "x".repeat(17 * 1024 * 1024), children: [] },
+          },
+        ],
+      };
+      try {
+        assert.equal(
+          (
+            await request(
+              "PUT",
+              "/api/document",
+              { origin: origin(), "if-match": "*", "transfer-encoding": "chunked" },
+              JSON.stringify(large),
+            )
+          ).status,
+          200,
+        );
+        assert.equal(
+          JSON.parse(await readFile(documentPath, "utf8")).root[0].right.text.length,
+          17 * 1024 * 1024,
+        );
+      } finally {
+        await writeFile(documentPath, before.body);
+      }
+    },
+  );
   await t.test("loads valid JSON documents larger than the old 64 MiB file limit", async () => {
     const before = await readFile(documentPath);
     const padding = Buffer.alloc(1024 * 1024, " ");
@@ -262,16 +274,23 @@ test("document API over real sockets", async (t) => {
     try {
       for (let block = 0; block < 65; block++) await file.write(padding);
       await file.write(JSON.stringify(empty));
-    } finally { await file.close(); }
+    } finally {
+      await file.close();
+    }
     try {
       const response = await fetch(`${origin()}/api/document`);
       assert.equal(response.status, 200);
       const digest = createHash("sha256");
       let bytes = 0;
-      for await (const chunk of response.body) { bytes += chunk.length; digest.update(chunk); }
+      for await (const chunk of response.body) {
+        bytes += chunk.length;
+        digest.update(chunk);
+      }
       assert.equal(bytes, 65 * 1024 * 1024 + Buffer.byteLength(JSON.stringify(empty)));
       assert.equal(response.headers.get("etag"), `"${digest.digest("hex").slice(0, 32)}"`);
-    } finally { await writeFile(documentPath, before); }
+    } finally {
+      await writeFile(documentPath, before);
+    }
   });
   await t.test("static files and unknown routes are handled separately", async () => {
     assert.equal((await request("GET", "/favicon.svg")).status, 200);
@@ -372,7 +391,8 @@ test("document settings persist and the default title uses the filename", async 
     ...empty,
     title: "Custom title",
     config: {
-      showTitles: false, maxWidth: 900,
+      showTitles: false,
+      maxWidth: 900,
       outerWidthRate: { left: 1, right: 2 },
       innerIdthRate: { left: 3, right: 4 },
     },
@@ -405,7 +425,13 @@ test("nesting boundary survives saving and deeper requests preserve disk", async
   const { MAX_CONTAINER_DEPTH } = await import("../client/src/schema.ts");
   let root = [];
   for (let depth = 0; depth < MAX_CONTAINER_DEPTH; depth++) {
-    root = [{ id: `r-${depth}`, left: [{ id: `l-${depth}`, text: "" }], right: { id: `n-${depth}`, text: "", children: root } }];
+    root = [
+      {
+        id: `r-${depth}`,
+        left: [{ id: `l-${depth}`, text: "" }],
+        right: { id: `n-${depth}`, text: "", children: root },
+      },
+    ];
   }
   await writeFile(documentPath, JSON.stringify(empty));
   const before = await request();
@@ -414,7 +440,13 @@ test("nesting boundary survives saving and deeper requests preserve disk", async
   const disk = await readFile(documentPath, "utf8");
   assert.equal(saved.headers.etag, etag(disk));
   assert.deepEqual(JSON.parse(disk).root, root);
-  root = [{ id: "extra", left: [{ id: "extra-l", text: "" }], right: { id: "extra-r", text: "", children: root } }];
+  root = [
+    {
+      id: "extra",
+      left: [{ id: "extra-l", text: "" }],
+      right: { id: "extra-r", text: "", children: root },
+    },
+  ];
   const rejected = await put({ ...empty, root }, { "if-match": saved.headers.etag });
   assert.equal(rejected.status, 400);
   assert.equal(await readFile(documentPath, "utf8"), disk);

@@ -8,6 +8,7 @@
   import { containerPath, layerDepth, levelAt, pathFromHash, pathHash, validPath } from "../lib/tree/navigation.js";
   import { loadDocument, type LoadedDocument } from "../lib/api/document.js";
   import { SaveSession } from "../lib/api/save-session.svelte.js";
+  import { readDrafts, deleteDraft, RECOVERY_ERROR, type Draft } from "../lib/api/drafts.js";
   import { AppHistory, type AppSnapshot, type FocusSnapshot } from "../lib/history/history.svelte.js";
   import { ContentCache, type ContentChange } from "../lib/editor/content-cache.js";
   import { CONTENT_HOST, type ContentHost, type Entry, type Boundary, type Command } from "../lib/editor/content-host.js";
@@ -24,6 +25,8 @@
   let error = $state("");
   let loading = $state(true);
   let busy = $state(false);
+  let recoveryDrafts = $state.raw<Draft[]>([]);
+  let diskDocument: LoadedDocument | null = null;
   let pad: HTMLElement;
   let addButton = $state<HTMLButtonElement>();
   let titleInput = $state<HTMLInputElement>();
@@ -35,7 +38,7 @@
   let controller: AbortController;
   let navigationVersion = 0;
   let seenSchema: Schema | null = null;
-  const disabled = $derived(busy || session?.status === "conflict");
+  const disabled = $derived(busy || recoveryDrafts.length > 0 || session?.status === "conflict");
   const rows = $derived(tree ? levelAt(tree.schema, path) : []);
   const currentLayer = $derived(tree ? validPath(tree.schema, path).length + 1 : 1);
   const totalLayers = $derived(tree ? layerDepth(tree.schema) : 1);
@@ -89,14 +92,14 @@
     history.record(before, snapshot());
     changed();
   }
-  function install(loaded: LoadedDocument) {
+  function install(loaded: LoadedDocument, draft?: Draft) {
     history.clear();
     liveCaret = null;
     cache?.dispose();
     session?.dispose();
-    tree = new TreeStore(loaded.schema);
+    tree = new TreeStore(draft?.schema ?? loaded.schema);
     seenSchema = tree.schema;
-    session = new SaveSession(loaded);
+    session = new SaveSession(loaded, draft);
     cache = new ContentCache(tree, changed);
     focused = null;
     focusByLevel.clear();
@@ -155,11 +158,36 @@
     try {
       const loaded = await loadDocument(request.signal);
       if (!active || request !== controller) return;
+      let drafts: Draft[] = [];
+      let recoveryError = "";
+      if (loaded.documentId) {
+        try { drafts = await readDrafts(loaded.documentId, loaded.schema); }
+        catch { recoveryError = RECOVERY_ERROR; }
+      }
+      if (!active || request !== controller) return;
+      diskDocument = loaded;
+      recoveryDrafts = drafts;
       install(loaded);
+      session!.recoveryError = recoveryError;
       loading = false;
       await restoreFocus();
     } catch (cause) { if (active && !request.signal.aborted) error = cause instanceof Error ? cause.message : "Unable to load document"; }
     finally { if (active && request === controller) loading = false; }
+  }
+  function recover(draft: Draft) {
+    if (!diskDocument) return;
+    recoveryDrafts = [];
+    install(diskDocument, draft);
+    void restoreFocus();
+  }
+  async function discardDrafts() {
+    busy = true;
+    try {
+      await Promise.all(recoveryDrafts.map(draft => deleteDraft(draft.id, draft.version)));
+      recoveryDrafts = [];
+      if (session) session.recoveryError = "";
+    } catch { if (session) session.recoveryError = RECOVERY_ERROR; }
+    finally { busy = false; if (!recoveryDrafts.length) void restoreFocus(); }
   }
   function addRow() {
     if (!tree || rows.length || disabled) return;
@@ -328,6 +356,8 @@
       <span class="layer-status" role="status" aria-label="Current layer" title={`Layer ${currentLayer} of ${totalLayers}`}>{currentLayer}:{totalLayers}</span>
     </div>
     {#if session.status === "failed"}<p role="alert">{session.error}</p><button onclick={() => session?.flush()}>Retry save</button>{/if}
+    {#if session.recoveryError}<p role="alert">{session.recoveryError}</p>{/if}
+    {#if recoveryDrafts.length}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="Recover unsaved notes" aria-modal="true"><p>Unsaved notes were found for this document. Restore a draft to review it before saving, or discard the drafts and use the disk version.</p>{#each recoveryDrafts as draft}<button disabled={busy} onclick={() => recover(draft)}>Restore draft from {new Date(draft.updatedAt).toLocaleString()}</button>{/each}<button disabled={busy} onclick={discardDrafts}>Discard drafts</button></dialog>{/if}
     {#if session.status === "conflict"}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="File changed on disk" aria-modal="true"><p>The file changed on disk. Reload the disk version or overwrite it with your notes.</p>{#if session.error}<p>{session.error}</p>{/if}<button disabled={busy} onclick={reload}>Reload</button><button disabled={busy} onclick={overwrite}>Overwrite</button></dialog>{/if}
     <div inert={disabled}>
       {#if parent}<div class="level parent-row" data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right">{#snippet navigation()}<button class="go-back" title="Go back" aria-label="Go back" onclick={() => navigate(path.slice(0, -1))}><ArrowIcon direction="up" /></button>{/snippet}</ContentView></div>{/if}

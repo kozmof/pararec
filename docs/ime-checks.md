@@ -12,3 +12,13 @@ Record the operating system, browser version, input method, date, commit, and re
 6. Start composition and press Ctrl+S or the platform's save shortcut. Confirm that preedit is not written. Commit the composition, save, and reload to verify the committed text.
 
 These checks require a person using the native input method. Record pending checks as pending rather than treating synthetic composition events as a native IME result.
+
+## Release results
+
+All six checks remain pending until a tester records a result for the release commit. CI browser tests do not complete this table.
+
+| Operating system | Browser | Input method | Browser version | Date | Commit | Checks 1–6 |
+| --- | --- | --- | --- | --- | --- | --- |
+| macOS | Chromium | Japanese | Pending | Pending | Pending | Pending |
+| macOS | Safari | Japanese | Pending | Pending | Pending | Pending |
+| Windows | Chromium | Microsoft Japanese IME | Pending | Pending | Pending | Pending |

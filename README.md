@@ -88,6 +88,14 @@ pnpm test:e2e
 
 CI installs browser system dependencies and runs all these checks. Browser downloads require access to Playwright's download hosts.
 
+Test the built client and release server together with a disposable document.
+
+```sh
+pnpm test:release
+```
+
+CI is configured to run the checks and both browser suites on Linux, macOS, and Windows. Native IME validation still requires the manual checks below.
+
 ## Editing and saving
 
 While editing a note, use the following shortcuts. On macOS, use Cmd in place of Ctrl.
@@ -113,7 +121,11 @@ While editing a note, use the following shortcuts. On macOS, use Cmd in place of
 
 If the file changes outside the app, saving stops and offers Reload or Overwrite. Reload replaces your notes with the disk version and clears history. Overwrite saves your local notes against the current disk version.
 
-Unsaved edits stay in memory until saved to the document file. Reloading or closing the page can lose edits that have not been saved. The app warns before leaving with unsaved changes.
+Committed edits are also written to IndexedDB in your browser. Reopening the same document at the same browser origin offers stored drafts for recovery. Restore a draft to review it before saving, or discard the drafts to use the disk version. If the file changed since the draft was created, recovery requires the same Reload or Overwrite choice as a save conflict.
+
+Each editing session keeps a separate draft. Saving removes that session's draft. Browser storage failures show a warning and leave disk saving available. Draft recovery depends on browser storage, its quota, and completion of the storage transaction. Clearing browser data removes drafts. Keep the page open until a disk save succeeds when recovery storage is unavailable. The app also warns before leaving with unsaved changes.
+
+Save requests time out after 15 seconds and offer Retry save. A timed-out request may have reached disk. A retry uses the original ETag and can report a conflict, so review the disk version before overwriting it.
 
 A load error offers Retry. Start the local server if it is unreachable, check file permissions if it cannot read the file, or fix invalid JSON and schema errors before retrying.
 
@@ -125,7 +137,7 @@ Run the browser performance scenarios separately when collecting measurements.
 pnpm test:performance
 ```
 
-Each scenario attaches a JSON report with host and browser details. The 5,000-line note records 100 input-to-DOM samples after five warmups, including tree and history updates. It excludes physical input, native IME, and painting. The 1,000-row level records navigation-to-ready time and DOM size. Measurements use the development client and report the 8 ms input target without enforcing it as a timing assertion. Run on representative hardware before deciding whether to add virtualization.
+Each scenario attaches a JSON report with host and browser details. The 5,000-line note records 100 input-to-DOM samples after five warmups, including tree and history updates. Browser draft recovery is enabled during these scenarios, but the input-to-DOM measurement does not wait for its asynchronous storage transaction. It excludes physical input, native IME, and painting. The 1,000-row level records navigation-to-ready time and DOM size. Measurements use the development client and report the 8 ms input target without enforcing it as a timing assertion. Run on representative hardware before deciding whether to add virtualization.
 
 Follow [the native IME checks](docs/ime-checks.md) on macOS and Windows.
 
@@ -149,4 +161,8 @@ curl -i -X PUT http://127.0.0.1:4545/api/document \
 
 To update a document, replace the creation header with `If-Match` containing the ETag from GET. A stale ETag returns `412`. PUT requires the matching Origin header, including for command-line clients.
 
-The server validates the schema, writes formatted JSON through an atomic replacement, and keeps the previous bytes in `<document>.bak`. Its mutex coordinates requests to this server. The server checks the file again immediately before replacement and rejects changes detected while preparing the save. An external process can still change the file between that final check and replacement. Avoid editing the same file from another program during a save.
+The server validates the schema, writes formatted JSON through an atomic replacement, and keeps the previous bytes in `<document>.bak`. It holds an operating system lock on `<document>.lock` for its lifetime, so another Pararec process cannot open the same canonical document path, including a symbolic link to that path. The lock releases when the process exits or crashes. Leave the lock file in place, including while the server runs. Its presence alone does not mean the document is locked.
+
+The mutex coordinates requests to the running server. The server also checks the file immediately before replacement and rejects changes detected while preparing the save. Programs that ignore Pararec's lock can still change the file between that final check and replacement. Avoid editing the file from another program during a save. Open documents through one canonical path and avoid hard-link aliases.
+
+GET responses include `X-Document-Id`, a hash of the canonical document path used to identify browser drafts. The ID stays the same across saves and server restarts. Documents opened on the same port have different IDs when their paths differ. Browser storage remains separate for each origin, so changing the port requires returning to the original origin to recover its drafts.
