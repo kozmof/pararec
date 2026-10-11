@@ -21,8 +21,6 @@ Open one document from the repository root.
 ./local/zig-out/bin/pararec open document.json
 ```
 
-Open `http://127.0.0.1:4545`. A missing document opens an empty pad. Activate Add row to create the first note. Edits save after one second of inactivity and when you leave a note. Ctrl+S or Cmd+S saves immediately.
-
 Choose another port or static directory when needed.
 
 ```sh
@@ -30,8 +28,6 @@ Choose another port or static directory when needed.
 ```
 
 ## Configuration
-
-Edit the document JSON to change its title and layout. Save any pending edits in the app first, then edit the file and reload the page. Keep your existing `root` records when adding settings.
 
 This example shows an empty document with the default layout settings.
 
