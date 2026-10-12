@@ -1,6 +1,8 @@
 # Pararec
 
-Pararec is a recursive two-column notebook for local use.
+Pararec is a recursive two-column notebook.
+
+## Local use
 
 Run it on your own computer. Public hosting and shared remote access are outside its supported scope. The server uses loopback access and does not provide user authentication.
 
