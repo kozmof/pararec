@@ -46,7 +46,7 @@ pub fn main(init: std.process.Init) !void {
     const allocator = init.arena.allocator();
     const requested_basename = std.fs.path.basename(options.document_path);
     if (requested_basename.len == 0 or std.mem.eql(u8, requested_basename, ".") or std.mem.eql(u8, requested_basename, "..")) return error.InvalidDocumentPath;
-    // Resolve aliases before choosing the lock file and browser recovery identity.
+    // Resolve aliases before choosing the lock file.
     const canonical_path = Io.Dir.cwd().realPathFileAlloc(io, options.document_path, allocator) catch |err| switch (err) {
         error.FileNotFound => blk: {
             const parent_path = std.fs.path.dirname(options.document_path) orelse ".";
@@ -69,7 +69,6 @@ pub fn main(init: std.process.Init) !void {
     }
     defer document_lock.unlock(io);
     // Keep the lock file in place. Unlinking it would let another process lock a new inode.
-    const document_id = store_module.etag(canonical_path);
     const static_dir = Io.Dir.cwd().openDir(io, options.static_path, .{}) catch |err| {
         std.log.err("cannot open static directory '{s}': {t} (run pnpm build:client first)", .{ options.static_path, err });
         return err;
@@ -78,7 +77,7 @@ pub fn main(init: std.process.Init) !void {
     var store: store_module.Store = .{ .dir = document_dir, .basename = basename };
     var document_request: Io.Mutex = .init;
     var connections = std.atomic.Value(usize).init(0);
-    const config: http.Config = .{ .static_dir = static_dir, .store = &store, .port = options.port, .document_id = document_id[1..33], .document_request = &document_request };
+    const config: http.Config = .{ .static_dir = static_dir, .store = &store, .port = options.port, .document_request = &document_request };
     const address = try Io.net.IpAddress.parseIp4("127.0.0.1", options.port);
     var listener = try address.listen(io, .{ .reuse_address = true });
     defer listener.deinit(io);

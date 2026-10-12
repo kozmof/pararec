@@ -69,9 +69,6 @@ test("document locks survive replacement, reject aliases, and release after proc
     children.push(first.child);
     assert.equal((await first.ready).listening, true);
     const url = `http://127.0.0.1:${port}`;
-    const missing = await fetch(`${url}/api/document`);
-    const identity = missing.headers.get("x-document-id");
-    assert.ok(identity);
     const saved = await fetch(`${url}/api/document`, {
       method: "PUT",
       headers: {
@@ -110,14 +107,12 @@ test("document locks survive replacement, reject aliases, and release after proc
     const restarted = launch(document, port);
     children.push(restarted.child);
     assert.equal((await restarted.ready).listening, true);
-    assert.equal((await fetch(`${url}/api/document`)).headers.get("x-document-id"), identity);
     await stop(restarted.child);
     const otherDocument = path.join(directory, "other.json");
     await writeFile(otherDocument, '{"version":1,"root":[]}');
     const other = launch(otherDocument, port);
     children.push(other.child);
     assert.equal((await other.ready).listening, true);
-    assert.notEqual((await fetch(`${url}/api/document`)).headers.get("x-document-id"), identity);
   } finally {
     await Promise.all(children.map(stop));
     await rm(directory, { recursive: true, force: true });

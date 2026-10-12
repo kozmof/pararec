@@ -76,14 +76,11 @@ async function save() {
 const content = (id: string) => document.querySelector(`[data-content-id="${id}"]`) as HTMLElement;
 
 describe("integrated content editing", () => {
-  it("loads, edits, and saves without accessing IndexedDB", async () => {
-    const open = vi.fn(() => { throw new Error("Browser storage is disabled"); });
-    vi.stubGlobal("indexedDB", { open });
+  it("loads, edits, and saves to disk", async () => {
     await opened();
     await key("!");
     await save();
     expect(disk.root[0].right.text).toBe("!First note");
-    expect(open).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 

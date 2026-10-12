@@ -40,7 +40,7 @@ for (const scenario of [
     await page.route("**/api/document", (route) =>
       route.fulfill({
         json: schema,
-        headers: { ETag: '"bench"', "X-Document-Id": "performance-document" },
+        headers: { ETag: '"bench"' },
       }),
     );
     await page.addInitScript(() => {

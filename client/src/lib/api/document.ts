@@ -4,7 +4,6 @@ export type LoadedDocument = {
   schema: Schema;
   etag: string | null;
   defaultTitle?: string;
-  documentId?: string;
 };
 export async function loadDocument(signal?: AbortSignal): Promise<LoadedDocument> {
   return boundedRequest((requestSignal) => readDocument(requestSignal), signal);
@@ -18,9 +17,7 @@ async function readDocument(signal: AbortSignal): Promise<LoadedDocument> {
     throw new Error("Cannot reach the local server. Start pararec open and retry.", { cause });
   }
   const titleHeader = response.headers.get("X-Document-Title");
-  const metadata: { defaultTitle?: string; documentId?: string } = {};
-  const documentId = response.headers.get("X-Document-Id");
-  if (documentId) metadata.documentId = documentId;
+  const metadata: { defaultTitle?: string } = {};
   if (titleHeader) {
     try {
       const title: unknown = JSON.parse(titleHeader);
