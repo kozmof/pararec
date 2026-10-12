@@ -21,4 +21,5 @@ styled-system
 /playwright-report/
 /test-results/
 /.playwright-cache/
+/.playwright/
 /.pnpm-data/
