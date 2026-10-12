@@ -19,7 +19,13 @@
     if (!(event.relatedTarget instanceof Node) || !(event.currentTarget as HTMLElement).contains(event.relatedTarget)) host.blur(content.id);
   }
   function mousedown(event: MouseEvent) {
-    if (host.disabled || event.button !== 0 || (event.target instanceof Element && event.target.closest("button"))) return;
+    if (host.disabled || event.button !== 0) return;
+    // Safari blurs the textarea without focusing buttons. Keep the editor mounted
+    // until the click navigates, so clearing its selection cannot move the button.
+    if (event.target instanceof Element && event.target.closest("button")) {
+      event.preventDefault();
+      return;
+    }
     if (editing) {
       if (!event.defaultPrevented) editor?.focusAt(event);
       return;

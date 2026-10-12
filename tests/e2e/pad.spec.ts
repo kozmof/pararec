@@ -22,7 +22,11 @@ test("nested levels support navigation controls, reload, and browser history", a
   await page.getByRole("button", { name: "Go back" }).click();
   await expect(root).toBeVisible();
   await expect(child.getByTestId("editor-sink")).toBeFocused();
-  await page.getByRole("button", { name: "Go deeper into Child note" }).click();
+  const deeper = page.getByRole("button", { name: "Go deeper into Child note" });
+  await deeper.hover();
+  await page.mouse.down();
+  await expect(child.getByTestId("editor-sink")).toBeFocused();
+  await page.mouse.up();
   await expect(grandchild.getByTestId("editor-sink")).toBeFocused();
   await page.reload();
   await expect(grandchild.getByTestId("editor-sink")).toBeFocused();

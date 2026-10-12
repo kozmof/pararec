@@ -90,7 +90,8 @@ pub const Store = struct {
         try hashed.writer.flush();
         try file_writer.interface.flush();
         var digest: [32]u8 = undefined;
-        if ((try file.file.stat(io)).size > max_size) return error.StreamTooLong;
+        // Atomic files have write-only handles on Windows; use the flushed writer position.
+        if (file_writer.logicalPos() > max_size) return error.StreamTooLong;
         hashed.hasher.final(&digest);
         try file.file.sync(io);
         if (current) |old| {
