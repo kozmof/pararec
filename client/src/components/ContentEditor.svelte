@@ -8,7 +8,11 @@
   let anchor = $state<Caret | null>(null);
   let surface = $state<EditorSurface>();
   let closingDoc = untrack(() => doc);
-  export function focusAt(event: MouseEvent): void { surface?.focusAt(event); }
+  let pointerEntry = false;
+  export function focusAt(event: MouseEvent, activating = false): void {
+    if (activating) pointerEntry = true;
+    surface?.focusAt(event);
+  }
   export function focus(): void { surface?.focus(); }
   $effect(() => {
     if (!active) {
@@ -21,7 +25,10 @@
     const currentSurface = surface;
     if (!currentSurface) return;
     untrack(() => {
-      if (target.kind === "caret") currentSurface.placeAtCaret(currentDoc.clamp(target));
+      // The activating press already placed the caret and started its drag.
+      // Reapplying the entry would clear a selection made before this effect runs.
+      if (pointerEntry) pointerEntry = false;
+      else if (target.kind === "caret") currentSurface.placeAtCaret(currentDoc.clamp(target));
       else currentSurface.placeAtEdge(target.edge, target.goalX);
     });
     let cancelled = false;

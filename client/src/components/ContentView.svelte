@@ -51,6 +51,7 @@
     const caret = visualCaret(line, event.clientX - box.left - 12, event.clientY - box.top, measure);
     event.preventDefault();
     host.focus(content.id, { kind: "caret", ...caret });
+    editor?.focusAt(event, true);
   }
 </script>
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->

@@ -115,3 +115,34 @@ for (const side of ["left", "right"] as const) {
     }
   });
 }
+
+for (const side of ["left", "right"] as const) {
+  test(`first left-click drag selects text in an inactive ${side} note`, async ({ page }) => {
+    const disk = structuredClone(fixture);
+    const target = side === "left" ? disk.root[1].left[0] : disk.root[1].right;
+    target.text = "abcdefghij";
+    await page.route("**/api/document", (route) =>
+      route.fulfill({ json: disk, headers: { ETag: '"v1"' } }),
+    );
+    await page.goto("/");
+    await expect(page.getByTestId("editor-sink")).toBeFocused();
+    const note = page.locator(`[data-content-id="${target.id}"]`);
+    const points = await note.locator('[data-line="0"]').evaluate((el) => {
+      const text = el.querySelector("[data-from]")!.firstChild!;
+      return [2, 6].map((column) => {
+        const range = document.createRange();
+        range.setStart(text, column);
+        range.collapse(true);
+        const box = range.getBoundingClientRect();
+        return { x: box.left, y: box.top + box.height / 2 };
+      });
+    });
+    await page.mouse.move(points[0].x, points[0].y);
+    await page.mouse.down();
+    await page.mouse.move(points[1].x, points[1].y, { steps: 5 });
+    await page.mouse.up();
+    await expect(note.getByTestId("editor-sink")).toBeFocused();
+    await page.keyboard.insertText("!");
+    await expect(note.locator('[data-line="0"]')).toHaveText("ab!ghij");
+  });
+}

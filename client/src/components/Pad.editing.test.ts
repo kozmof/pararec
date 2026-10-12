@@ -5,6 +5,7 @@ import { tick } from "svelte";
 import Pad from "./Pad.svelte";
 import type { Schema } from "../schema.js";
 import { scan } from "@kozmof/reed";
+import * as measurement from "../lib/editor/line-measurer.js";
 import { EditorDocument } from "../lib/editor/document-store.svelte.js";
 type Mutable<T> = { -readonly [K in keyof T]: Mutable<T[K]> };
 let disk: Mutable<Schema>;
@@ -983,3 +984,37 @@ it("deletes children with Ctrl+Delete and restores their text with undo", async 
   await save();
   expect(disk.root[0]).toEqual(before);
 });
+
+for (const immediate of [false, true]) {
+  it(`selects text on the activating left press and drag (immediate: ${immediate})`, async () => {
+    const target = disk.root[1].right;
+    target.text = "abcdefghij";
+    vi.spyOn(measurement, "domLineMeasurer").mockImplementation((element) =>
+      measurement.arithmeticMeasurer((line) => element(line)?.textContent ?? "", 10, 20, 1000),
+    );
+    await opened();
+    const note = content(target.id);
+    const line = note.querySelector('[data-line="0"]')!;
+    line.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        clientX: 32,
+        clientY: 8,
+      }),
+    );
+    if (!immediate) {
+      await tick();
+      await tick();
+    }
+    window.dispatchEvent(new MouseEvent("mousemove", { clientX: 72, clientY: 8, buttons: 1 }));
+    window.dispatchEvent(new MouseEvent("mouseup", { button: 0 }));
+    await tick();
+    await tick();
+    await waitFor(() => expect(note.querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    await key("!");
+    await save();
+    expect(disk.root[1].right.text).toBe("ab!ghij");
+  });
+}

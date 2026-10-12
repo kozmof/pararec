@@ -723,14 +723,14 @@
   }
 
   export function focusAt(event: MouseEvent): void {
-    handleMousedown(event);
+    handleMousedown(event, true);
   }
 
   let stopDrag: (() => void) | undefined;
   onDestroy(() => stopDrag?.());
 
-  function handleMousedown(event: MouseEvent): void {
-    if (readonly) return;
+  function handleMousedown(event: MouseEvent, activating = false): void {
+    if (readonly && !activating) return;
     if (event.button !== 0) return;
     // Dragging the scrollbar is the browser's, and preventing its default below would stop
     // the thumb from moving.
