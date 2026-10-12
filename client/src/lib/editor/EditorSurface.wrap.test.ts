@@ -112,7 +112,7 @@ it("gives the native IME a full line box at the caret across wrapping", async ()
   await tick();
   await tick();
   expect(sink.style.top).toBe("28px");
-  expect(sink.style.left).toBe("22px");
+  expect(sink.style.left).toBe("clamp(0px, 22px, 100% - 2px)");
   expect(sink.style.height).toBe("20px");
   expect(sink.style.lineHeight).toBe("20px");
   expect(sink).toHaveAttribute("wrap", "off");

@@ -43,9 +43,29 @@ test("Japanese text wraps with visual-row navigation and selection", async ({ pa
   await page.setViewportSize({ width: 350, height: 700 });
   await expect.poll(async () => (await line.boundingBox())!.height).toBeGreaterThan(before);
   await expect(line).toHaveText(text);
-  expect(
-    await page.getByTestId("editor-surface").evaluate((el) => el.scrollWidth <= el.clientWidth),
-  ).toBe(true);
+  const overflow = await page.getByTestId("editor-surface").evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return {
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+      overflowing: [...el.querySelectorAll<HTMLElement>("*")].flatMap((child) => {
+        const rect = child.getBoundingClientRect();
+        return rect.right > box.right + 0.5
+          ? [
+              {
+                testId: child.dataset.testid,
+                line: child.dataset.line,
+                tag: child.tagName,
+                left: rect.left - box.left,
+                width: rect.width,
+                right: rect.right - box.right,
+              },
+            ]
+          : [];
+      }),
+    };
+  });
+  expect(overflow.scrollWidth, JSON.stringify(overflow)).toBeLessThanOrEqual(overflow.clientWidth);
 });
 
 test("pad supports text, selection, undo, and redo", async ({ page }) => {
@@ -216,4 +236,31 @@ test("IME input follows text edges when collapsed caret ranges are empty", async
       }),
     )
     .toBeLessThan(2);
+});
+
+test("selection rectangles wider than the note do not expand its scroll area", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
+  // Model a Range rectangle that outlives the wider layout it was measured in.
+  await page.evaluate(() => {
+    const original = Range.prototype.getClientRects;
+    Range.prototype.getClientRects = function () {
+      const rects = Array.from(original.call(this), (rect) =>
+        DOMRect.fromRect({
+          x: rect.x,
+          y: rect.y,
+          width: rect.width + (this.collapsed ? 0 : 1000),
+          height: rect.height,
+        }),
+      );
+      return Object.assign(rects, { item: (index: number) => rects[index] ?? null });
+    };
+  });
+  await page.keyboard.press("ControlOrMeta+a");
+  await expect(page.getByTestId("editor-selection").first()).toBeVisible();
+  const dimensions = await page.getByTestId("editor-surface").evaluate((el) => ({
+    scrollWidth: el.scrollWidth,
+    clientWidth: el.clientWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
 });

@@ -837,6 +837,8 @@
     class={css({ position: "relative", width: "100%", boxSizing: "border-box" })}
     style:height={`${contentHeight + PAD_Y * 2}px`}
   >
+    <!-- Keep overlays inside the current width while resize measurements catch up.
+         Range rectangles can also extend past the text box with platform fallback fonts. -->
     <!-- Selection, painted under the text as rectangles. -->
     {#each rects as rect, i (i)}
       <div
@@ -847,7 +849,8 @@
           zIndex: "0",
         })}
         style:top={`${rect.top + PAD_Y}px`}
-        style:left={`${rect.left + PAD_X}px`}
+        style:left={`min(${rect.left + PAD_X}px, 100%)`}
+        style:max-width={`max(0px, calc(100% - ${rect.left + PAD_X}px))`}
         style:width={rect.width === null
           ? `calc(100% - ${rect.left + PAD_X}px)`
           : `${rect.width}px`}
@@ -875,7 +878,7 @@
             : css({ background: "ink.black" }),
         )}
         style:top={`${caretXY.y + PAD_Y}px`}
-        style:left={`${caretXY.x + PAD_X}px`}
+        style:left={`clamp(0px, ${caretXY.x + PAD_X}px, calc(100% - ${caretWidth}px))`}
         style:width={`${caretWidth}px`}
         style:height={`${LINE_HEIGHT}px`}
         data-testid="editor-cursor"
@@ -900,7 +903,7 @@
         fontSize: "12.5px",
       })}
       style:top={`${caretXY.y + PAD_Y}px`}
-      style:left={`${caretXY.x + PAD_X}px`}
+      style:left={`clamp(0px, ${caretXY.x + PAD_X}px, calc(100% - 2px))`}
       style:height={`${LINE_HEIGHT}px`}
       style:line-height={`${LINE_HEIGHT}px`}
       onkeydown={handleKeydown}
