@@ -1,6 +1,8 @@
 # Pararec
 
-Pararec is a recursive two-column notebook.
+Pararec is a recursive two-column notebook for local use.
+
+Run it on your own computer. Public hosting and shared remote access are outside its supported scope. The server uses loopback access and does not provide user authentication.
 
 ## Setup
 
@@ -139,7 +141,16 @@ pnpm test:performance
 
 Each scenario attaches a JSON report with host and browser details. The 5,000-line note records 100 input-to-DOM samples after five warmups, including tree and history updates. Browser draft recovery is enabled during these scenarios, but the input-to-DOM measurement does not wait for its asynchronous storage transaction. It excludes physical input, native IME, and painting. The 1,000-row level records navigation-to-ready time and DOM size. The suite fails when p95 input-to-DOM latency reaches 8 ms or navigation-to-ready reaches 10 seconds. Measurements use the production client and server. Run on representative hardware before release.
 
-Follow [the native IME checks](docs/ime-checks.md) on macOS and Windows. Run `pnpm test:readiness` for the release checks. This command also requires native IME results recorded for the current code.
+Follow [the native IME checks](docs/ime-checks.md) on macOS and Windows. Run `pnpm test:readiness` for the release checks. This command runs the editor browser suite as well as the built release and performance suites. It also requires native IME results recorded for the current code.
+
+Install the required browsers before running the release checks.
+
+```sh
+pnpm exec playwright install --with-deps chromium webkit
+pnpm test:readiness
+```
+
+CI runs automated checks on every push and pull request. Tag pushes and manual workflow runs also require the `release-readiness` job after all three operating systems pass. That job checks native IME evidence with full Git history. Release only a commit whose automated checks and `release-readiness` job both pass. Manual input results remain pending until a tester records them in `docs/ime-checks.md`.
 
 ## Server limits
 

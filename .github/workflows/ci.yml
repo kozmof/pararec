@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -57,3 +58,17 @@ jobs:
         with:
           name: browser-test-results-${{ matrix.os }}
           path: test-results/
+
+  release-readiness:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+      - name: Verify native IME evidence for the release
+        run: node tests/check-native-ime.mjs

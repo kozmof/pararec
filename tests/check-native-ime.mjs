@@ -13,7 +13,18 @@ const rows = readFileSync("docs/ime-checks.md", "utf8")
       .map((cell) => cell.trim()),
   );
 assert.equal(rows.length, 3, "Record all three native IME environments");
+const expected = [
+  ["macOS", "Chromium", "Japanese"],
+  ["macOS", "Safari", "Japanese"],
+  ["Windows", "Chromium", "Microsoft Japanese IME"],
+];
+assert.deepEqual(
+  rows.map((row) => row.slice(0, 3)).sort(),
+  expected.sort(),
+  "Record each required native IME environment exactly once",
+);
 for (const row of rows) {
+  assert.equal(row.length, 7, "Native IME evidence must contain all seven columns");
   const environment = row.slice(0, 3).join(" / ");
   assert.ok(row[3] && row[3] !== "Pending", environment + ": browser version is missing");
   assert.match(row[4], /^\d{4}-\d{2}-\d{2}$/, environment + ": date is missing");
