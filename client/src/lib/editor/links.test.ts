@@ -26,3 +26,29 @@ test("saved link offsets follow edits and survive cache eviction", () => {
     expect(cache.get("left").resolvedLinks()[0]).toMatchObject({ start: 13, end: 18 });
   } finally { cache.dispose(); }
 });
+
+for (const text of ["fooabc", "foo"]) {
+  test(`typing at the label end stays outside it in ${text}`, () => {
+    const doc = new EditorDocument(text);
+    try {
+      doc.syncLinks([{ id: "link", sourceId: "source", start: 0, end: 3, targets: ["target"] }]);
+      doc.insert({ line: 0, column: 3 }, "x");
+      expect(doc.text()).toBe("foox" + text.slice(3));
+      expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 3 });
+      doc.insert({ line: 0, column: 4 }, "日本");
+      expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 3 });
+    } finally { doc.dispose(); }
+  });
+}
+
+test("typing inside a label expands it, while an IME commit at its end stays outside", () => {
+  const doc = new EditorDocument("fooabc");
+  try {
+    doc.syncLinks([{ id: "link", sourceId: "source", start: 0, end: 3, targets: ["target"] }]);
+    doc.insert({ line: 0, column: 1 }, "x");
+    expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 4 });
+    doc.transact(current => current.replace({ line: 0, column: 4 }, { line: 0, column: 4 }, "日本"), "composition");
+    expect(doc.text()).toBe("fxoo日本abc");
+    expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 4 });
+  } finally { doc.dispose(); }
+});
