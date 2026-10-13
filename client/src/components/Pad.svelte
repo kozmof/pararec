@@ -366,7 +366,7 @@
   {:else if error}<p role="alert">{error}</p><button onclick={load}>Retry</button>
   {:else if tree && session}
     {#if linkMenu}
-      <div bind:this={menuElement} class="link-menu" role="menu" style:left={linkMenu.x + "px"} style:top={linkMenu.y + "px"}>
+      <div bind:this={menuElement} class="link-menu" role="menu" tabindex="-1" oncontextmenu={event => event.preventDefault()} style:left={linkMenu.x + "px"} style:top={linkMenu.y + "px"}>
         {#if linkMenu.labelIds}
           {#each linkMenu.labelIds as id, index (id)}
             <button role="menuitem" disabled={disabled} onclick={() => removeLabel(id)}>{linkMenu.labelIds.length === 1 ? "Remove label" : `Remove label ${index + 1}`}</button>

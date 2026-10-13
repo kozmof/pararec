@@ -15,7 +15,7 @@
 {#each presentation.runs as run (`${run.from}:${run.to}`)}<span
   class:link-label={run.decorations.length > 0}
   data-link-ids={run.decorations.length ? run.decorations.map(item => item.id).join(" ") : undefined}
->{#each run.parts as part (part.from)}<span data-from={part.from} class:preedit={part.preedit} data-preedit={part.preedit ? "" : undefined}>{presentation.text.slice(part.from, part.to)}</span>{/each}</span>{#each run.endings as decoration (decoration.id)}<span class="destinations" data-editor-annotation aria-label="Linked cells">{#each decoration.destinations as destination, index (destination.id)}{#if index > 0}<span aria-hidden="true">,</span>{/if}<button
+>{#each run.parts as part (part.from)}<span data-from={part.from} class:preedit={part.preedit} data-preedit={part.preedit ? "" : undefined}>{presentation.text.slice(part.from, part.to)}</span>{/each}</span>{#each run.endings as decoration (decoration.id)}<span class="destinations" data-link-ids={decoration.id} data-editor-annotation aria-label="Linked cells">{#each decoration.destinations as destination, index (destination.id)}{#if index > 0}<span aria-hidden="true">,</span>{/if}<button
   type="button" {disabled}
   aria-label={`Linked cell ${index + 1}: ${destination.label}`}
   title={destination.label}

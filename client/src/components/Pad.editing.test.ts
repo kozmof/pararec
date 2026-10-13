@@ -1185,3 +1185,27 @@ for (const ime of [false, true]) {
     expect(disk.links?.[0]).toMatchObject({ start: 0, end: 2 });
   });
 }
+
+it("suppresses the native context menu throughout cells and linking mode", async () => {
+  await opened();
+  for (const target of [content("flat-1-right"), screen.getByTestId("editor-sink"), content("flat-2-right")]) {
+    expect(await fireEvent.contextMenu(target)).toBe(false);
+  }
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  await key("a", { ctrlKey: true });
+  expect(await fireEvent.contextMenu(content("flat-1-right"))).toBe(false);
+  await fireEvent.click(screen.getByRole("menuitem", { name: "Start linking" }));
+  expect(await fireEvent.contextMenu(content("flat-2-right"))).toBe(false);
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+});
+
+it("opens the label menu from destination numbers and suppresses native menus within it", async () => {
+  disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] }];
+  await opened();
+  expect(await fireEvent.contextMenu(screen.getByRole("button", { name: /Linked cell 1:/ }))).toBe(false);
+  const remove = screen.getByRole("menuitem", { name: "Remove label" });
+  expect(await fireEvent.contextMenu(remove)).toBe(false);
+  expect(screen.getByRole("menuitem", { name: "Remove 1" })).toBeInTheDocument();
+  await fireEvent.click(remove);
+  expect(content("flat-1-right").querySelector(".link-label")).toBeNull();
+});
