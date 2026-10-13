@@ -29,10 +29,4 @@
   style:min-height={`${rowHeight}px`}
   style:padding-left={`${padding}px`}
   style:padding-right={`${padding}px`}
->{#if preedit}<span data-from="0">{text.slice(0, column)}</span
-  ><span
-    class={css({ textDecoration: "underline", textUnderlineOffset: "2px" })}
-    data-from={column}
-    data-preedit>{preedit}</span
-  ><span data-from={column + preedit.length}>{text.slice(column)}</span
-  >{:else}<InlineContent {text} {line} {decorations} {onDestination} disabled={annotationsDisabled} />{/if}</div>
+><InlineContent {text} {line} {decorations} {preedit} {column} {onDestination} disabled={annotationsDisabled} /></div>

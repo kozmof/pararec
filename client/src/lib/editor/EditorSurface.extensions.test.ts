@@ -121,3 +121,39 @@ it.each([{ isComposing: true }, { keyCode: 229 }, { key: "Process" }])(
     expect(event.defaultPrevented).toBe(false);
   },
 );
+
+it("keeps linked rectangles and destination buttons visible during Japanese composition", async () => {
+  const { doc, sink } = mount("before foo after", {
+    caret: { line: 0, column: 2 },
+    decorations: [{ id: "link", kind: "link", start: { line: 0, column: 7 }, end: { line: 0, column: 10 }, destinations: [{ id: "target", label: "Target" }] }],
+  });
+  await fireEvent.compositionStart(sink);
+  for (const data of ["に", "にほん", "日本語"]) {
+    await fireEvent.compositionUpdate(sink, { data });
+    expect(document.querySelector(".link-label")).toHaveTextContent("foo");
+    expect(screen.getByRole("button", { name: "Linked cell 1: Target" })).toBeInTheDocument();
+    expect(document.querySelector("[data-preedit]")).toHaveTextContent(data);
+    expect(document.querySelector(".link-label [data-from]")).toHaveAttribute("data-from", String(7 + data.length));
+    expect(doc.text()).toBe("before foo after");
+  }
+  await fireEvent.compositionEnd(sink, { data: "" });
+  expect(document.querySelector("[data-preedit]")).toBeNull();
+  expect(document.querySelector(".link-label [data-from]")).toHaveAttribute("data-from", "7");
+  expect(doc.text()).toBe("before foo after");
+});
+
+it("renders preedit inside a linked label without changing source text before commit", async () => {
+  const { doc, sink } = mount("foo", {
+    caret: { line: 0, column: 1 },
+    decorations: [{ id: "link", kind: "link", start: { line: 0, column: 0 }, end: { line: 0, column: 3 }, destinations: [{ id: "target", label: "Target" }] }],
+  });
+  await fireEvent.compositionStart(sink);
+  await fireEvent.compositionUpdate(sink, { data: "にほん" });
+  expect(document.querySelector("[data-preedit]")?.closest(".link-label")).not.toBeNull();
+  expect([...document.querySelectorAll(".link-label")].map(el => el.textContent).join("")).toBe("fにほんoo");
+  expect(screen.getAllByRole("button", { name: "Linked cell 1: Target" })).toHaveLength(1);
+  expect(doc.text()).toBe("foo");
+  await fireEvent.compositionEnd(sink, { data: "日本" });
+  expect(doc.text()).toBe("f日本oo");
+  expect(document.querySelector("[data-preedit]")).toBeNull();
+});
