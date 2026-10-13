@@ -1033,6 +1033,9 @@ it("links selected text with editing disabled and restores link offsets on undo"
   expect(disk.links?.[0]).toMatchObject({ sourceId: "flat-1-right", start: 0, end: 10, targets: ["flat-2-right"] });
   await key("!");
   await save();
+  expect(content("flat-1-right").querySelector(".link-label")).toHaveTextContent("First note");
+  expect(content("flat-1-right").querySelector("[data-editor-annotation]")).toHaveTextContent("1");
+  expect(screen.getByRole("button", { name: /Linked cell 1:/ })).toBeInTheDocument();
   const edited = disk.links?.[0];
   await key("z", { ctrlKey: true });
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());

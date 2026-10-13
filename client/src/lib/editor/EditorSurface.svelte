@@ -12,6 +12,7 @@
 
   import { arithmeticMeasurer, domLineMeasurer } from "./line-measurer.js";
   import { moveVisualRow, visualCaret, rowAt } from "./visual-navigation.js";
+  import type { InlineDecoration } from "./inline-rendering.js";
   import EditorLine from "./EditorLine.svelte";
   import { LineIdentity } from "./line-identity.js";
   import { compareLines } from "./document-change.js";
@@ -24,6 +25,9 @@
 
   let {
     doc,
+    decorations = [],
+    onDestination,
+    annotationsDisabled = false,
     caret = $bindable({ line: 0, column: 0 }),
     anchor = $bindable(null),
     mode = "insert",
@@ -34,6 +38,9 @@
     initialMeasurements,
     onCaret,
   }: {
+    decorations?: readonly InlineDecoration[];
+    onDestination?: (id: string) => void;
+    annotationsDisabled?: boolean;
     doc: EditorDocument;
     /** Where the caret is, in (line, column) characters. */
     caret?: Caret;
@@ -296,6 +303,7 @@
     }
     void preedit;
     void composing;
+    void decorations;
     let active = true;
     void tick().then(() => {
       if (!active) return;
@@ -861,7 +869,7 @@
 
     <!-- Text: only the window, absolutely positioned by line number. -->
     {#each lines as line (line.key)}
-      <EditorLine line={line.lineNumber} text={line.content}
+      <EditorLine {decorations} {onDestination} {annotationsDisabled} line={line.lineNumber} text={line.content}
         top={line.top} padding={PAD_X} rowHeight={LINE_HEIGHT}
         preedit={composing && line.lineNumber === caret.line ? preedit : ""}
         column={caret.column} register={lineEl} />

@@ -1,8 +1,13 @@
 <script lang="ts">
+  import InlineContent from "./InlineContent.svelte";
+  import type { InlineDecoration } from "./inline-rendering.js";
   import type { Action } from "svelte/action";
   import { css } from "../../../../styled-system/css";
 
-  let { line, text, top, padding = 12, rowHeight = 20, preedit = "", column = 0, register, flow = false }: {
+  let { line, text, top, padding = 12, rowHeight = 20, preedit = "", column = 0, register, flow = false, decorations = [], onDestination, annotationsDisabled = false }: {
+    decorations?: readonly InlineDecoration[];
+    onDestination?: (id: string) => void;
+    annotationsDisabled?: boolean;
     line: number;
     text: string;
     top: number;
@@ -30,4 +35,4 @@
     data-from={column}
     data-preedit>{preedit}</span
   ><span data-from={column + preedit.length}>{text.slice(column)}</span
-  >{:else}<span data-from="0">{text}</span>{/if}</div>
+  >{:else}<InlineContent {text} {line} {decorations} {onDestination} disabled={annotationsDisabled} />{/if}</div>
