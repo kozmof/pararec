@@ -15,7 +15,7 @@
   import ContentView from "./ContentView.svelte";
   import ArrowIcon from "./ArrowIcon.svelte";
 
-  let linkMenu = $state<{ sourceId: string; start: number; end: number; x: number; y: number } | null>(null);
+  let linkMenu = $state<{ sourceId: string; start: number; end: number; x: number; y: number; labelIds?: readonly string[] } | null>(null);
   let linking = $state<{ sourceId: string; start: number; end: number; targets: string[] } | null>(null);
   function finishLink() {
     if (!tree || !linking || !linking.targets.length || disabled) return;
@@ -24,6 +24,27 @@
     history.record(before, snapshot());
     const source = linking.sourceId;
     linking = null; changed(); void restoreFocus(source);
+  }
+  function destinationName(id: string) {
+    const item = tree?.index.get(id);
+    if (!item || item.side === "container") return "Missing cell";
+    const text = item.side === "right" ? item.container.right.text : item.container.left[item.index].text;
+    return text.replace(/\s+/g, " ").trim().slice(0, 60) || "Empty cell";
+  }
+  function removeLabel(id: string, targetId?: string) {
+    if (!tree || disabled || linking) return;
+    const link = tree.schema.links?.find(link => link.id === id);
+    if (!link || (targetId && !link.targets.includes(targetId))) return;
+    const before = snapshot(focusSnapshot(link.sourceId));
+    history.closeGroup();
+    cache?.get(link.sourceId).closeHistoryGroup();
+    const remaining = targetId ? link.targets.filter(target => target !== targetId) : [];
+    tree.apply({ type: "setLinks", links: (tree.schema.links ?? []).flatMap(item => item.id !== id ? [item] : remaining.length ? [{ ...item, targets: remaining }] : []) });
+    cache?.get(link.sourceId);
+    history.record(before, snapshot(before.focus));
+    linkMenu = null;
+    changed();
+    void restoreFocus(link.sourceId);
   }
   function cancelLink() { const source = linking?.sourceId ?? linkMenu?.sourceId; linking = null; linkMenu = null; if (source) void restoreFocus(source); }
   let tree = $state<TreeStore | null>(null);
@@ -62,6 +83,12 @@
     selectedCell: id => linking?.targets.includes(id) ?? false,
     selectCell: id => { if (linking && id !== linking.sourceId) linking = { ...linking, targets: linking.targets.includes(id) ? linking.targets.filter(target => target !== id) : [...linking.targets, id] }; },
     linkMenu: (sourceId, range, event) => { linkMenu = { sourceId, ...range, x: Math.min(event.clientX, window.innerWidth - 180), y: Math.min(event.clientY, window.innerHeight - 50) }; },
+    labelMenu: (sourceId, ids, event) => {
+      if (disabled || linking || !tree) return;
+      const labels = (tree.schema.links ?? []).filter(link => link.sourceId === sourceId && ids.includes(link.id));
+      if (!labels.length) return;
+      linkMenu = { sourceId, start: labels[0].start, end: labels[0].end, labelIds: labels.map(link => link.id), x: Math.max(0, Math.min(event.clientX, window.innerWidth - 300)), y: Math.max(0, Math.min(event.clientY, window.innerHeight - 180)) };
+    },
     followLink: id => { if (!tree || disabled) return; const item = tree.index.get(id); if (!item || item.side === "container") return; navigate(containerPath(tree.index, item.container.id).slice(0, -1)); void restoreFocus(id); },
     focus: remember, blur, boundary, command, caret: reportCaret,
   });
@@ -335,7 +362,16 @@
   {:else if tree && session}
     {#if linkMenu}
       <div class="link-menu" role="menu" style:left={linkMenu.x + "px"} style:top={linkMenu.y + "px"}>
+        {#if linkMenu.labelIds}
+          {#each linkMenu.labelIds as id, index (id)}
+            <button role="menuitem" disabled={disabled} onclick={() => removeLabel(id)}>{linkMenu.labelIds.length === 1 ? "Remove label" : `Remove label ${index + 1}`}</button>
+            {#each tree.schema.links?.find(link => link.id === id)?.targets ?? [] as target, destinationIndex (target)}
+              <button class="remove-destination" role="menuitem" disabled={disabled} onclick={() => removeLabel(id, target)}>Remove destination {destinationIndex + 1}: {destinationName(target)}</button>
+            {/each}
+          {/each}
+        {:else}
         <button role="menuitem" onclick={() => { if (linkMenu) { const { sourceId, start, end } = linkMenu; linking = { sourceId, start, end, targets: [] }; linkMenu = null; if (focused) blur(focused); } }}>Start linking</button>
+        {/if}
         <button role="menuitem" onclick={cancelLink}>Cancel</button>
       </div>
     {/if}
@@ -365,7 +401,8 @@
   {/if}
 </main>
 <style>
-  .link-menu { position: fixed; z-index: 100; background: white; border: 1px solid #ddd; padding: 6px; box-shadow: 0 3px 12px #0002; display: flex; flex-direction: column; }
+  .link-menu { max-width: min(300px, calc(100vw - 16px)); max-height: min(400px, 70vh); overflow: auto; position: fixed; z-index: 100; background: white; border: 1px solid #ddd; padding: 6px; box-shadow: 0 3px 12px #0002; display: flex; flex-direction: column; }
+  .remove-destination { text-align: left; overflow-wrap: anywhere; }
   .link-toolbar { position: sticky; top: 0; z-index: 10; background: #eff6ff; padding: 10px; display: flex; gap: 12px; align-items: center; }
   main { max-width: 1100px; margin: 0 auto; padding: 24px; font-family: system-ui, sans-serif; }
   .status-row { display: flex; align-items: baseline; gap: 16px; margin-bottom: 12px; }

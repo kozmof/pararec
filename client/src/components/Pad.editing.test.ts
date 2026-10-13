@@ -1055,3 +1055,75 @@ it("cancels linking with Escape without changing the document", async () => {
   expect(screen.queryByRole("region", { name: "Link selected text" })).not.toBeInTheDocument();
   expect(disk.links).toBeUndefined();
 });
+
+for (const focusedLabel of [true, false]) {
+  it(`removes a label from its context menu while keeping text, with undo and redo (focused: ${focusedLabel})`, async () => {
+    disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] }];
+    await opened();
+    if (!focusedLabel) {
+      content("flat-2-right").focus();
+      await tick();
+    }
+    const text = disk.root[0].right.text;
+    const label = content("flat-1-right").querySelector(".link-label [data-from]")!;
+    await fireEvent.contextMenu(label, { clientX: 40, clientY: 40 });
+    expect(screen.queryByRole("menuitem", { name: "Start linking" })).not.toBeInTheDocument();
+    await fireEvent.click(screen.getByRole("menuitem", { name: "Remove label" }));
+    await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+    expect(content("flat-1-right").querySelector(".link-label")).toBeNull();
+    expect(content("flat-1-right").querySelector("[data-editor-annotation]")).toBeNull();
+    await save();
+    expect(disk.links).toEqual([]);
+    expect(disk.root[0].right.text).toBe(text);
+    await key("z", { ctrlKey: true });
+    await waitFor(() => expect(content("flat-1-right").querySelector(".link-label")).not.toBeNull());
+    await save();
+    expect(disk.links).toHaveLength(1);
+    await key("z", { ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(content("flat-1-right").querySelector(".link-label")).toBeNull());
+    await key("!");
+    await save();
+    expect(disk.links).toEqual([]);
+    expect(disk.root[0].right.text).toBe("!" + text);
+  });
+}
+
+it("dismisses a label context menu with Escape without removing the label", async () => {
+  disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] }];
+  await opened();
+  await fireEvent.contextMenu(content("flat-1-right").querySelector(".link-label")!);
+  expect(screen.getByRole("menuitem", { name: "Remove label" })).toBeInTheDocument();
+  await fireEvent.keyDown(window, { key: "Escape" });
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  expect(content("flat-1-right").querySelector(".link-label")).not.toBeNull();
+  expect(disk.links).toHaveLength(1);
+});
+
+it("lists destinations and removes them individually with undo and redo", async () => {
+  disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-1-left", "flat-2-right"] }];
+  await opened();
+  const text = disk.root[0].right.text;
+  const openMenu = () => fireEvent.contextMenu(content("flat-1-right").querySelector(".link-label")!);
+  await openMenu();
+  expect(screen.getByRole("menuitem", { name: /^Remove destination 1:/ })).toHaveTextContent("Empty cell");
+  expect(screen.getByRole("menuitem", { name: /^Remove destination 2:/ })).toHaveTextContent(disk.root[1].right.text);
+  await fireEvent.click(screen.getByRole("menuitem", { name: /^Remove destination 1:/ }));
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  await save();
+  expect(disk.links?.[0].targets).toEqual(["flat-2-right"]);
+  expect(content("flat-1-right").querySelector(".link-label")).not.toBeNull();
+  expect(content("flat-1-right").querySelector("[data-editor-annotation]")).toHaveTextContent("1");
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk.links?.[0].targets).toEqual(["flat-1-left", "flat-2-right"]);
+  await key("z", { ctrlKey: true, shiftKey: true });
+  await save();
+  expect(disk.links?.[0].targets).toEqual(["flat-2-right"]);
+  await openMenu();
+  await fireEvent.click(screen.getByRole("menuitem", { name: /^Remove destination 1:/ }));
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  await save();
+  expect(disk.links).toEqual([]);
+  expect(disk.root[0].right.text).toBe(text);
+  expect(content("flat-1-right").querySelector(".link-label")).toBeNull();
+});

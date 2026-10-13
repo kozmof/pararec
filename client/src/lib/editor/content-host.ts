@@ -21,6 +21,7 @@ export interface ContentHost {
   selectedCell?(id: string): boolean;
   selectCell?(id: string): void;
   linkMenu?(id: string, range: { start: number; end: number }, event: MouseEvent): void;
+  labelMenu?(sourceId: string, ids: readonly string[], event: MouseEvent): void;
   followLink?(id: string): void;
   readonly focused: string | null;
   readonly cache: ContentCache;
