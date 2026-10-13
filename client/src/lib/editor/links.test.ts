@@ -52,3 +52,18 @@ test("typing inside a label expands it, while an IME commit at its end stays out
     expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 4 });
   } finally { doc.dispose(); }
 });
+
+for (const inserted of ["x", "日本"]) {
+  test(`typing ${inserted} at a label end after deleting its last character stays outside`, () => {
+    const doc = new EditorDocument("footext");
+    try {
+      doc.syncLinks([{ id: "link", sourceId: "source", start: 0, end: 3, targets: ["target"] }]);
+      doc.delete({ line: 0, column: 2 }, { line: 0, column: 3 });
+      expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 2 });
+      if (inserted === "x") doc.insert({ line: 0, column: 2 }, inserted);
+      else doc.transact(current => current.replace({ line: 0, column: 2 }, { line: 0, column: 2 }, inserted), "composition");
+      expect(doc.text()).toBe("fo" + inserted + "text");
+      expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 2 });
+    } finally { doc.dispose(); }
+  });
+}

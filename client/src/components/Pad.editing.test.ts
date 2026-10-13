@@ -1156,3 +1156,32 @@ it("dismisses a label menu when another cell is clicked without stealing its foc
   expect(content("flat-1-right").querySelector(".link-label")).not.toBeNull();
   expect(disk.links).toHaveLength(1);
 });
+
+for (const ime of [false, true]) {
+  it(`keeps inserted text outside a label after deleting its last character (IME: ${ime})`, async () => {
+    disk.root[0].right.text = "footext";
+    disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 3, targets: ["flat-2-right"] }];
+    await opened();
+    for (let i = 0; i < 3; i++) await key("ArrowRight");
+    await key("Backspace");
+    expect(content("flat-1-right").querySelector(".link-label")).toHaveTextContent("fo");
+    if (ime) {
+      await fireEvent.compositionStart(screen.getByTestId("editor-sink"));
+      await fireEvent.compositionUpdate(screen.getByTestId("editor-sink"), { data: "にほん" });
+      expect(content("flat-1-right").querySelector(".link-label")).toHaveTextContent("fo");
+      await fireEvent.compositionEnd(screen.getByTestId("editor-sink"), { data: "日本" });
+    } else await key("x");
+    await save();
+    expect(disk.root[0].right.text).toBe(ime ? "fo日本text" : "foxtext");
+    expect(disk.links?.[0]).toMatchObject({ start: 0, end: 2 });
+    expect(content("flat-1-right").querySelector(".link-label")).toHaveTextContent("fo");
+    await key("z", { ctrlKey: true });
+    await save();
+    expect(disk.root[0].right.text).toBe("fotext");
+    expect(disk.links?.[0]).toMatchObject({ start: 0, end: 2 });
+    await key("z", { ctrlKey: true, shiftKey: true });
+    await save();
+    expect(disk.root[0].right.text).toBe(ime ? "fo日本text" : "foxtext");
+    expect(disk.links?.[0]).toMatchObject({ start: 0, end: 2 });
+  });
+}

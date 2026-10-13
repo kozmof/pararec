@@ -92,6 +92,23 @@ export class EditorDocument {
       return range && range.endOffset > range.startOffset ? [{ ...link, start: range.startOffset, end: range.endOffset }] : [];
     });
   }
+  /** Deletion may attach an end to the following piece; its next insertion must stay outside. */
+  #keepLinkEndsOutside({ action, prevState, nextState }: ContentChangeEvent): void {
+    if (action.type !== "INSERT" && action.type !== "REPLACE") return;
+    let corrected = false;
+    const links = this.#links.flatMap(link => {
+      const id = this.#linkAnchors.get(link.id);
+      if (!id) return [];
+      const before = attention.resolveAttention(prevState.pieceTable.root, prevState.attention, id);
+      const after = attention.resolveAttention(nextState.pieceTable.root, nextState.attention, id);
+      if (before && before.endOffset > before.startOffset && before.endOffset === action.start) {
+        corrected ||= !after || after.endOffset !== before.endOffset;
+        return [{ ...link, start: before.startOffset, end: before.endOffset }];
+      }
+      return after && after.endOffset > after.startOffset ? [{ ...link, start: after.startOffset, end: after.endOffset }] : [];
+    });
+    if (corrected) this.syncLinks(links);
+  }
   linkRange(start: Caret, end: Caret): { start: number; end: number } {
     return { start: this.#byteOffset(start), end: this.#byteOffset(end) };
   }
@@ -141,6 +158,7 @@ export class EditorDocument {
     this.#eventUnsubscribers = [
       this.#store.addEventListener("content-change", (event) => {
         this.#updateText(event);
+        this.#keepLinkEndsOutside(event);
         const change = contentLineChange(event);
         if (this.#transactionDepth) {
           this.#transactionEdits++;
