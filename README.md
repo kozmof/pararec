@@ -120,7 +120,7 @@ While editing a note, use the following shortcuts. On macOS, use Cmd in place of
 | Ctrl+A | Select all text in the current note. |
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, or paste text. |
 | Ctrl+S | Save immediately. |
-| Ctrl+Z | Undo text or structure changes. |
+| Ctrl+Z | Undo text, structure, or link changes. |
 | Ctrl+Shift+Z / Ctrl+Y | Redo an action. |
 
 If the file changes outside the app, saving stops and offers Reload or Overwrite. Reload replaces your notes with the disk version and clears history. Overwrite saves your local notes against the current disk version.
@@ -130,6 +130,29 @@ The app warns before leaving with unsaved changes. Keep the page open until a di
 Save requests time out after 15 seconds and offer Retry save. A timed-out request may have reached disk. A retry uses the original ETag and can report a conflict, so review the disk version before overwriting it.
 
 A load error offers Retry. Start the local server if it is unreachable, check file permissions if it cannot read the file, or fix invalid JSON and schema errors before retrying.
+
+## Linking text to cells
+
+Link a text selection to one or more destination cells.
+
+1. Select text in a note by dragging across it, or press Ctrl+A to select the whole note.
+2. Right-click the selection and choose Start linking.
+3. Click destination cells. Selected cells turn blue. Click a selected cell again to deselect it. The source cell cannot be a destination for its own label.
+4. Choose Done to create the link. Select at least one destination to enable Done.
+
+Notes are read-only during linking. Choose Cancel in the linking toolbar or press Escape to leave without creating a link.
+
+Linked text appears inside a rectangle. Small numbers at its bottom right identify destinations in selection order. Click a number to navigate to that cell.
+
+Right-click the label or one of its destination numbers to manage the link.
+
+- Choose Remove label to remove the label and all its destinations while keeping the text.
+- Choose Remove 1, Remove 2, and so on to remove an individual destination. Hover over an option to preview its cell text. Removing the last destination also removes the label.
+- Click outside the menu or press Escape to dismiss it.
+
+Links are saved with the document. Use Ctrl+Z to undo link creation or removal and Ctrl+Shift+Z or Ctrl+Y to redo it. On macOS, use Cmd in place of Ctrl.
+
+Reed attention anchors track linked text as surrounding text changes. Typing inside a label expands it. Typing at its end stays outside, including after deleting the label's last character. Labels remain visible during Japanese IME composition.
 
 ## Performance and native input
 
