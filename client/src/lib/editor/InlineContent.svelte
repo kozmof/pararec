@@ -28,6 +28,6 @@
   .link-label { background: #eff6ff; outline: 1px solid #93b4de; outline-offset: 1px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
   .destinations { display: inline; position: relative; top: 3px; font-size: 11px; line-height: 0; white-space: nowrap; color: #2563eb; user-select: none; }
   button { display: inline-block; box-sizing: border-box; min-width: 18px; padding: 2px 4px; border: 0; background: transparent; color: inherit; font: inherit; line-height: 14px; cursor: pointer; }
-  button:hover { text-decoration: underline; }
+  button:not(:disabled):hover { text-decoration: underline; }
   button:focus-visible { outline: 1px solid #2563eb; outline-offset: 2px; }
 </style>
