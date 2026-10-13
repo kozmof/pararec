@@ -366,7 +366,7 @@
           {#each linkMenu.labelIds as id, index (id)}
             <button role="menuitem" disabled={disabled} onclick={() => removeLabel(id)}>{linkMenu.labelIds.length === 1 ? "Remove label" : `Remove label ${index + 1}`}</button>
             {#each tree.schema.links?.find(link => link.id === id)?.targets ?? [] as target, destinationIndex (target)}
-              <button class="remove-destination" role="menuitem" disabled={disabled} onclick={() => removeLabel(id, target)}>Remove destination {destinationIndex + 1}: {destinationName(target)}</button>
+              <button class="remove-destination" title={destinationName(target)} role="menuitem" disabled={disabled} onclick={() => removeLabel(id, target)}>Remove {destinationIndex + 1}</button>
             {/each}
           {/each}
         {:else}

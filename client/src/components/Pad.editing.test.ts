@@ -1105,9 +1105,9 @@ it("lists destinations and removes them individually with undo and redo", async 
   const text = disk.root[0].right.text;
   const openMenu = () => fireEvent.contextMenu(content("flat-1-right").querySelector(".link-label")!);
   await openMenu();
-  expect(screen.getByRole("menuitem", { name: /^Remove destination 1:/ })).toHaveTextContent("Empty cell");
-  expect(screen.getByRole("menuitem", { name: /^Remove destination 2:/ })).toHaveTextContent(disk.root[1].right.text);
-  await fireEvent.click(screen.getByRole("menuitem", { name: /^Remove destination 1:/ }));
+  expect(screen.getByRole("menuitem", { name: "Remove 1" })).toHaveAttribute("title", "Empty cell");
+  expect(screen.getByRole("menuitem", { name: "Remove 2" })).toHaveAttribute("title", disk.root[1].right.text);
+  await fireEvent.click(screen.getByRole("menuitem", { name: "Remove 1" }));
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
   await save();
   expect(disk.links?.[0].targets).toEqual(["flat-2-right"]);
@@ -1120,7 +1120,7 @@ it("lists destinations and removes them individually with undo and redo", async 
   await save();
   expect(disk.links?.[0].targets).toEqual(["flat-2-right"]);
   await openMenu();
-  await fireEvent.click(screen.getByRole("menuitem", { name: /^Remove destination 1:/ }));
+  await fireEvent.click(screen.getByRole("menuitem", { name: "Remove 1" }));
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
   await save();
   expect(disk.links).toEqual([]);
