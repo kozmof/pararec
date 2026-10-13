@@ -62,8 +62,8 @@
 </div>
 <style>
   .content { position: relative; min-width: 0; display: flex; flex-direction: column; outline: none; }
-  .linking { cursor: pointer; }
+  .linking { cursor: pointer; --editor-background: transparent; }
   .linking:hover { background: #eff6ff; }
-  .chosen { box-shadow: inset 0 0 0 2px #2563eb; background: #eff6ff; }
+  .linking.chosen { box-shadow: inset 0 0 0 2px #2563eb; background: #dbeafe; }
   .content:last-child { flex: 1; }
 </style>

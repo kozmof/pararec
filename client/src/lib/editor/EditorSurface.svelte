@@ -825,12 +825,12 @@
     position: "relative",
     flex: "1",
     overflow: "auto",
-    background: "ink.white",
     fontFamily: "mono",
     fontSize: "12.5px",
     color: "ink.black",
     outline: "none",
   })}
+  style:background="var(--editor-background, #fff)"
   style:flex={autoHeight ? "1 0 auto" : "1"}
   style:height={autoHeight ? `${contentHeight + PAD_Y * 2}px` : undefined}
   style:overflow={autoHeight ? "visible" : "auto"}
