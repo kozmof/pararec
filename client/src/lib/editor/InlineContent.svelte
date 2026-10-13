@@ -9,7 +9,7 @@
     onDestination?: (id: string) => void;
     disabled?: boolean;
   } = $props();
-  const presentation = $derived(inlinePresentation(text, line, decorations, preedit, column));
+  const presentation = $derived(inlinePresentation(text, line, decorations, preedit, preedit ? column : 0));
 </script>
 
 {#each presentation.runs as run (`${run.from}:${run.to}`)}<span

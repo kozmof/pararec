@@ -7,11 +7,12 @@
   import { orderCarets, type EditorDocument, type Caret } from "../lib/editor/document-store.svelte.js";
   import type { Entry, Boundary, Command } from "../lib/editor/content-host.js";
   let { links = [], onDestination, annotationsDisabled = false, doc, active = true, entry, onBoundary, onCommand, onKeydown, onHeight, onCaret, initialMeasurements, side }: { links?: readonly TextLink[]; onDestination?: (id: string) => void; annotationsDisabled?: boolean; doc: EditorDocument; active?: boolean; entry: Entry; side: "left" | "right"; onBoundary: (direction: Boundary, goalX: number) => void; onCommand: (command: Command, caret?: Caret) => void; onKeydown?: (event: KeyboardEvent) => boolean; onHeight?: (height: number) => void; onCaret?: (caret: Caret) => void; initialMeasurements?: { width: number; heights: number[] } } = $props();
-  const decorations = $derived.by((): InlineDecoration[] => links.flatMap(link => {
+  const emptyDecorations: InlineDecoration[] = [];
+  const decorations = $derived.by((): InlineDecoration[] => links.length ? links.flatMap(link => {
     const start = rendering.positionToLineColumn(doc.state, position.byteOffset(link.start));
     const end = rendering.positionToLineColumn(doc.state, position.byteOffset(link.end));
     return start && end ? [{ id: link.id, kind: "link" as const, start, end, destinations: link.targets.map(id => ({ id, label: "Go to linked cell" })) }] : [];
-  }));
+  }) : emptyDecorations);
   let caret = $state<Caret>({ line: 0, column: 0 });
   let anchor = $state<Caret | null>(null);
   let surface = $state<EditorSurface>();

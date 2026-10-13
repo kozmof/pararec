@@ -18,6 +18,7 @@
     register: Action<HTMLDivElement, number>;
     flow?: boolean;
   } = $props();
+  const decorated = $derived(decorations.some(item => item.start.line <= line && item.end.line >= line));
 </script>
 
 <div
@@ -29,4 +30,4 @@
   style:min-height={`${rowHeight}px`}
   style:padding-left={`${padding}px`}
   style:padding-right={`${padding}px`}
-><InlineContent {text} {line} {decorations} {preedit} {column} {onDestination} disabled={annotationsDisabled} /></div>
+>{#if preedit || decorated}<InlineContent {text} {line} {decorations} {preedit} {column} {onDestination} disabled={annotationsDisabled} />{:else}<span data-from="0">{text}</span>{/if}</div>

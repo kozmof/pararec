@@ -157,3 +157,16 @@ it("renders preedit inside a linked label without changing source text before co
   expect(doc.text()).toBe("f日本oo");
   expect(document.querySelector("[data-preedit]")).toBeNull();
 });
+
+it("updates plain text in place without rebuilding its rendering spans", async () => {
+  const { sink } = mount("first line\nsecond line");
+  await fireEvent.focus(sink);
+  const first = document.querySelector('[data-line="0"] [data-from="0"]')!;
+  const firstText = first.firstChild;
+  const second = document.querySelector('[data-line="1"] [data-from="0"]')!;
+  await fireEvent.input(sink, { target: { value: "x" }, inputType: "insertText", data: "x" });
+  expect(document.querySelector('[data-line="0"] [data-from="0"]')).toBe(first);
+  expect(first.firstChild).toBe(firstText);
+  expect(first).toHaveTextContent("xfirst line");
+  expect(document.querySelector('[data-line="1"] [data-from="0"]')).toBe(second);
+});
