@@ -115,10 +115,22 @@ fn checkText(text: []const u8) !void {
     if (std.mem.indexOfScalar(u8, text, '\r') != null) return error.CarriageReturn;
 }
 
+pub fn write(document: Schema, writer: *std.Io.Writer) !void {
+    // Keep the existing canonical format for documents without text links.
+    const output_document = .{
+        .version = document.version,
+        .title = document.title,
+        .config = document.config,
+        .root = document.root,
+        .links = @as(?[]const TextLink, if (document.links.len > 0) document.links else null),
+    };
+    try std.json.Stringify.value(output_document, .{ .whitespace = .indent_2, .emit_null_optional_fields = false }, writer);
+}
+
 pub fn serialize(gpa: std.mem.Allocator, document: Schema) ![]u8 {
     var output: std.Io.Writer.Allocating = .init(gpa);
     defer output.deinit();
-    try std.json.Stringify.value(document, .{ .whitespace = .indent_2, .emit_null_optional_fields = false }, &output.writer);
+    try write(document, &output.writer);
     try output.writer.writeByte('\n');
     return output.toOwnedSlice();
 }
@@ -253,4 +265,18 @@ test "text links survive disk serialization" {
     defer restored.deinit();
     try std.testing.expectEqual(@as(usize, 1), restored.value.links.len);
     try std.testing.expectEqualStrings("target", restored.value.links[0].targets[0]);
+}
+
+test "empty text links are omitted from canonical output" {
+    const gpa = std.testing.allocator;
+    const omitted = try parse(gpa, "{\"version\":1,\"root\":[]}");
+    defer omitted.deinit();
+    const explicit = try parse(gpa, "{\"version\":1,\"root\":[],\"links\":[]}");
+    defer explicit.deinit();
+    const omitted_bytes = try serialize(gpa, omitted.value);
+    defer gpa.free(omitted_bytes);
+    const explicit_bytes = try serialize(gpa, explicit.value);
+    defer gpa.free(explicit_bytes);
+    try std.testing.expectEqualStrings(omitted_bytes, explicit_bytes);
+    try std.testing.expect(std.mem.indexOf(u8, omitted_bytes, "\"links\"") == null);
 }

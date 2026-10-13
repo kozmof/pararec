@@ -85,7 +85,7 @@ pub const Store = struct {
         var file_writer = file.file.writer(io, &.{});
         var buffer: [8192]u8 = undefined;
         var hashed: Io.Writer.Hashed(std.crypto.hash.sha2.Sha256) = .initHasher(&file_writer.interface, .init(.{}), &buffer);
-        try std.json.Stringify.value(document, .{ .whitespace = .indent_2, .emit_null_optional_fields = false }, &hashed.writer);
+        try schema.write(document, &hashed.writer);
         try hashed.writer.writeByte('\n');
         try hashed.writer.flush();
         try file_writer.interface.flush();

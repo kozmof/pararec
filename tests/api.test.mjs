@@ -179,6 +179,24 @@ test("document API over real sockets", async (t) => {
     );
     assert.deepEqual(JSON.parse((await request()).body), empty);
   });
+  await t.test("text links survive saves and empty links preserve canonical output", async () => {
+    const document = JSON.parse(await readFile("fixtures/flat.json", "utf8"));
+    document.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] }];
+    let previous = await request();
+    let saved = await put(document, { "if-match": previous.headers.etag });
+    assert.equal(saved.status, 200);
+    let loaded = await request();
+    assert.deepEqual(JSON.parse(loaded.body), document);
+    assert.equal(saved.headers.etag, etag(loaded.body));
+    assert.equal(await readFile(documentPath, "utf8"), loaded.body);
+    previous = loaded;
+    saved = await put({ ...empty, links: [] }, { "if-match": previous.headers.etag });
+    assert.equal(saved.status, 200);
+    loaded = await request();
+    assert.equal(loaded.body, JSON.stringify(empty, null, 2) + "\n");
+    assert.equal(saved.headers.etag, etag(loaded.body));
+    assert.equal(await readFile(documentPath, "utf8"), loaded.body);
+  });
   await t.test("malformed and conflicting preconditions return 400", async () => {
     assert.equal((await put(empty, { "if-match": "unquoted" })).status, 400);
     assert.equal((await put(empty, { "if-match": "*", "if-none-match": "*" })).status, 400);
