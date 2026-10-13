@@ -230,3 +230,41 @@ it("applies the configured maximum width to the whole records layout", async () 
   await opened();
   expect(document.querySelector("main")).toHaveStyle({ maxWidth: "900px" });
 });
+
+for (const destination of ["child-right", "child-left"]) {
+  it(`follows a link to visible ${destination} without changing layers`, async () => {
+    const document = structuredClone(fixture);
+    document.links = [{ id: "link", sourceId: "root-right", start: 0, end: 4, targets: [destination] }];
+    vi.mocked(fetch).mockResolvedValue(response(document));
+    await opened();
+    const hash = window.location.hash;
+    await fireEvent.click(screen.getByRole("button", { name: /Linked cell 1:/ }));
+    await waitFor(() => expect(content(destination).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    expect(window.location.hash).toBe(hash);
+    expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent("1:3");
+  });
+}
+
+it("follows a link to the visible parent without leaving the current layer", async () => {
+  const document = structuredClone(fixture);
+  document.links = [{ id: "link", sourceId: "child-right", start: 0, end: 5, targets: ["root-right"] }];
+  vi.mocked(fetch).mockResolvedValue(response(document));
+  window.history.replaceState(null, "", "/#/c/root");
+  await opened();
+  await fireEvent.click(screen.getByRole("button", { name: /Linked cell 1:/ }));
+  await waitFor(() => expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  expect(window.location.hash).toBe("#/c/root");
+  expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent("2:3");
+});
+
+it("changes layers when a linked destination is not currently shown", async () => {
+  const document = structuredClone(fixture);
+  document.links = [{ id: "link", sourceId: "root-right", start: 0, end: 4, targets: ["grandchild-right"] }];
+  vi.mocked(fetch).mockResolvedValue(response(document));
+  await opened();
+  expect(content("grandchild-right")).toBeNull();
+  await fireEvent.click(screen.getByRole("button", { name: /Linked cell 1:/ }));
+  await waitFor(() => expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  expect(window.location.hash).toBe("#/c/root/child");
+  expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent("3:3");
+});

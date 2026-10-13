@@ -93,7 +93,14 @@
       if (!labels.length) return;
       linkMenu = { sourceId, start: labels[0].start, end: labels[0].end, labelIds: labels.map(link => link.id), x: Math.max(0, Math.min(event.clientX, window.innerWidth - 300)), y: Math.max(0, Math.min(event.clientY, window.innerHeight - 180)) };
     },
-    followLink: id => { if (!tree || disabled) return; const item = tree.index.get(id); if (!item || item.side === "container") return; navigate(containerPath(tree.index, item.container.id).slice(0, -1)); void restoreFocus(id); },
+    followLink: id => {
+      if (!tree || disabled) return;
+      const item = tree.index.get(id);
+      if (!item || item.side === "container") return;
+      const visible = [...pad.querySelectorAll<HTMLElement>("[data-content-id]")].some(element => element.dataset.contentId === id);
+      if (!visible) navigate(containerPath(tree.index, item.container.id).slice(0, -1));
+      void restoreFocus(id);
+    },
     focus: remember, blur, boundary, command, caret: reportCaret,
   });
   function modal(node: HTMLDialogElement) {
