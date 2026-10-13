@@ -1127,3 +1127,32 @@ it("lists destinations and removes them individually with undo and redo", async 
   expect(disk.root[0].right.text).toBe(text);
   expect(content("flat-1-right").querySelector(".link-label")).toBeNull();
 });
+
+it("dismisses the selected-text menu outside, keeps it open inside, and has no Cancel item", async () => {
+  await opened();
+  await key("a", { ctrlKey: true });
+  await fireEvent.contextMenu(content("flat-1-right"));
+  const menu = screen.getByRole("menu");
+  expect(screen.queryByRole("menuitem", { name: "Cancel" })).not.toBeInTheDocument();
+  await fireEvent.click(menu);
+  expect(screen.getByRole("menu")).toBeInTheDocument();
+  await fireEvent.click(document.body);
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Link selected text" })).not.toBeInTheDocument();
+  expect(disk.links).toBeUndefined();
+});
+
+it("dismisses a label menu when another cell is clicked without stealing its focus", async () => {
+  disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] }];
+  await opened();
+  await fireEvent.contextMenu(content("flat-1-right").querySelector(".link-label")!);
+  expect(screen.queryByRole("menuitem", { name: "Cancel" })).not.toBeInTheDocument();
+  const target = content("flat-2-right");
+  target.focus();
+  await tick();
+  await fireEvent.click(target);
+  await waitFor(() => expect(target.querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  expect(content("flat-1-right").querySelector(".link-label")).not.toBeNull();
+  expect(disk.links).toHaveLength(1);
+});

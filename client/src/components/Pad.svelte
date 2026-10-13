@@ -16,6 +16,10 @@
   import ArrowIcon from "./ArrowIcon.svelte";
 
   let linkMenu = $state<{ sourceId: string; start: number; end: number; x: number; y: number; labelIds?: readonly string[] } | null>(null);
+  let menuElement: HTMLDivElement | undefined = $state();
+  function dismissMenuOutside(event: MouseEvent) {
+    if (linkMenu && event.target instanceof Node && !menuElement?.contains(event.target)) linkMenu = null;
+  }
   let linking = $state<{ sourceId: string; start: number; end: number; targets: string[] } | null>(null);
   function finishLink() {
     if (!tree || !linking || !linking.targets.length || disabled) return;
@@ -347,7 +351,8 @@
     window.addEventListener("hashchange", update);
     window.addEventListener("beforeunload", unload);
     document.addEventListener("visibilitychange", visibility);
-    return () => { active = false; controller?.abort(); cache?.dispose(); session?.dispose(); window.removeEventListener("hashchange", update); window.removeEventListener("beforeunload", unload); document.removeEventListener("visibilitychange", visibility); };
+    document.addEventListener("click", dismissMenuOutside, true);
+    return () => { active = false; controller?.abort(); cache?.dispose(); session?.dispose(); window.removeEventListener("hashchange", update); window.removeEventListener("beforeunload", unload); document.removeEventListener("visibilitychange", visibility); document.removeEventListener("click", dismissMenuOutside, true); };
   });
 </script>
 <svelte:window onkeydown={keydown} />
@@ -361,7 +366,7 @@
   {:else if error}<p role="alert">{error}</p><button onclick={load}>Retry</button>
   {:else if tree && session}
     {#if linkMenu}
-      <div class="link-menu" role="menu" style:left={linkMenu.x + "px"} style:top={linkMenu.y + "px"}>
+      <div bind:this={menuElement} class="link-menu" role="menu" style:left={linkMenu.x + "px"} style:top={linkMenu.y + "px"}>
         {#if linkMenu.labelIds}
           {#each linkMenu.labelIds as id, index (id)}
             <button role="menuitem" disabled={disabled} onclick={() => removeLabel(id)}>{linkMenu.labelIds.length === 1 ? "Remove label" : `Remove label ${index + 1}`}</button>
@@ -372,7 +377,6 @@
         {:else}
         <button role="menuitem" onclick={() => { if (linkMenu) { const { sourceId, start, end } = linkMenu; linking = { sourceId, start, end, targets: [] }; linkMenu = null; if (focused) blur(focused); } }}>Start linking</button>
         {/if}
-        <button role="menuitem" onclick={cancelLink}>Cancel</button>
       </div>
     {/if}
     {#if linking}<div class="link-toolbar" role="region" aria-label="Link selected text"><span>Select cells to link ({linking.targets.length})</span><button disabled={!linking.targets.length || disabled} onclick={finishLink}>Done</button><button onclick={cancelLink}>Cancel</button></div>{/if}
