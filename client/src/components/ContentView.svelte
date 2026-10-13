@@ -20,13 +20,13 @@
   }
   function mousedown(event: MouseEvent) {
     if (host.disabled || event.button !== 0) return;
-    if (host.linking) { event.preventDefault(); host.selectCell?.(content.id); return; }
     // Safari blurs the textarea without focusing buttons. Keep the editor mounted
     // until the click navigates, so clearing its selection cannot move the button.
     if (event.target instanceof Element && event.target.closest("button")) {
       event.preventDefault();
       return;
     }
+    if (host.linking) { event.preventDefault(); host.selectCell?.(content.id); return; }
     if (editing) {
       if (!event.defaultPrevented) editor?.focusAt(event);
       return;
@@ -56,7 +56,7 @@
   }
 </script>
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-<div class="content" class:linking={host.linking} class:chosen={host.selectedCell?.(content.id)} onkeydown={event => { if (host.linking && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.stopPropagation(); host.selectCell?.(content.id); } }} oncontextmenu={event => { event.preventDefault(); if (host.disabled || host.linking) return; const label = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-link-ids]") : null; if (label?.dataset.linkIds) { event.preventDefault(); host.labelMenu?.(content.id, label.dataset.linkIds.split(" "), event); return; } const range = editor?.selected(); if (range && range.end > range.start) { event.preventDefault(); host.linkMenu?.(content.id, range, event); } }} data-content-id={content.id} tabindex="0" role="group" aria-label={label} onfocus={event => { if (event.target instanceof Element && event.target.closest("[data-editor-annotation]")) return; host.focus(content.id); if (event.target === event.currentTarget && editing) editor?.focus(); }} onfocusout={blur} onmousedown={mousedown}>
+<div class="content" class:linking={host.linking} class:chosen={host.selectedCell?.(content.id)} onkeydown={event => { if (host.linking && !(event.target instanceof Element && event.target.closest("button")) && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.stopPropagation(); host.selectCell?.(content.id); } }} oncontextmenu={event => { event.preventDefault(); if (host.disabled || host.linking) return; const label = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-link-ids]") : null; if (label?.dataset.linkIds) { event.preventDefault(); host.labelMenu?.(content.id, label.dataset.linkIds.split(" "), event); return; } const range = editor?.selected(); if (range && range.end > range.start) { event.preventDefault(); host.linkMenu?.(content.id, range, event); } }} data-content-id={content.id} tabindex="0" role="group" aria-label={label} onfocus={event => { if (event.target instanceof Element && event.target.closest("[data-editor-annotation]")) return; host.focus(content.id); if (event.target === event.currentTarget && editing) editor?.focus(); }} onfocusout={blur} onmousedown={mousedown}>
   <ContentEditor links={(host.links ?? []).filter(link => link.sourceId === content.id)} onDestination={host.followLink} annotationsDisabled={host.linking || host.disabled} bind:this={editor} {doc} active={editing} entry={host.entry} {side} onBoundary={host.boundary} onCommand={host.command} onCaret={caret => { if (editing) host.caret(content.id, caret); }} />
   {@render navigation?.()}
 </div>

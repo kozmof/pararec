@@ -180,6 +180,7 @@
     const element = elements.find(element => element.dataset.contentId === target) ?? elements.find(element => element.closest('[data-testid="pad-level"]') && element.getAttribute("aria-label") === "Right note");
     if (element) {
       if (nextEntry) { if (focused && focused !== element.dataset.contentId) blur(focused); focused = element.dataset.contentId!; entry = nextEntry; focusByLevel.set(pathHash(path), focused); }
+      else if (!linking) remember(element.dataset.contentId!);
       element.focus();
     } else { focused = null; addButton?.focus(); }
   }
