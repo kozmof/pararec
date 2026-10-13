@@ -15,6 +15,17 @@
   import ContentView from "./ContentView.svelte";
   import ArrowIcon from "./ArrowIcon.svelte";
 
+  let linkMenu = $state<{ sourceId: string; start: number; end: number; x: number; y: number } | null>(null);
+  let linking = $state<{ sourceId: string; start: number; end: number; targets: string[] } | null>(null);
+  function finishLink() {
+    if (!tree || !linking || !linking.targets.length || disabled) return;
+    const before = snapshot();
+    tree.apply({ type: "setLinks", links: [...(tree.schema.links ?? []), { id: crypto.randomUUID(), ...linking, targets: [...linking.targets] }] });
+    history.record(before, snapshot());
+    const source = linking.sourceId;
+    linking = null; changed(); void restoreFocus(source);
+  }
+  function cancelLink() { const source = linking?.sourceId ?? linkMenu?.sourceId; linking = null; linkMenu = null; if (source) void restoreFocus(source); }
   let tree = $state<TreeStore | null>(null);
   let session = $state<SaveSession | null>(null);
   let cache = $state<ContentCache>();
@@ -47,6 +58,11 @@
   const parent = $derived(ancestors.at(-1));
   setContext<ContentHost>(CONTENT_HOST, {
     get focused() { return focused; }, get cache() { return cache!; }, get entry() { return entry; }, get disabled() { return disabled; },
+    get linking() { return !!linking; }, get links() { return tree?.schema.links?.filter(link => tree!.index.has(link.sourceId)).map(link => ({ ...link, targets: link.targets.filter(id => tree!.index.has(id)) })); },
+    selectedCell: id => linking?.targets.includes(id) ?? false,
+    selectCell: id => { if (linking && id !== linking.sourceId) linking = { ...linking, targets: linking.targets.includes(id) ? linking.targets.filter(target => target !== id) : [...linking.targets, id] }; },
+    linkMenu: (sourceId, range, event) => { linkMenu = { sourceId, ...range, x: Math.min(event.clientX, window.innerWidth - 180), y: Math.min(event.clientY, window.innerHeight - 50) }; },
+    followLink: id => { if (!tree || disabled) return; const item = tree.index.get(id); if (!item || item.side === "container") return; navigate(containerPath(tree.index, item.container.id).slice(0, -1)); void restoreFocus(id); },
     focus: remember, blur, boundary, command, caret: reportCaret,
   });
   function modal(node: HTMLDialogElement) {
@@ -75,7 +91,7 @@
       const afterCaret = edit.afterCaret ?? beforeCaret;
       history.record({ schema: edit.before, path: [...path], focus: { contentId: edit.contentId, ...beforeCaret } },
         { schema: edit.after, path: [...path], focus: { contentId: edit.contentId, ...afterCaret } },
-        edit.kind === "edit" && edit.groupable && edit.intent && edit.intent !== "replace" ? { contentId: edit.contentId, intent: edit.intent, group: edit.group } : undefined, edit.textChange, edit.textPatch);
+        !edit.before.links?.some(link => link.sourceId === edit.contentId) && edit.kind === "edit" && edit.groupable && edit.intent && edit.intent !== "replace" ? { contentId: edit.contentId, intent: edit.intent, group: edit.group } : undefined, edit.before.links?.some(link => link.sourceId === edit.contentId) ? undefined : edit.textChange, edit.textPatch);
       liveCaret = { ...afterCaret };
     }
     if (!tree || !session) return;
@@ -91,6 +107,7 @@
   }
   function install(loaded: LoadedDocument) {
     history.clear();
+    linking = null; linkMenu = null;
     liveCaret = null;
     cache?.dispose();
     session?.dispose();
@@ -104,7 +121,7 @@
     readHash(false);
   }
   function remember(id: string, nextEntry?: Entry) {
-    if (disabled || !tree?.index.has(id)) return;
+    if (disabled || linking || !tree?.index.has(id)) return;
     if (focused !== id) { history.closeGroup(); liveCaret = null; entry = nextEntry ?? { kind: "edge", edge: "start" }; }
     focused = id;
     focusByLevel.set(pathHash(path), id);
@@ -288,6 +305,8 @@
     else if (rows.length === 0 && document.activeElement !== titleInput) void restoreFocus();
   });
   function keydown(event: KeyboardEvent) {
+    if (event.key === "Escape" && (linking || linkMenu)) { event.preventDefault(); cancelLink(); return; }
+    if (linking) return;
     if (event.isComposing || event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || disabled) return;
     if (event.key.toLowerCase() === "z") { event.preventDefault(); command(event.shiftKey ? "redo" : "undo"); }
     else if (event.key.toLowerCase() === "y") { event.preventDefault(); command("redo"); }
@@ -314,8 +333,15 @@
   {#if loading}<p role="status">Loading document…</p>
   {:else if error}<p role="alert">{error}</p><button onclick={load}>Retry</button>
   {:else if tree && session}
+    {#if linkMenu}
+      <div class="link-menu" role="menu" style:left={linkMenu.x + "px"} style:top={linkMenu.y + "px"}>
+        <button role="menuitem" onclick={() => { if (linkMenu) { const { sourceId, start, end } = linkMenu; linking = { sourceId, start, end, targets: [] }; linkMenu = null; if (focused) blur(focused); } }}>Start linking</button>
+        <button role="menuitem" onclick={cancelLink}>Cancel</button>
+      </div>
+    {/if}
+    {#if linking}<div class="link-toolbar" role="region" aria-label="Link selected text"><span>Select cells to link ({linking.targets.length})</span><button disabled={!linking.targets.length || disabled} onclick={finishLink}>Done</button><button onclick={cancelLink}>Cancel</button></div>{/if}
     {#if tree.schema.config.showTitles}
-      <div class="document-title"><input bind:this={titleInput} class="title-input" aria-label="Document title" value={tree.schema.title} disabled={disabled}
+      <div class="document-title"><input bind:this={titleInput} class="title-input" aria-label="Document title" value={tree.schema.title} disabled={disabled || !!linking}
         onfocus={() => { if (focused) blur(focused); history.closeGroup(); }}
         oncompositionstart={() => { titleComposing = true; }}
         oninput={event => { if (!titleComposing) editTitle(event.currentTarget.value); }}
@@ -339,6 +365,8 @@
   {/if}
 </main>
 <style>
+  .link-menu { position: fixed; z-index: 100; background: white; border: 1px solid #ddd; padding: 6px; box-shadow: 0 3px 12px #0002; display: flex; flex-direction: column; }
+  .link-toolbar { position: sticky; top: 0; z-index: 10; background: #eff6ff; padding: 10px; display: flex; gap: 12px; align-items: center; }
   main { max-width: 1100px; margin: 0 auto; padding: 24px; font-family: system-ui, sans-serif; }
   .status-row { display: flex; align-items: baseline; gap: 16px; margin-bottom: 12px; }
   .document-title { min-width: 0; font-size: 1em; font-weight: normal; margin: 0.67em 0; }

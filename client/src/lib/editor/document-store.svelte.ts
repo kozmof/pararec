@@ -1,4 +1,4 @@
-import { history, position, query, rendering, scan, store } from "@kozmof/reed";
+import { attention, history, position, query, rendering, scan, store } from "@kozmof/reed";
 import { GraphemeCache, normalizeLineBreaks } from "./graphemes.js";
 import { compareLines, contentLineChange, type LineChange } from "./document-change.js";
 import type { CaretAffinity } from "./line-measurer.js";
@@ -70,6 +70,31 @@ export function sameCaret(a: Caret, b: Caret): boolean {
  */
 export class EditorDocument {
   #store: ReedStore;
+  #linkAnchors = new Map<string, import("@kozmof/reed").AttentionID>();
+  #links: readonly import("../../schema.js").TextLink[] = [];
+  syncLinks(links: readonly import("../../schema.js").TextLink[]): void {
+    if (JSON.stringify(this.resolvedLinks()) === JSON.stringify(links)) return;
+    for (const id of this.#linkAnchors.values()) this.#store.dispatch(store.DocumentActions.deleteAttention(id));
+    this.#linkAnchors.clear();
+    this.#links = links;
+    for (const link of links) {
+      if (link.end > this.state.pieceTable.totalLength || !query.isUtf8Boundary(this.state.pieceTable, position.byteOffset(link.start)) || !query.isUtf8Boundary(this.state.pieceTable, position.byteOffset(link.end))) continue;
+      const previous = new Set(this.state.attention.attentions.keys());
+      this.#store.dispatch(store.DocumentActions.createAttention(position.byteOffset(link.start), position.byteOffset(link.end)));
+      const id = [...this.state.attention.attentions.keys()].find(id => !previous.has(id));
+      if (id) this.#linkAnchors.set(link.id, id);
+    }
+  }
+  resolvedLinks(): import("../../schema.js").TextLink[] {
+    return this.#links.flatMap(link => {
+      const id = this.#linkAnchors.get(link.id);
+      const range = id ? attention.resolveAttention(this.state.pieceTable.root, this.state.attention, id) : null;
+      return range && range.endOffset > range.startOffset ? [{ ...link, start: range.startOffset, end: range.endOffset }] : [];
+    });
+  }
+  linkRange(start: Caret, end: Caret): { start: number; end: number } {
+    return { start: this.#byteOffset(start), end: this.#byteOffset(end) };
+  }
   #unsubscribe: (() => void) | null = null;
   #eventUnsubscribers: (() => void)[] = [];
   #graphemes = new GraphemeCache();

@@ -10,7 +10,9 @@ pub const Config = struct {
     outerWidthRate: WidthRate = .{ .left = 35, .right = 65 },
     innerIdthRate: WidthRate = .{ .left = 35, .right = 65 },
 };
+pub const TextLink = struct { id: []const u8, sourceId: []const u8, start: usize, end: usize, targets: []const []const u8 };
 pub const Schema = struct {
+    links: []const TextLink = &.{},
     version: u32,
     title: []const u8 = "document",
     config: Config = .{},
@@ -39,6 +41,7 @@ const InputTitle = struct {
     }
 };
 const InputSchema = struct {
+    links: []const TextLink = &.{},
     version: u32,
     title: InputTitle = .{},
     config: Config = .{},
@@ -66,6 +69,7 @@ pub fn parseWithDefaultTitle(gpa: std.mem.Allocator, bytes: []const u8, title: [
     const parsed = try std.json.parseFromSlice(InputSchema, gpa, bytes, .{ .ignore_unknown_fields = true });
     return .{ .arena = parsed.arena, .value = .{
         .version = parsed.value.version,
+        .links = parsed.value.links,
         .title = parsed.value.title.value orelse title,
         .config = parsed.value.config,
         .root = parsed.value.root,
@@ -237,4 +241,16 @@ test "excessive unknown JSON nesting is rejected before typed parsing" {
     try json.writer.splatByteAll(']', max_json_depth);
     try json.writer.writeByte('}');
     try std.testing.expectError(error.MaximumDepthExceeded, parse(gpa, json.written()));
+}
+
+test "text links survive disk serialization" {
+    const gpa = std.testing.allocator;
+    const parsed = try parse(gpa, "{\"version\":1,\"root\":[],\"links\":[{\"id\":\"link\",\"sourceId\":\"source\",\"start\":0,\"end\":5,\"targets\":[\"target\"]}]}");
+    defer parsed.deinit();
+    const bytes = try serialize(gpa, parsed.value);
+    defer gpa.free(bytes);
+    const restored = try parse(gpa, bytes);
+    defer restored.deinit();
+    try std.testing.expectEqual(@as(usize, 1), restored.value.links.len);
+    try std.testing.expectEqualStrings("target", restored.value.links[0].targets[0]);
 }

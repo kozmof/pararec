@@ -1018,3 +1018,37 @@ for (const immediate of [false, true]) {
     expect(disk.root[1].right.text).toBe("ab!ghij");
   });
 }
+
+it("links selected text with editing disabled and restores link offsets on undo", async () => {
+  await opened();
+  await key("a", { ctrlKey: true });
+  await fireEvent.contextMenu(content("flat-1-right"), { clientX: 30, clientY: 30 });
+  await fireEvent.click(screen.getByRole("menuitem", { name: "Start linking" }));
+  expect(screen.queryByTestId("editor-sink")).not.toBeInTheDocument();
+  await fireEvent.mouseDown(content("flat-2-right"), { button: 0 });
+  expect(content("flat-2-right")).toHaveClass("chosen");
+  await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  await save();
+  expect(disk.links?.[0]).toMatchObject({ sourceId: "flat-1-right", start: 0, end: 10, targets: ["flat-2-right"] });
+  await key("!");
+  await save();
+  const edited = disk.links?.[0];
+  await key("z", { ctrlKey: true });
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  await save();
+  expect(disk.links?.[0]).toMatchObject({ start: 0, end: 10 });
+  expect(edited?.end).toBe(11);
+});
+
+it("cancels linking with Escape without changing the document", async () => {
+  await opened();
+  await key("a", { ctrlKey: true });
+  await fireEvent.contextMenu(content("flat-1-right"));
+  await fireEvent.click(screen.getByRole("menuitem", { name: "Start linking" }));
+  await fireEvent.mouseDown(content("flat-2-right"), { button: 0 });
+  await fireEvent.keyDown(window, { key: "Escape" });
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  expect(screen.queryByRole("region", { name: "Link selected text" })).not.toBeInTheDocument();
+  expect(disk.links).toBeUndefined();
+});

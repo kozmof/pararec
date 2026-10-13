@@ -18,7 +18,10 @@ export type Config = {
   readonly innerIdthRate: { readonly left: number; readonly right: number };
 };
 
+export type TextLink = { readonly id: string; readonly sourceId: string; readonly start: number; readonly end: number; readonly targets: readonly string[] };
+
 export type Schema = {
+  readonly links?: readonly TextLink[];
   readonly title: string;
   readonly config: Config;
   readonly version: 1;
@@ -94,5 +97,13 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
       throw new Error("Expected positive finite width rates");
     config[key] = { left: rate.left, right: rate.right };
   }
-  return { version: 1, title, config, root: level(document.root) };
+  const root = level(document.root);
+  const links = document.links ?? [];
+  if (!Array.isArray(links)) throw new Error("Expected links array");
+  const parsedLinks = links.map(input => {
+    const link = object(input);
+    if (typeof link.id !== "string" || typeof link.sourceId !== "string" || !Number.isSafeInteger(link.start) || !Number.isSafeInteger(link.end) || (link.start as number) < 0 || (link.end as number) <= (link.start as number) || !Array.isArray(link.targets) || !link.targets.every(target => typeof target === "string")) throw new Error("Invalid text link");
+    return { id: link.id, sourceId: link.sourceId, start: link.start as number, end: link.end as number, targets: link.targets as string[] };
+  });
+  return { version: 1, title, config, root, ...(parsedLinks.length ? { links: parsedLinks } : {}) };
 }

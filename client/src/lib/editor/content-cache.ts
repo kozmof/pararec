@@ -58,6 +58,7 @@ export class ContentCache {
           newEnd: newEndLine < query.getLineCount(edit.after) ? query.getCharStartOffset(edit.after, newEndLine) : text.length,
         };
         this.tree.apply({ type: "setText", id, text, normalized: true });
+        if (before.links?.some(link => link.sourceId === id)) this.tree.apply({ type: "setLinks", links: [...(before.links ?? []).filter(link => link.sourceId !== id), ...current.resolvedLinks()] });
         this.changed({
           contentId: id,
           before,
@@ -74,6 +75,7 @@ export class ContentCache {
         });
       });
     }
+    doc.syncLinks((this.tree.schema.links ?? []).filter(link => link.sourceId === id));
     this.#stores.delete(id);
     this.#stores.set(id, doc);
     while (this.#stores.size > this.limit) {

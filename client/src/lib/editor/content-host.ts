@@ -16,6 +16,12 @@ export type Command =
   | "undo"
   | "redo";
 export interface ContentHost {
+  readonly linking?: boolean;
+  readonly links?: readonly import("../../schema.js").TextLink[];
+  selectedCell?(id: string): boolean;
+  selectCell?(id: string): void;
+  linkMenu?(id: string, range: { start: number; end: number }, event: MouseEvent): void;
+  followLink?(id: string): void;
   readonly focused: string | null;
   readonly cache: ContentCache;
   readonly entry: Entry;

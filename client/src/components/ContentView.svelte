@@ -8,7 +8,7 @@
   let { content, label, side, navigation }: { content: Content; label: string; side: "left" | "right"; navigation?: Snippet } = $props();
   let editor = $state<ContentEditor>();
   const host = getContext<ContentHost>(CONTENT_HOST);
-  const editing = $derived(host.focused === content.id && !host.disabled);
+  const editing = $derived(host.focused === content.id && !host.disabled && !host.linking);
   const text = $derived(content.text);
   const doc = $derived.by(() => {
     void text;
@@ -20,6 +20,7 @@
   }
   function mousedown(event: MouseEvent) {
     if (host.disabled || event.button !== 0) return;
+    if (host.linking) { event.preventDefault(); host.selectCell?.(content.id); return; }
     // Safari blurs the textarea without focusing buttons. Keep the editor mounted
     // until the click navigates, so clearing its selection cannot move the button.
     if (event.target instanceof Element && event.target.closest("button")) {
@@ -55,11 +56,19 @@
   }
 </script>
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-<div class="content" data-content-id={content.id} tabindex="0" role="group" aria-label={label} onfocus={event => { host.focus(content.id); if (event.target === event.currentTarget && editing) editor?.focus(); }} onfocusout={blur} onmousedown={mousedown}>
+<div class="content" class:linking={host.linking} class:chosen={host.selectedCell?.(content.id)} onkeydown={event => { if (host.linking && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.stopPropagation(); host.selectCell?.(content.id); } }} oncontextmenu={event => { const range = editor?.selected(); if (!host.linking && range && range.end > range.start) { event.preventDefault(); host.linkMenu?.(content.id, range, event); } }} data-content-id={content.id} tabindex="0" role="group" aria-label={label} onfocus={event => { host.focus(content.id); if (event.target === event.currentTarget && editing) editor?.focus(); }} onfocusout={blur} onmousedown={mousedown}>
   <ContentEditor bind:this={editor} {doc} active={editing} entry={host.entry} {side} onBoundary={host.boundary} onCommand={host.command} onCaret={caret => { if (editing) host.caret(content.id, caret); }} />
+  {#each (host.links ?? []).filter(link => link.sourceId === content.id) as link (link.id)}
+    <div class="linked-cells"><span>“{new TextDecoder().decode(new TextEncoder().encode(content.text).subarray(link.start, link.end))}” →</span>{#each link.targets as target}<button disabled={host.linking} onmousedown={event => event.preventDefault()} onclick={() => host.followLink?.(target)}>Linked cell</button>{/each}</div>
+  {/each}
   {@render navigation?.()}
 </div>
 <style>
   .content { position: relative; min-width: 0; display: flex; flex-direction: column; outline: none; }
+  .linking { cursor: pointer; }
+  .linking:hover { background: #eff6ff; }
+  .chosen { box-shadow: inset 0 0 0 2px #2563eb; background: #eff6ff; }
+  .linked-cells { display: flex; gap: 6px; padding: 0 12px 6px; }
+  .linked-cells button { color: #2563eb; background: transparent; border: 0; cursor: pointer; }
   .content:last-child { flex: 1; }
 </style>

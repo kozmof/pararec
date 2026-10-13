@@ -8,6 +8,7 @@ function spliced<T>(items: readonly T[], at: number, count: number, ...insert: T
 }
 
 export type Op =
+  | { type: "setLinks"; links: NonNullable<Schema["links"]> }
   | { type: "setTitle"; title: string }
   | { type: "insertContainer"; parentId: string | null; index: number; container: Container }
   // An insertion's inverse can remove its unchanged subtree. User removal omits expected.
@@ -87,6 +88,7 @@ export function applyOp(
     });
   }
   switch (op.type) {
+    case "setLinks": return { schema: { ...schema, links: op.links }, inverse: { type: "setLinks", links: schema.links ?? [] } };
     case "setTitle": {
       if (typeof op.title !== "string") throw new Error("Expected string title");
       const title = op.title.replace(/\r\n?/g, "\n");

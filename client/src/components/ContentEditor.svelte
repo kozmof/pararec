@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from "svelte";
   import EditorSurface from "../lib/editor/EditorSurface.svelte";
-  import type { EditorDocument, Caret } from "../lib/editor/document-store.svelte.js";
+  import { orderCarets, type EditorDocument, type Caret } from "../lib/editor/document-store.svelte.js";
   import type { Entry, Boundary, Command } from "../lib/editor/content-host.js";
   let { doc, active = true, entry, onBoundary, onCommand, onKeydown, onHeight, onCaret, initialMeasurements, side }: { doc: EditorDocument; active?: boolean; entry: Entry; side: "left" | "right"; onBoundary: (direction: Boundary, goalX: number) => void; onCommand: (command: Command, caret?: Caret) => void; onKeydown?: (event: KeyboardEvent) => boolean; onHeight?: (height: number) => void; onCaret?: (caret: Caret) => void; initialMeasurements?: { width: number; heights: number[] } } = $props();
   let caret = $state<Caret>({ line: 0, column: 0 });
@@ -13,6 +13,7 @@
     if (activating) pointerEntry = true;
     surface?.focusAt(event);
   }
+  export function selected() { if (!anchor) return null; const { start, end } = orderCarets(anchor, caret); return doc.linkRange(start, end); }
   export function focus(): void { surface?.focus(); }
   $effect(() => {
     if (!active) {
