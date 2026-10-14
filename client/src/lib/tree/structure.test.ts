@@ -18,6 +18,47 @@ const store = () =>
     version: 1,
     root: [row("a", ["日本\n👩‍🚀tail", "second"], "first\nsecond", [row("child")]), row("b")],
   });
+
+it.each(["split", "newSibling"] as const)("preserves UTF-8 labels across %s, undo, and redo", command => {
+  const tree = new TreeStore({ version: 1, root: [row("a", ["日本abcd"]), row("b")], links: [
+    { id: "before", sourceId: "a-l0", start: 0, end: 3, targets: ["b-r"] },
+    { id: "after", sourceId: "a-l0", start: 6, end: 10, targets: ["b-r"] },
+    { id: "cross", sourceId: "a-l0", start: 3, end: 8, targets: ["b-r"] },
+  ] });
+  const result = action(tree, "a-l0", command, 0, 2)!;
+  expect(tree.schema.links).toEqual(expect.arrayContaining([
+    { id: "before", sourceId: "a-l0", start: 0, end: 3, targets: ["b-r"] },
+    { id: "after", sourceId: result.focus!.contentId, start: 0, end: 4, targets: ["b-r"] },
+    { id: "cross", sourceId: "a-l0", start: 3, end: 6, targets: ["b-r"] },
+    expect.objectContaining({ sourceId: result.focus!.contentId, start: 0, end: 2, targets: ["b-r"] }),
+  ]));
+});
+
+it("joins labels and destinations and cleans up references on removal", () => {
+  const tree = new TreeStore({ version: 1, root: [row("a", ["日", "本"]), row("b")], links: [
+    { id: "source", sourceId: "a-l1", start: 0, end: 3, targets: ["b-r"] },
+    { id: "target", sourceId: "b-r", start: 0, end: 1, targets: ["a-l0", "a-l1"] },
+  ] });
+  action(tree, "a-l1", "join");
+  expect(tree.schema.links).toEqual([
+    { id: "source", sourceId: "a-l0", start: 4, end: 7, targets: ["b-r"] },
+    { id: "target", sourceId: "b-r", start: 0, end: 1, targets: ["a-l0"] },
+  ]);
+  action(tree, "b-r", "removeRow");
+  expect(tree.schema.links ?? []).toEqual([]);
+});
+
+it("rejects invalid link operations and rolls back invalid compound edits", () => {
+  const tree = new TreeStore({ version: 1, root: [row("a", ["日本"]), row("b")], links: [
+    { id: "label", sourceId: "a-l0", start: 0, end: 6, targets: ["b-r"] },
+  ] });
+  const before = tree.schema;
+  expect(() => tree.apply({ type: "setLinks", links: [{ ...before.links![0], start: 1 }] })).toThrow("byte range");
+  expect(() => tree.applyMany([{ type: "setText", id: "a-l0", text: "" }])).toThrow("byte range");
+  expect(tree.schema).toBe(before);
+  expect(tree.revision).toBe(0);
+  expect([...tree.index.entries()].sort()).toEqual([...buildIndex(before).entries()].sort());
+});
 function action(
   tree: TreeStore,
   id: string,
@@ -32,7 +73,7 @@ function action(
   const revision = tree.revision;
   const inverse = tree.applyMany(result.ops);
   expect(tree.revision).toBe(revision + 1);
-  expect(parseSchema(tree.schema)).toEqual(tree.schema);
+  expect(parseSchema(tree.schema)).toEqual({ ...tree.schema, links: tree.schema.links?.length ? tree.schema.links : undefined });
   expect([...tree.index.entries()].sort()).toEqual([...buildIndex(tree.schema).entries()].sort());
   const after = tree.schema;
   tree.applyMany(inverse);

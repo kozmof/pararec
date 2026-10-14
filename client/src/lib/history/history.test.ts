@@ -23,6 +23,31 @@ const typing = (time: number, extra: Partial<TypingGroup> = {}): TypingGroup => 
   time,
   ...extra,
 });
+
+it("groups compact linked-text patches and restores their original and final labels", () => {
+  const history = new AppHistory();
+  const a = snapshot("foo"), b = snapshot("fXoo", 2), c = snapshot("fXYoo", 3);
+  a.focus!.column = 1;
+  for (const value of [a, b, c]) value.schema = { ...value.schema, links: [
+    { id: "label", sourceId: "right", start: 0, end: value.schema.root[0].right.text.length, targets: ["left"] },
+  ] };
+  history.record(a, b, typing(0), { contentId: "right", from: 1, oldEnd: 1, newEnd: 2 }, { removed: "", inserted: "X" });
+  history.record(b, c, typing(1), { contentId: "right", from: 2, oldEnd: 2, newEnd: 3 }, { removed: "", inserted: "Y" });
+  expect(history.undoCount).toBe(1);
+  expect(history.undo()).toMatchObject(a);
+  expect(history.redo()).toMatchObject(c);
+});
+
+it("evicts oversized snapshot history while retaining later compact edits", () => {
+  const history = new AppHistory(500, 2000);
+  const a = snapshot("a".repeat(5000)), b = snapshot("b".repeat(5000));
+  history.record(a, b);
+  expect(history.canUndo).toBe(false);
+  const c = snapshot("x" + b.schema.root[0].right.text);
+  history.record(b, c, undefined, { contentId: "right", from: 0, oldEnd: 0, newEnd: 1 }, { removed: "", inserted: "x" });
+  expect(history.undo()).toMatchObject(b);
+  expect(history.redo()).toMatchObject(c);
+});
 describe("app snapshot history", () => {
   it("replays compact patches after repeated snapshot serialization", () => {
     const history = new AppHistory();

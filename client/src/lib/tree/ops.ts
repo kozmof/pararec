@@ -1,4 +1,4 @@
-import { MAX_CONTAINER_DEPTH, parseSchema, type Container, type Content, type Schema } from "../../schema.js";
+import { MAX_CONTAINER_DEPTH, parseSchema, validateLinks, type Container, type Content, type Schema } from "../../schema.js";
 import { buildIndex, type TreeIndex } from "./index.js";
 
 function spliced<T>(items: readonly T[], at: number, count: number, ...insert: T[]): T[] {
@@ -24,6 +24,7 @@ export function applyOp(
   schema: Schema,
   op: Op,
   index: TreeIndex = buildIndex(schema),
+  validateLinkChanges = true,
 ): { schema: Schema; inverse: Op } {
   function row(id: string): Container {
     const entry = index.get(id);
@@ -88,7 +89,11 @@ export function applyOp(
     });
   }
   switch (op.type) {
-    case "setLinks": return { schema: { ...schema, links: op.links }, inverse: { type: "setLinks", links: schema.links ?? [] } };
+    case "setLinks": {
+      const next = { ...schema, links: op.links };
+      if (validateLinkChanges) validateLinks(next);
+      return { schema: next, inverse: { type: "setLinks", links: schema.links ?? [] } };
+    }
     case "setTitle": {
       if (typeof op.title !== "string") throw new Error("Expected string title");
       const title = op.title.replace(/\r\n?/g, "\n");

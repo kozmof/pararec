@@ -92,5 +92,5 @@ it("gives actionable read-permission and invalid-file errors", async () => {
 
 it("explains oversized documents without suggesting a permission problem", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 413 })));
-  await expect(loadDocument()).rejects.toThrow("512 MiB size limit");
+  await expect(loadDocument()).rejects.toThrow("128 MiB size limit");
 });

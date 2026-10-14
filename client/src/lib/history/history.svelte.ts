@@ -10,7 +10,7 @@ export type AppSnapshot = { schema: Schema; path: string[]; focus: FocusSnapshot
 type Navigation = Omit<AppSnapshot, "schema">;
 export type HistoryEntry =
   | { kind: "snapshot"; before: AppSnapshot; after: AppSnapshot; textChange?: TextChange }
-  | { kind: "text"; before: Navigation; after: Navigation; textChange: TextChange; removed: string; inserted: string };
+  | { kind: "text"; before: Navigation; after: Navigation; textChange: TextChange; removed: string; inserted: string; beforeLinks: Schema["links"]; afterLinks: Schema["links"] };
 
 function contentText(schema: Schema, id: string): string {
   const entry = buildIndex(schema).get(id);
@@ -32,8 +32,9 @@ function restore(entry: HistoryEntry, schema: Schema, undo: boolean): AppSnapsho
   const replacement = undo ? entry.removed : entry.inserted;
   return {
     ...navigation({ schema, ...(undo ? entry.before : entry.after) }),
-    schema: applyOp(schema, { type: "setText", id: change.contentId,
+    schema: { ...applyOp(schema, { type: "setText", id: change.contentId,
       text: text.slice(0, change.from) + replacement + text.slice(end), normalized: true }).schema,
+      links: undo ? entry.beforeLinks : entry.afterLinks },
   };
 }
 function mergeChanges(a: TextChange, b: TextChange): TextChange {
@@ -75,9 +76,12 @@ export class AppHistory {
   #redo = $state.raw<HistoryEntry[]>([]);
   #group: (TypingGroup & { time: number }) | null = null;
   #current: Schema | null = null;
-  constructor(private limit = 500) {
+  #sizes = new WeakMap<HistoryEntry, number>();
+  constructor(private limit = 500, private byteLimit = 16 * 1024 * 1024) {
     if (!Number.isInteger(limit) || limit < 1)
       throw new RangeError("History limit must be positive");
+    if (!Number.isSafeInteger(byteLimit) || byteLimit < 1)
+      throw new RangeError("History byte limit must be positive");
   }
   get canUndo() {
     return this.#undo.length > 0;
@@ -137,6 +141,8 @@ export class AppHistory {
     const savedPatch = mergedPatch ?? (!merge ? patch : undefined);
     const entry: HistoryEntry = combined ? {
       kind: "text",
+      beforeLinks: merge ? last!.kind === "text" ? last!.beforeLinks : first.schema.links : before.schema.links,
+      afterLinks: after.schema.links,
       before: merge ? navigation({ schema: before.schema, ...last!.before }) : navigation(first),
       after: navigation(after),
       textChange: combined,
@@ -152,6 +158,16 @@ export class AppHistory {
       ? [...this.#undo.slice(0, -1), entry]
       : [...this.#undo, entry].slice(-this.limit);
     this.#redo = [];
+    // Conservative serialized size bounds retained history, including large snapshots.
+    this.#sizes.set(entry, JSON.stringify(entry).length * 2);
+    let bytes = 0;
+    let keep = this.#undo.length;
+    for (let i = this.#undo.length - 1; i >= 0; i--) {
+      bytes += this.#sizes.get(this.#undo[i])!;
+      if (bytes > this.byteLimit) break;
+      keep = i;
+    }
+    this.#undo = this.#undo.slice(keep);
     this.#current = after.schema;
     this.#group = typing ? { ...typing, time } : null;
   }

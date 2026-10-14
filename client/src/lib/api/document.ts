@@ -33,7 +33,7 @@ async function readDocument(signal: AbortSignal): Promise<LoadedDocument> {
   if (!response.ok) {
     if (response.status === 413)
       throw new Error(
-        "The document exceeds the local server's 512 MiB size limit. Use a smaller document and retry.",
+        "The document exceeds the local server's 128 MiB size limit. Use a smaller document and retry.",
       );
     if (response.status === 500)
       throw new Error(

@@ -1,4 +1,4 @@
-import { parseSchema, type Schema } from "../../schema.js";
+import { parseSchema, validateLinks, type Schema } from "../../schema.js";
 import { buildIndex, updateIndex, readonlyIndex } from "./index.js";
 import { applyOp, type Op } from "./ops.js";
 
@@ -37,6 +37,7 @@ export class TreeStore {
   apply(op: Op): Op {
     const before = this.schema;
     const result = applyOp(before, op, this.index);
+    validateLinks(result.schema);
     updateIndex(this.#index, before.root, result.schema.root);
     freezeSnapshot(result.schema);
     this.#schema = result.schema;
@@ -52,11 +53,12 @@ export class TreeStore {
     const stagedIndex = new Map(this.index);
     const inverses: Op[] = [];
     for (const op of ops) {
-      const result = applyOp(staged, op, stagedIndex);
+      const result = applyOp(staged, op, stagedIndex, false);
       updateIndex(stagedIndex, staged.root, result.schema.root);
       staged = result.schema;
       inverses.unshift(result.inverse);
     }
+    validateLinks(staged);
     updateIndex(this.#index, before.root, staged.root);
     freezeSnapshot(staged);
     this.#schema = staged;

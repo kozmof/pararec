@@ -57,8 +57,12 @@ export class ContentCache {
           oldEnd: oldEndLine < query.getLineCount(edit.before) ? query.getCharStartOffset(edit.before, oldEndLine) : beforeText.length,
           newEnd: newEndLine < query.getLineCount(edit.after) ? query.getCharStartOffset(edit.after, newEndLine) : text.length,
         };
-        this.tree.apply({ type: "setText", id, text, normalized: true });
-        if (before.links?.some(link => link.sourceId === id)) this.tree.apply({ type: "setLinks", links: [...(before.links ?? []).filter(link => link.sourceId !== id), ...current.resolvedLinks()] });
+        if (before.links?.some(link => link.sourceId === id)) {
+          this.tree.applyMany([
+            { type: "setText", id, text, normalized: true },
+            { type: "setLinks", links: [...before.links.filter(link => link.sourceId !== id), ...current.resolvedLinks()] },
+          ]);
+        } else this.tree.apply({ type: "setText", id, text, normalized: true });
         this.changed({
           contentId: id,
           before,

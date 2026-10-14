@@ -2,8 +2,8 @@ import { MAX_CONTAINER_DEPTH, type Schema } from "../../schema.js";
 import type { Caret } from "../editor/document-store.svelte.js";
 import type { Entry } from "../editor/content-host.js";
 import { GraphemeCache } from "../editor/graphemes.js";
-import type { TreeIndex } from "./index.js";
-import { createContainer, type Op } from "./ops.js";
+import { buildIndex, type TreeIndex } from "./index.js";
+import { applyOp, createContainer, type Op } from "./ops.js";
 import { containerPath } from "./navigation.js";
 
 export type StructureCommand =
@@ -41,7 +41,7 @@ function end(text: string): Entry {
 }
 
 /** Describe one structure action without publishing intermediate trees or changing text stores. */
-export function structureAction(
+function planStructureAction(
   schema: Schema,
   index: TreeIndex,
   path: string[],
@@ -214,4 +214,44 @@ export function structureAction(
       };
     }
   }
+}
+
+/** Transform labels with their text and remove references to deleted cells. */
+export function structureAction(
+  schema: Schema, index: TreeIndex, path: string[], contentId: string,
+  caret: Caret, command: StructureCommand,
+): StructureAction | null {
+  const action = planStructureAction(schema, index, path, contentId, caret, command);
+  if (!action || !schema.links?.length) return action;
+  let staged = schema;
+  for (const op of action.ops) staged = applyOp(staged, op, buildIndex(staged), false).schema;
+  const nextIndex = buildIndex(staged);
+  let links = [...schema.links];
+  if (command === "split" || command === "newSibling") {
+    const source = nextIndex.get(contentId)!;
+    const text = source.side === "left" ? source.container.left[source.index].text : source.container.right.text;
+    const split = new TextEncoder().encode(text).length;
+    const destination = action.focus!.contentId;
+    links = links.flatMap(link => {
+      if (link.sourceId !== contentId || link.end <= split) return [link];
+      if (link.start >= split) return [{ ...link, sourceId: destination, start: link.start - split, end: link.end - split }];
+      // A crossing label becomes one label in each cell with the same destinations.
+      return [{ ...link, end: split }, { ...link, id: crypto.randomUUID(), sourceId: destination, start: 0, end: link.end - split }];
+    });
+  } else if (command === "join") {
+    const destination = action.focus!.contentId;
+    const previous = index.get(destination)!;
+    const shift = new TextEncoder().encode(previous.container.left[previous.index].text + "\n").length;
+    links = links.map(link => ({ ...link,
+      ...(link.sourceId === contentId ? { sourceId: destination, start: link.start + shift, end: link.end + shift } : {}),
+      targets: [...new Set(link.targets.map(id => id === contentId ? destination : id))],
+    }));
+  }
+  links = links.flatMap(link => {
+    if (!nextIndex.has(link.sourceId)) return [];
+    const targets = link.targets.filter(id => id !== link.sourceId && nextIndex.has(id));
+    return targets.length ? [{ ...link, targets }] : [];
+  });
+  action.ops.push({ type: "setLinks", links });
+  return action;
 }

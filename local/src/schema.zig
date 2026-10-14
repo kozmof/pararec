@@ -85,6 +85,8 @@ pub fn validate(gpa: std.mem.Allocator, document: Schema) !void {
     }
     var ids: std.StringHashMap(void) = .init(gpa);
     defer ids.deinit();
+    var texts: std.StringHashMap([]const u8) = .init(gpa);
+    defer texts.deinit();
     const Level = struct { rows: []const Container, depth: usize };
     var pending: std.ArrayList(Level) = .empty;
     defer pending.deinit(gpa);
@@ -98,10 +100,26 @@ pub fn validate(gpa: std.mem.Allocator, document: Schema) !void {
             for (container.left) |content| {
                 try addId(&ids, content.id);
                 try checkText(content.text);
+                try texts.put(content.id, content.text);
             }
             try addId(&ids, container.right.id);
             try checkText(container.right.text);
+            try texts.put(container.right.id, container.right.text);
             try pending.append(gpa, .{ .rows = container.right.children, .depth = level.depth + 1 });
+        }
+    }
+    var link_ids: std.StringHashMap(void) = .init(gpa);
+    defer link_ids.deinit();
+    for (document.links) |link| {
+        if ((try link_ids.getOrPut(link.id)).found_existing) return error.DuplicateLinkId;
+        const text = texts.get(link.sourceId) orelse return error.UnknownLinkSource;
+        if (link.start > 9007199254740991 or link.end > 9007199254740991 or link.start >= link.end or link.end > text.len) return error.InvalidLinkRange;
+        if ((link.start < text.len and text[link.start] & 0xc0 == 0x80) or (link.end < text.len and text[link.end] & 0xc0 == 0x80)) return error.InvalidLinkRange;
+        if (link.targets.len == 0) return error.InvalidLinkTargets;
+        var targets: std.StringHashMap(void) = .init(gpa);
+        defer targets.deinit();
+        for (link.targets) |target| {
+            if (!texts.contains(target) or std.mem.eql(u8, target, link.sourceId) or (try targets.getOrPut(target)).found_existing) return error.InvalidLinkTargets;
         }
     }
 }
