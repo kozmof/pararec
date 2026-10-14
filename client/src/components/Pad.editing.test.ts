@@ -1230,3 +1230,30 @@ it("opens the label menu from destination numbers and suppresses native menus wi
   await fireEvent.click(remove);
   expect(content("flat-1-right").querySelector(".link-label")).toBeNull();
 });
+
+it("releases offscreen editor stores and recreates them when a cell receives focus", async () => {
+  const observers = new Map<Element, IntersectionObserverCallback>();
+  vi.stubGlobal("IntersectionObserver", class {
+    constructor(private callback: IntersectionObserverCallback) {}
+    observe(node: Element) { observers.set(node, this.callback); }
+    disconnect() {}
+  });
+  disk.root = Array.from({ length: 60 }, (_, i) => ({
+    id: "row-" + i, left: [{ id: "left-" + i, text: "Left " + i }],
+    right: { id: "right-" + i, text: "Right " + i, children: [] },
+  }));
+  const dispose = vi.spyOn(EditorDocument.prototype, "dispose");
+  await opened();
+  for (const callback of observers.values()) {
+    callback([{ isIntersecting: false } as IntersectionObserverEntry], {} as IntersectionObserver);
+  }
+  await tick();
+  await tick();
+  expect(content("right-59").querySelector('[data-testid="editor-preview"]')).toBeNull();
+  expect(dispose).toHaveBeenCalled();
+  content("right-59").focus();
+  await waitFor(() => expect(content("right-59").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await key("!");
+  await save();
+  expect(disk.root[59].right.text).toContain("!");
+});

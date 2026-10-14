@@ -1,5 +1,5 @@
 import { parseSchema, validateLinks, type Schema } from "../../schema.js";
-import { buildIndex, updateIndex, readonlyIndex } from "./index.js";
+import { buildIndex, updateIndex, readonlyIndex, type TreeIndex } from "./index.js";
 import { applyOp, type Op } from "./ops.js";
 
 export class TreeStore {
@@ -40,7 +40,10 @@ export class TreeStore {
   apply(op: Op): Op {
     const before = this.schema;
     const result = applyOp(before, op, this.index);
-    validateLinks(result.schema);
+    // Title changes and text in unrelated sources preserve existing link invariants.
+    if (op.type !== "setTitle" && !(op.type === "setText" && !before.links?.some(link => link.sourceId === op.id)))
+      validateLinks(result.schema, op.type === "setText" ? id => id === op.id
+        ? (op.normalized ? op.text : op.text.replace(/\r\n?/g, "\n")) : indexedText(this.index, id) : undefined);
     updateIndex(this.#index, before.root, result.schema.root);
     freezeSnapshot(result.schema);
     this.#schema = result.schema;
@@ -61,7 +64,7 @@ export class TreeStore {
       staged = result.schema;
       inverses.unshift(result.inverse);
     }
-    validateLinks(staged);
+    validateLinks(staged, id => indexedText(stagedIndex, id));
     updateIndex(this.#index, before.root, staged.root);
     freezeSnapshot(staged);
     this.#schema = staged;
@@ -80,4 +83,10 @@ function freezeSnapshot(value: object): void {
   }
   Object.freeze(value);
   frozen.add(value);
+}
+
+function indexedText(index: TreeIndex, id: string): string | undefined {
+  const entry = index.get(id);
+  if (!entry || entry.side === "container") return undefined;
+  return entry.side === "right" ? entry.container.right.text : entry.container.left[entry.index].text;
 }

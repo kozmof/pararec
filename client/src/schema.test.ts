@@ -112,3 +112,9 @@ it.each(sharedCases)("shared validation: $name", ({ valid, document }) => {
   if (valid) expect(() => parseSchema(document)).not.toThrow();
   else expect(() => parseSchema(document)).toThrow();
 });
+
+it("normalizes linked CRLF text and remaps UTF-8 ranges", () => {
+  const parsed = parseSchema({ version: 1, root: [{ ...row, left: [{ id: "left", text: "a\r\n日本" }] }], links: [{ id: "label", sourceId: "left", start: 3, end: 9, targets: ["right"] }] });
+  expect(parsed.root[0].left[0].text).toBe("a\n日本");
+  expect(parsed.links?.[0]).toMatchObject({ start: 2, end: 8 });
+});

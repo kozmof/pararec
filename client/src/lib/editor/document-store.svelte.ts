@@ -31,7 +31,7 @@ type EditContext = {
 export type Caret = {
   /** 0-indexed line. */
   line: number;
-  /** 0-indexed column, counted in characters rather than bytes. */
+  /** 0-indexed column, counted in UTF-16 code units rather than bytes. */
   column: number;
   /** The visual side of an offset shared by two wrapped rows. */
   affinity?: CaretAffinity;

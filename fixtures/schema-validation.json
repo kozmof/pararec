@@ -10,7 +10,8 @@
   {"name":"empty left cell","valid":false,"document":{"version":1,"root":[{"id":"row","left":[],"right":{"id":"right","text":"","children":[]}}]}},
   {"name":"duplicate ID","valid":false,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":""}],"right":{"id":"left","text":"","children":[]}}]}},
   {"name":"valid UTF-8 link","valid":true,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":"日本"}],"right":{"id":"right","text":"target","children":[]}}],"links":[{"id":"label","sourceId":"left","start":0,"end":6,"targets":["right"]}]}},
-  {"name":"duplicate link ID","valid":false,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":"日本"}],"right":{"id":"right","text":"target","children":[]}}],"links":[{"id":"label","sourceId":"left","start":0,"end":6,"targets":["right"]},{"id":"label","sourceId":"left","start":0,"end":6,"targets":["right"]}]}},
+  {"name":"duplicate link ID","valid":false,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":"日本"}],"right":{"id":"right","text":"target","children":[]}}],"links":[{"id":"label","sourceId":"left","start":0,"end":6,"targets":["right"]},
+  {"id":"label","sourceId":"left","start":0,"end":6,"targets":["right"]}]}},
   {"name":"missing source","valid":false,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":"日本"}],"right":{"id":"right","text":"target","children":[]}}],"links":[{"id":"label","sourceId":"missing","start":0,"end":6,"targets":["right"]}]}},
   {"name":"container source","valid":false,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":"日本"}],"right":{"id":"right","text":"target","children":[]}}],"links":[{"id":"label","sourceId":"row","start":0,"end":6,"targets":["right"]}]}},
   {"name":"UTF-8 interior start","valid":false,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":"日本"}],"right":{"id":"right","text":"target","children":[]}}],"links":[{"id":"label","sourceId":"left","start":1,"end":6,"targets":["right"]}]}},
@@ -23,5 +24,7 @@
   {"name":"duplicate destinations","valid":false,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":"日本"}],"right":{"id":"right","text":"target","children":[]}}],"links":[{"id":"label","sourceId":"left","start":0,"end":6,"targets":["right","right"]}]}},
   {"name":"missing destination","valid":false,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":"日本"}],"right":{"id":"right","text":"target","children":[]}}],"links":[{"id":"label","sourceId":"left","start":0,"end":6,"targets":["missing"]}]}},
   {"name":"container destination","valid":false,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":"日本"}],"right":{"id":"right","text":"target","children":[]}}],"links":[{"id":"label","sourceId":"left","start":0,"end":6,"targets":["row"]}]}},
-  {"name":"self destination","valid":false,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":"日本"}],"right":{"id":"right","text":"target","children":[]}}],"links":[{"id":"label","sourceId":"left","start":0,"end":6,"targets":["left"]}]}}
+  {"name":"self destination","valid":false,"document":{"version":1,"root":[{"id":"row","left":[{"id":"left","text":"日本"}],"right":{"id":"right","text":"target","children":[]}}],"links":[{"id":"label","sourceId":"left","start":0,"end":6,"targets":["left"]}]}},
+  {"name":"null links","valid":false,"document":{"version":1,"root":[],"links":null}},
+  {"name":"normalized CRLF links","valid":true,"document":{"version":1,"title":"a\r\nb","root":[{"id":"row","left":[{"id":"left","text":"a\r\n日本"}],"right":{"id":"right","text":"target\r","children":[]}}],"links":[{"id":"label","sourceId":"left","start":3,"end":9,"targets":["right"]}]}}
 ]

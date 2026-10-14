@@ -244,3 +244,13 @@ it("saves edits queued during uncertain-write verification against the verified 
   expect(session.status).toBe("saved");
   expect(session.dirty).toBe(false);
 });
+
+it("acknowledges uncertain writes after the last link is removed", async () => {
+  fetchMock
+    .mockResolvedValueOnce(new Response('{"error":"SaveOutcomeUncertain"}', { status: 500 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify(next), { headers: { ETag: '"written"' } }));
+  session.changed({ ...next, links: [] });
+  await session.flush();
+  expect(session.status).toBe("saved");
+  expect(session.dirty).toBe(false);
+});

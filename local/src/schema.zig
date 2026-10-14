@@ -67,13 +67,62 @@ pub fn parseWithDefaultTitle(gpa: std.mem.Allocator, bytes: []const u8, title: [
         }
     }
     const parsed = try std.json.parseFromSlice(InputSchema, gpa, bytes, .{ .ignore_unknown_fields = true });
+    errdefer parsed.deinit();
+    const allocator = parsed.arena.allocator();
+    var originals: std.StringHashMap([]const u8) = .init(allocator);
+    const root = try normalizeRows(allocator, parsed.value.root, &originals);
+    const links = try allocator.dupe(TextLink, parsed.value.links);
+    for (links) |*link| {
+        if (originals.get(link.sourceId)) |text| {
+            if (link.start >= link.end or link.end > text.len) return error.InvalidLinkRange;
+            if ((text[link.start] & 0xc0 == 0x80) or (link.end < text.len and text[link.end] & 0xc0 == 0x80)) return error.InvalidLinkRange;
+            link.start = normalizedOffset(text, link.start);
+            link.end = normalizedOffset(text, link.end);
+        }
+    }
     return .{ .arena = parsed.arena, .value = .{
         .version = parsed.value.version,
-        .links = parsed.value.links,
-        .title = parsed.value.title.value orelse title,
+        .links = links,
+        .title = try normalizeText(allocator, parsed.value.title.value orelse title),
         .config = parsed.value.config,
-        .root = parsed.value.root,
+        .root = root,
     } };
+}
+
+fn normalizedOffset(text: []const u8, end: usize) usize {
+    var removed: usize = 0;
+    for (text[0..end], 0..) |byte, index| {
+        if (byte == '\r' and index + 1 < text.len and text[index + 1] == '\n') removed += 1;
+    }
+    return end - removed;
+}
+
+fn normalizeText(gpa: std.mem.Allocator, text: []const u8) ![]const u8 {
+    if (std.mem.indexOfScalar(u8, text, '\r') == null) return text;
+    const output = try gpa.alloc(u8, text.len);
+    var count: usize = 0;
+    for (text, 0..) |byte, index| {
+        if (byte == '\r' and index + 1 < text.len and text[index + 1] == '\n') continue;
+        output[count] = if (byte == '\r') '\n' else byte;
+        count += 1;
+    }
+    return output[0..count];
+}
+
+fn normalizeRows(gpa: std.mem.Allocator, rows: []const Container, originals: *std.StringHashMap([]const u8)) anyerror![]const Container {
+    const output = try gpa.dupe(Container, rows);
+    for (output) |*row| {
+        const left = try gpa.dupe(Content, row.left);
+        for (left) |*cell| {
+            if (std.mem.indexOfScalar(u8, cell.text, '\r') != null) try originals.put(cell.id, cell.text);
+            cell.text = try normalizeText(gpa, cell.text);
+        }
+        row.left = left;
+        if (std.mem.indexOfScalar(u8, row.right.text, '\r') != null) try originals.put(row.right.id, row.right.text);
+        row.right.text = try normalizeText(gpa, row.right.text);
+        row.right.children = try normalizeRows(gpa, row.right.children, originals);
+    }
+    return output;
 }
 
 pub fn validate(gpa: std.mem.Allocator, document: Schema) !void {
@@ -178,7 +227,6 @@ test "schema rejects each invariant violation" {
         .{ "{\"version\":1,\"root\":[{\"id\":\"r\",\"left\":[],\"right\":{\"id\":\"b\",\"text\":\"\",\"children\":[]}}]}", error.EmptyLeft },
         .{ "{\"version\":1,\"root\":[{\"id\":\"r\",\"left\":[{\"id\":\"a\",\"text\":\"\"}],\"right\":{\"id\":\"r\",\"text\":\"\",\"children\":[]}}]}", error.RightIdMatchesContainer },
         .{ "{\"version\":1,\"root\":[{\"id\":\"r\",\"left\":[{\"id\":\"a\",\"text\":\"\"}],\"right\":{\"id\":\"a\",\"text\":\"\",\"children\":[]}}]}", error.DuplicateId },
-        .{ "{\"version\":1,\"root\":[{\"id\":\"r\",\"left\":[{\"id\":\"a\",\"text\":\"\\r\"}],\"right\":{\"id\":\"b\",\"text\":\"\",\"children\":[]}}]}", error.CarriageReturn },
     };
     inline for (cases) |case| {
         const parsed = try parse(std.testing.allocator, case[0]);
@@ -297,4 +345,14 @@ test "empty text links are omitted from canonical output" {
     defer gpa.free(explicit_bytes);
     try std.testing.expectEqualStrings(omitted_bytes, explicit_bytes);
     try std.testing.expect(std.mem.indexOf(u8, omitted_bytes, "\"links\"") == null);
+}
+
+test "normalizes newlines and linked UTF-8 offsets" {
+    const parsed = try parse(std.testing.allocator, "{\"version\":1,\"title\":\"a\\r\\nb\",\"root\":[{\"id\":\"row\",\"left\":[{\"id\":\"left\",\"text\":\"a\\r\\n日本\"}],\"right\":{\"id\":\"right\",\"text\":\"target\\r\",\"children\":[]}}],\"links\":[{\"id\":\"label\",\"sourceId\":\"left\",\"start\":3,\"end\":9,\"targets\":[\"right\"]}]}");
+    defer parsed.deinit();
+    try validate(std.testing.allocator, parsed.value);
+    try std.testing.expectEqualStrings("a\nb", parsed.value.title);
+    try std.testing.expectEqualStrings("a\n日本", parsed.value.root[0].left[0].text);
+    try std.testing.expectEqual(@as(usize, 2), parsed.value.links[0].start);
+    try std.testing.expectEqual(@as(usize, 8), parsed.value.links[0].end);
 }

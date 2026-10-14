@@ -11,9 +11,23 @@
   const owner = {};
   const editing = $derived(host.focused === content.id && !host.disabled && !host.linking);
   const text = $derived(content.text);
+  let nearby = $state(typeof IntersectionObserver === "undefined");
+  let measuredHeight = $state(0);
+  const mounted = $derived(nearby || editing);
+  function viewport(node: HTMLElement) {
+    if (typeof IntersectionObserver === "undefined") return;
+    const box = node.getBoundingClientRect();
+    nearby = box.bottom >= -800 && box.top <= window.innerHeight + 800;
+    const observer = new IntersectionObserver(entries => {
+      nearby = entries[0].isIntersecting;
+    }, { rootMargin: "800px" });
+    observer.observe(node);
+    return { destroy() { observer.disconnect(); } };
+  }
   const doc = $derived.by(() => {
     void text;
     void editing;
+    if (!mounted) return null;
     const cache = host.cache;
     const id = content.id;
     return untrack(() => cache.get(id, owner));
@@ -21,7 +35,8 @@
   $effect(() => {
     const cache = host.cache;
     const id = content.id;
-    return () => cache.release(id, owner);
+    const owns = mounted;
+    return () => { if (owns) cache.release(id, owner); };
   });
   function blur(event: FocusEvent) {
     if (!(event.relatedTarget instanceof Node) || !(event.currentTarget as HTMLElement).contains(event.relatedTarget)) host.blur(content.id);
@@ -64,8 +79,12 @@
   }
 </script>
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-<div class="content" class:linking={host.linking} class:chosen={host.selectedCell?.(content.id)} onkeydown={event => { if (host.linking && !(event.target instanceof Element && event.target.closest("button")) && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.stopPropagation(); host.selectCell?.(content.id); } }} oncontextmenu={event => { event.preventDefault(); if (host.disabled || host.linking) return; const label = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-link-ids]") : null; if (label?.dataset.linkIds) { event.preventDefault(); host.labelMenu?.(content.id, label.dataset.linkIds.split(" "), event); return; } const range = editor?.selected(); if (range && range.end > range.start) { event.preventDefault(); host.linkMenu?.(content.id, range, event); } }} data-content-id={content.id} tabindex="0" role="group" aria-label={label} onfocus={event => { if (event.target instanceof Element && event.target.closest("[data-editor-annotation]")) return; host.focus(content.id); if (event.target === event.currentTarget && editing) editor?.focus(); }} onfocusout={blur} onmousedown={mousedown}>
-  <ContentEditor links={(host.links ?? []).filter(link => link.sourceId === content.id)} onDestination={host.followLink} annotationsDisabled={host.linking || host.disabled} bind:this={editor} {doc} active={editing} entry={host.entry} {side} onBoundary={host.boundary} onCommand={host.command} onCaret={caret => { if (editing) host.caret(content.id, caret); }} />
+<div use:viewport class="content" class:linking={host.linking} class:chosen={host.selectedCell?.(content.id)} onkeydown={event => { if (host.linking && !(event.target instanceof Element && event.target.closest("button")) && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.stopPropagation(); host.selectCell?.(content.id); } }} oncontextmenu={event => { event.preventDefault(); if (host.disabled || host.linking) return; const label = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-link-ids]") : null; if (label?.dataset.linkIds) { event.preventDefault(); host.labelMenu?.(content.id, label.dataset.linkIds.split(" "), event); return; } const range = editor?.selected(); if (range && range.end > range.start) { event.preventDefault(); host.linkMenu?.(content.id, range, event); } }} data-content-id={content.id} tabindex="0" role="group" aria-label={label} onfocus={event => { if (event.target instanceof Element && event.target.closest("[data-editor-annotation]")) return; host.focus(content.id); if (event.target === event.currentTarget && editing) editor?.focus(); }} onfocusout={blur} onmousedown={mousedown}>
+  {#if doc}
+  <ContentEditor onHeight={height => { measuredHeight = height; }} links={(host.links ?? []).filter(link => link.sourceId === content.id)} onDestination={host.followLink} annotationsDisabled={host.linking || host.disabled} bind:this={editor} {doc} active={editing} entry={host.entry} {side} onBoundary={host.boundary} onCommand={host.command} onCaret={caret => { if (editing) host.caret(content.id, caret); }} />
+  {:else}
+    <div aria-hidden="true" style:height={`${measuredHeight || text.split("\n").length * 20 + 16}px`}></div>
+  {/if}
   {@render navigation?.()}
 </div>
 <style>

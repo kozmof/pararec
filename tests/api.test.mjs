@@ -164,7 +164,6 @@ test("document API over real sockets", async (t) => {
       { version: 1, root: [{ ...row, left: [] }] },
       { version: 1, root: [{ ...row, right: { ...row.right, id: "row" } }] },
       { version: 1, root: [{ ...row, right: { ...row.right, id: "left" } }] },
-      { version: 1, root: [{ ...row, left: [{ id: "left", text: "a\rb" }] }] },
       { version: 1, root: [row, { ...row, id: "other" }] },
     ];
     for (const document of cases)

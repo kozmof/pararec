@@ -1,5 +1,5 @@
 import { loadDocument } from "./document.js";
-import type { Schema } from "../../schema.js";
+import { parseSchema, type Schema } from "../../schema.js";
 import { boundedRequest } from "./request.js";
 export class SaveConflict extends Error {
   constructor() {
@@ -36,7 +36,7 @@ async function sendDocument(
         : null;
     if (code === "SaveOutcomeUncertain") {
       const loaded = await loadDocument(signal);
-      if (loaded.etag !== null && JSON.stringify(loaded.schema) === JSON.stringify(schema))
+      if (loaded.etag !== null && JSON.stringify(loaded.schema) === JSON.stringify(parseSchema(schema)))
         return loaded.etag;
       throw new SaveConflict();
     }
