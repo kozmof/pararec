@@ -223,6 +223,13 @@ it("normalizes and owns unfamiliar restored snapshots", () => {
   check(store);
 });
 
+it("preserves an explicit empty link list in reconstructed history snapshots", () => {
+  const store = new TreeStore(fixture());
+  store.restore({ ...store.schema, links: [] });
+  expect(store.schema.links).toEqual([]);
+  expect(Object.isFrozen(store.schema.links)).toBe(true);
+});
+
 it("rejects subtree inserts and moves beyond the nesting limit atomically", () => {
   const store = new TreeStore({ version: 1, root: [...deepRows(MAX_CONTAINER_DEPTH), row("movable", [row("child")])] });
   const before = store.schema;

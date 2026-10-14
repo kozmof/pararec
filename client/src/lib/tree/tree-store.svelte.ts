@@ -24,7 +24,10 @@ export class TreeStore {
   /** Restore a previously validated immutable app snapshot and rebuild its index. */
   restore(schema: Schema): void {
     if (!this.#validated.has(schema)) {
+      const emptyLinks = schema.links?.length === 0;
       schema = parseSchema(schema);
+      // Reconstructed history snapshots can contain an explicitly emptied link list.
+      if (emptyLinks) schema = { ...schema, links: [] };
       freezeSnapshot(schema);
       this.#validated.add(schema);
     }

@@ -77,6 +77,27 @@ async function save() {
 const content = (id: string) => document.querySelector(`[data-content-id="${id}"]`) as HTMLElement;
 
 describe("integrated content editing", () => {
+  it("keeps all mounted documents live above the idle cache limit and disposes them on unmount", async () => {
+    disk.root = Array.from({ length: 60 }, (_, i) => ({
+      id: `row-${i}`, left: [{ id: `left-${i}`, text: `Left ${i}` }],
+      right: { id: `right-${i}`, text: `Right ${i}`, children: [] },
+    }));
+    const dispose = vi.spyOn(EditorDocument.prototype, "dispose");
+    const view = render(Pad);
+    await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+    expect(document.querySelectorAll("[data-content-id]")).toHaveLength(120);
+    expect(dispose).not.toHaveBeenCalled();
+    await key("!");
+    content("right-59").focus();
+    await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+    await key("!");
+    await save();
+    expect(disk.root[0].right.text).toBe("!Right 0");
+    expect(disk.root[59].right.text).toBe("!Right 59");
+    expect(dispose).not.toHaveBeenCalled();
+    view.unmount();
+    expect(dispose).toHaveBeenCalledTimes(120);
+  });
   it("loads, edits, and saves to disk", async () => {
     await opened();
     await key("!");

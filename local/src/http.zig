@@ -144,12 +144,11 @@ fn handleRequest(io: Io, gpa: std.mem.Allocator, config: Config, request: *http.
         }
     }
     if (request.head.method != .GET and request.head.method != .HEAD) return jsonError(request, .method_not_allowed, "MethodNotAllowed");
-    return serveStatic(io, gpa, config.static_dir, request, path);
+    return serveStatic(io, config.static_dir, request, path);
 }
 
 fn serveStatic(
     io: Io,
-    gpa: std.mem.Allocator,
     dir: Io.Dir,
     request: *http.Server.Request,
     url_path: []const u8,
@@ -160,30 +159,56 @@ fn serveStatic(
         return request.respond("bad request\n", .{ .status = .bad_request });
     }
 
-    const max_size: Io.Limit = .limited(64 * 1024 * 1024);
     var file_path = rel;
-    const body = dir.readFileAlloc(io, rel, gpa, max_size) catch |err| switch (err) {
+    const file = openStaticFile(dir, io, rel) catch |err| switch (err) {
         error.FileNotFound, error.IsDir => blk: {
             // SPA fallback: extension-less paths get index.html so client-side routing works.
             if (std.fs.path.extension(rel).len != 0) {
                 return request.respond("not found\n", .{ .status = .not_found });
             }
             file_path = "index.html";
-            break :blk try dir.readFileAlloc(io, file_path, gpa, max_size);
+            break :blk try openStaticFile(dir, io, file_path);
         },
         else => return err,
     };
-    defer gpa.free(body);
+    defer file.close(io);
+    const stat = try file.stat(io);
+    if (stat.kind != .file) return request.respond("not found\n", .{ .status = .not_found });
+    if (stat.size > 64 * 1024 * 1024) return request.respond("file too large\n", .{ .status = .payload_too_large });
 
     const cache_control = if (std.mem.startsWith(u8, file_path, "assets/"))
         "public, max-age=31536000, immutable"
     else
         "no-cache";
 
-    try request.respond(body, .{ .extra_headers = &.{
-        .{ .name = "content-type", .value = mimeType(file_path) },
-        .{ .name = "cache-control", .value = cache_control },
-    } });
+    if (request.head.method == .HEAD) {
+        var length_buffer: [20]u8 = undefined;
+        const length = try std.fmt.bufPrint(&length_buffer, "{d}", .{stat.size});
+        return request.respond("", .{ .transfer_encoding = .none, .extra_headers = &.{
+            .{ .name = "content-length", .value = length },
+            .{ .name = "content-type", .value = mimeType(file_path) },
+            .{ .name = "cache-control", .value = cache_control },
+        } });
+    }
+    var send_buffer: [8192]u8 = undefined;
+    var response = try request.respondStreaming(&send_buffer, .{
+        .content_length = stat.size,
+        .respond_options = .{ .extra_headers = &.{
+            .{ .name = "content-type", .value = mimeType(file_path) },
+            .{ .name = "cache-control", .value = cache_control },
+        } },
+    });
+    var read_buffer: [8192]u8 = undefined;
+    var reader = file.readerStreaming(io, &read_buffer);
+    try reader.interface.streamExact64(&response.writer, stat.size);
+    try response.end();
+}
+
+fn openStaticFile(dir: Io.Dir, io: Io, path: []const u8) !Io.File {
+    const file = try dir.openFile(io, path, .{});
+    errdefer file.close(io);
+    if ((try file.stat(io)).kind != .file) return error.IsDir;
+    return file;
 }
 
 fn isSafePath(rel: []const u8) bool {

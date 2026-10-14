@@ -21,6 +21,7 @@ export type ContentChange = { contentId: string; before: Schema; after: Schema; 
 >;
 export class ContentCache {
   #stores = new Map<string, EditorDocument>();
+  #owners = new Map<string, Set<object>>();
   #restoring = false;
   constructor(
     private tree: TreeStore,
@@ -30,9 +31,14 @@ export class ContentCache {
   get size() {
     return this.#stores.size;
   }
-  get(id: string): EditorDocument {
+  get(id: string, owner?: object): EditorDocument {
     const entry = this.tree.index.get(id);
     if (!entry || entry.side === "container") throw new Error("Unknown Content");
+    if (owner) {
+      let owners = this.#owners.get(id);
+      if (!owners) this.#owners.set(id, owners = new Set());
+      owners.add(owner);
+    }
     const text =
       entry.side === "right" ? entry.container.right.text : entry.container.left[entry.index].text;
     let doc = this.#stores.get(id);
@@ -82,12 +88,25 @@ export class ContentCache {
     doc.syncLinks((this.tree.schema.links ?? []).filter(link => link.sourceId === id));
     this.#stores.delete(id);
     this.#stores.set(id, doc);
-    while (this.#stores.size > this.limit) {
-      const oldest = this.#stores.keys().next().value!;
-      this.#stores.get(oldest)!.dispose();
-      this.#stores.delete(oldest);
-    }
+    this.#evict();
     return doc;
+  }
+  release(id: string, owner: object): void {
+    const owners = this.#owners.get(id);
+    owners?.delete(owner);
+    if (!owners?.size) this.#owners.delete(id);
+    this.#evict();
+  }
+  // Mounted views own their stores. The limit applies to idle stores only.
+  #evict(): void {
+    let idle = this.#stores.size - this.#owners.size;
+    for (const [id, doc] of this.#stores) {
+      if (idle <= this.limit) break;
+      if (this.#owners.has(id)) continue;
+      doc.dispose();
+      this.#stores.delete(id);
+      idle--;
+    }
   }
   restoreText(change: TextChange | undefined, previousText: string | undefined): boolean {
     if (!change) return false;
@@ -105,10 +124,12 @@ export class ContentCache {
       if (!this.tree.index.has(id)) {
         doc.dispose();
         this.#stores.delete(id);
+        this.#owners.delete(id);
       }
   }
   dispose() {
     for (const doc of this.#stores.values()) doc.dispose();
     this.#stores.clear();
+    this.#owners.clear();
   }
 }

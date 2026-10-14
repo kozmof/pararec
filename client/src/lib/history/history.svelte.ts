@@ -2,6 +2,7 @@ import type { Schema } from "../../schema.js";
 import type { Caret } from "../editor/document-store.svelte.js";
 import { buildIndex } from "../tree/index.js";
 import { applyOp } from "../tree/ops.js";
+import { applySchemaChanges, schemaChanges, type SchemaChange } from "./schema-change.js";
 export type FocusSnapshot = Caret & { contentId: string };
 /** UTF-16 offsets of the affected span in the before and after snapshots. */
 export type TextChange = { contentId: string; from: number; oldEnd: number; newEnd: number };
@@ -9,7 +10,7 @@ export type TextPatch = { removed: string; inserted: string };
 export type AppSnapshot = { schema: Schema; path: string[]; focus: FocusSnapshot | null; textChange?: TextChange };
 type Navigation = Omit<AppSnapshot, "schema">;
 export type HistoryEntry =
-  | { kind: "snapshot"; before: AppSnapshot; after: AppSnapshot; textChange?: TextChange }
+  | { kind: "structure"; before: Navigation; after: Navigation; changes: SchemaChange[]; textChange?: TextChange }
   | { kind: "text"; before: Navigation; after: Navigation; textChange: TextChange; removed: string; inserted: string; beforeLinks: Schema["links"]; afterLinks: Schema["links"] };
 
 function contentText(schema: Schema, id: string): string {
@@ -25,7 +26,10 @@ function patchText(text: string): string {
   return JSON.parse(JSON.stringify(text)) as string;
 }
 function restore(entry: HistoryEntry, schema: Schema, undo: boolean): AppSnapshot {
-  if (entry.kind === "snapshot") return copy(undo ? entry.before : entry.after);
+  if (entry.kind === "structure") return {
+    ...navigation({ schema, ...(undo ? entry.before : entry.after) }),
+    schema: applySchemaChanges(schema, entry.changes, undo),
+  };
   const change = entry.textChange;
   const text = contentText(schema, change.contentId);
   const end = undo ? change.newEnd : change.oldEnd;
@@ -53,13 +57,6 @@ export type TypingGroup = {
   group: number;
   time?: number;
 };
-function copy(snapshot: AppSnapshot): AppSnapshot {
-  return {
-    schema: snapshot.schema,
-    path: [...snapshot.path],
-    focus: snapshot.focus ? { ...snapshot.focus } : null,
-  };
-}
 function sameFocus(a: FocusSnapshot | null, b: FocusSnapshot | null): boolean {
   return (
     !!a &&
@@ -149,22 +146,23 @@ export class AppHistory {
       removed: patchText(savedPatch?.removed ?? contentText(first.schema, combined.contentId).slice(combined.from, combined.oldEnd)),
       inserted: patchText(savedPatch?.inserted ?? contentText(after.schema, combined.contentId).slice(combined.from, combined.newEnd)),
     } : {
-      kind: "snapshot",
-      before: copy(first),
-      after: copy(after),
+      kind: "structure",
+      before: navigation(first),
+      after: navigation(after),
+      changes: schemaChanges(first.schema, after.schema),
       textChange: merge ? last!.textChange && textChange ? mergeChanges(last!.textChange, textChange) : undefined : textChange,
     };
     this.#undo = merge
       ? [...this.#undo.slice(0, -1), entry]
       : [...this.#undo, entry].slice(-this.limit);
     this.#redo = [];
-    // Conservative serialized size bounds retained history, including large snapshots.
+    // Bound retained changes; keep the latest action undoable even if it exceeds the budget.
     this.#sizes.set(entry, JSON.stringify(entry).length * 2);
     let bytes = 0;
     let keep = this.#undo.length;
     for (let i = this.#undo.length - 1; i >= 0; i--) {
       bytes += this.#sizes.get(this.#undo[i])!;
-      if (bytes > this.byteLimit) break;
+      if (bytes > this.byteLimit && i < this.#undo.length - 1) break;
       keep = i;
     }
     this.#undo = this.#undo.slice(keep);

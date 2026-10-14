@@ -116,6 +116,37 @@ it("evicts the least recently used store and keeps the newly focused store", () 
   expect(dispose).toHaveBeenCalledOnce();
   expect(cache.get("l")).toBe(first);
 });
+it("keeps mounted documents live beyond the idle cache limit and evicts them after release", () => {
+  const store = tree(), changed = vi.fn();
+  const dispose = vi.spyOn(EditorDocument.prototype, "dispose");
+  cache = new ContentCache(store, changed, 1);
+  const owners = [{}, {}, {}];
+  const first = cache.get("l", owners[0]);
+  cache.get("l2", owners[1]);
+  cache.get("r", owners[2]);
+  expect(cache.size).toBe(3);
+  expect(dispose).not.toHaveBeenCalled();
+  first.insert({ line: 0, column: 0 }, "!");
+  expect(store.schema.root[0].left[0].text).toBe("!left");
+  expect(changed).toHaveBeenCalledOnce();
+  cache.release("l", owners[0]);
+  cache.release("l2", owners[1]);
+  expect(cache.size).toBe(2);
+  expect(dispose).toHaveBeenCalledOnce();
+  expect(cache.get("r")).toBe(cache.get("r", owners[2]));
+});
+it("does not evict a document until its last mounted owner releases it", () => {
+  const dispose = vi.spyOn(EditorDocument.prototype, "dispose");
+  cache = new ContentCache(tree(), () => {}, 1);
+  const a = {}, b = {};
+  cache.get("l", a);
+  cache.get("l", b);
+  cache.get("l2");
+  cache.release("l", a);
+  expect(dispose).not.toHaveBeenCalled();
+  cache.release("l", b);
+  expect(dispose).toHaveBeenCalledOnce();
+});
 it("disposes removed Contents and rebuilds stale documents after snapshot-like tree restoration", () => {
   const store = tree(),
     dispose = vi.spyOn(EditorDocument.prototype, "dispose");

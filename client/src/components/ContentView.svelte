@@ -8,12 +8,20 @@
   let { content, label, side, navigation }: { content: Content; label: string; side: "left" | "right"; navigation?: Snippet } = $props();
   let editor = $state<ContentEditor>();
   const host = getContext<ContentHost>(CONTENT_HOST);
+  const owner = {};
   const editing = $derived(host.focused === content.id && !host.disabled && !host.linking);
   const text = $derived(content.text);
   const doc = $derived.by(() => {
     void text;
     void editing;
-    return untrack(() => host.cache.get(content.id));
+    const cache = host.cache;
+    const id = content.id;
+    return untrack(() => cache.get(id, owner));
+  });
+  $effect(() => {
+    const cache = host.cache;
+    const id = content.id;
+    return () => cache.release(id, owner);
   });
   function blur(event: FocusEvent) {
     if (!(event.relatedTarget instanceof Node) || !(event.currentTarget as HTMLElement).contains(event.relatedTarget)) host.blur(content.id);

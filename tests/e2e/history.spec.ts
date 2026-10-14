@@ -3,6 +3,34 @@ import { expect, test } from "@playwright/test";
 import type { Schema } from "../../client/src/schema.js";
 const fixture: Schema = JSON.parse(readFileSync("fixtures/flat.json", "utf8"));
 
+test("mounted cells remain editable after exceeding the idle editor cache limit", async ({ page }) => {
+  let disk = { ...structuredClone(fixture), root: Array.from({ length: 60 }, (_, i) => ({
+    id: `row-${i}`, left: [{ id: `left-${i}`, text: `Left ${i}` }],
+    right: { id: `right-${i}`, text: `Right ${i}`, children: [] },
+  })) };
+  await page.route("**/api/document", async route => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: disk, headers: { ETag: '"v1"' } });
+    } else {
+      disk = route.request().postDataJSON();
+      await route.fulfill({ status: 204, headers: { ETag: '"v2"' } });
+    }
+  });
+  await page.goto("/");
+  for (const i of [0, 59, 0]) {
+    await page.locator(`[data-content-id="right-${i}"]`).click();
+    await expect(page.getByTestId("editor-sink")).toBeFocused();
+    await page.keyboard.press("ControlOrMeta+Home");
+    await page.keyboard.type("!");
+  }
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(disk.root[0].right.text).toBe("!!Right 0");
+  expect(disk.root[59].right.text).toBe("!Right 59");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.locator('[data-content-id="right-0"]')).toContainText("!Right 0");
+});
+
 test("undo and redo restore text, structure, and caret and survive saving", async ({ page }) => {
   let disk = structuredClone(fixture),
     revision = 1;

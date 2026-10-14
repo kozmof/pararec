@@ -38,11 +38,12 @@ it("groups compact linked-text patches and restores their original and final lab
   expect(history.redo()).toMatchObject(c);
 });
 
-it("evicts oversized snapshot history while retaining later compact edits", () => {
+it("keeps an oversized action undoable while retaining later compact edits", () => {
   const history = new AppHistory(500, 2000);
   const a = snapshot("a".repeat(5000)), b = snapshot("b".repeat(5000));
   history.record(a, b);
-  expect(history.canUndo).toBe(false);
+  expect(history.undo()).toMatchObject(a);
+  expect(history.redo()).toMatchObject(b);
   const c = snapshot("x" + b.schema.root[0].right.text);
   history.record(b, c, undefined, { contentId: "right", from: 0, oldEnd: 0, newEnd: 1 }, { removed: "", inserted: "x" });
   expect(history.undo()).toMatchObject(b);
@@ -138,7 +139,7 @@ describe("app snapshot history", () => {
     a.path.push("changed");
     a.focus!.column = 9;
     const restored = history.undo()!;
-    expect(restored.schema).toBe(a.schema);
+    expect(restored.schema).toEqual(a.schema);
     expect(restored.path).toEqual([]);
     expect(restored.focus!.column).toBe(0);
     restored.path.push("mutated");

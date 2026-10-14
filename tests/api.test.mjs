@@ -324,6 +324,31 @@ test("document API over real sockets", async (t) => {
     assert.equal((await request("GET", "/api/unknown")).status, 404);
     assert.equal((await request("POST")).status, 405);
   });
+  await t.test("static responses stream exact bytes, support HEAD, and retain SPA fallback", async () => {
+    const content = "日本語 👩🏽‍💻\n".repeat(16_384);
+    await mkdir(path.join(directory, "static/assets"));
+    await mkdir(path.join(directory, "static/folder"));
+    await writeFile(path.join(directory, "static/assets/large.txt"), content);
+    await writeFile(path.join(directory, "static/empty.txt"), "");
+    const responses = await Promise.all(Array.from({ length: 8 }, () => request("GET", "/assets/large.txt")));
+    for (const response of responses) {
+      assert.equal(response.status, 200);
+      assert.equal(response.body, content);
+      assert.equal(Number(response.headers["content-length"]), Buffer.byteLength(content));
+      assert.equal(response.headers["cache-control"], "public, max-age=31536000, immutable");
+    }
+    const head = await request("HEAD", "/assets/large.txt");
+    assert.equal(head.status, 200);
+    assert.equal(head.body, "");
+    assert.equal(Number(head.headers["content-length"]), Buffer.byteLength(content));
+    assert.equal((await request("GET", "/empty.txt")).body, "");
+    assert.equal((await request("GET", "/folder")).body, (await request("GET", "/")).body);
+    const oversized = await open(path.join(directory, "static/oversized.txt"), "w");
+    try { await oversized.truncate(64 * 1024 * 1024 + 1); }
+    finally { await oversized.close(); }
+    assert.equal((await request("GET", "/oversized.txt")).status, 413);
+    assert.equal((await request("HEAD", "/oversized.txt")).status, 413);
+  });
   await t.test("deletion fails updates and allows explicit re-creation", async () => {
     const previous = await request();
     await rm(documentPath);
