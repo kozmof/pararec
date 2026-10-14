@@ -20,7 +20,11 @@ test("mounted cells remain editable after exceeding the idle editor cache limit"
   for (const i of [0, 59, 0]) {
     await page.locator(`[data-content-id="right-${i}"]`).click();
     await expect(page.getByTestId("editor-sink")).toBeFocused();
-    await page.keyboard.press("ControlOrMeta+Home");
+    // Home is intentionally unsupported. Select all to put the caret at the end,
+    // then use supported arrow keys to reach the start before inserting.
+    const text = await page.locator(`[data-content-id="right-${i}"] [data-line]`).first().textContent();
+    await page.keyboard.press("ControlOrMeta+a");
+    for (let column = 0; column < text!.length; column++) await page.keyboard.press("ArrowLeft");
     await page.keyboard.type("!");
   }
   await page.keyboard.press("ControlOrMeta+s");

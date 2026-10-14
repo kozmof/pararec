@@ -53,6 +53,17 @@ describe("EditorSurface", () => {
     expect(doc.text()).toBe("a!bc\ndef");
   });
 
+  it("reaches the note start with select-all and left arrows from a clicked caret", async () => {
+    const content = "!Right 0";
+    const { doc, sink } = mount(content, { caret: { line: 0, column: 5 } });
+    sink.focus();
+    await fireEvent.keyDown(sink, { key: "a", ctrlKey: true });
+    for (let column = 0; column < content.length; column++)
+      await fireEvent.keyDown(sink, { key: "ArrowLeft" });
+    await userEvent.keyboard("!");
+    expect(doc.text()).toBe("!!Right 0");
+  });
+
   it("inserts a newline on Enter", async () => {
     const { doc, sink } = mount("ab\n", { caret: { line: 0, column: 1 } });
     sink.focus();
