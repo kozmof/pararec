@@ -9,7 +9,7 @@ function fixture(rows: number, lines = 1): Schema {
       showTitles: true,
       maxWidth: 1100,
       outerWidthRate: { left: 35, right: 65 },
-      innerIdthRate: { left: 35, right: 65 },
+      innerWidthRate: { left: 35, right: 65 },
     },
     root: Array.from({ length: rows }, (_, i) => ({
       id: `row-${i}`,

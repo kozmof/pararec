@@ -8,7 +8,7 @@ pub const Config = struct {
     showTitles: bool = true,
     maxWidth: f64 = 1100,
     outerWidthRate: WidthRate = .{ .left = 35, .right = 65 },
-    innerIdthRate: WidthRate = .{ .left = 35, .right = 65 },
+    innerWidthRate: WidthRate = .{ .left = 35, .right = 65 },
 };
 pub const TextLink = struct { id: []const u8, sourceId: []const u8, start: usize, end: usize, targets: []const []const u8 };
 pub const Schema = struct {
@@ -80,7 +80,7 @@ pub fn validate(gpa: std.mem.Allocator, document: Schema) !void {
     if (document.version != 1) return error.UnsupportedVersion;
     if (!std.math.isFinite(document.config.maxWidth) or document.config.maxWidth <= 0) return error.InvalidMaxWidth;
     try checkText(document.title);
-    for ([_]WidthRate{ document.config.outerWidthRate, document.config.innerIdthRate }) |rate| {
+    for ([_]WidthRate{ document.config.outerWidthRate, document.config.innerWidthRate }) |rate| {
         if (!std.math.isFinite(rate.left) or !std.math.isFinite(rate.right) or rate.left <= 0 or rate.right <= 0) return error.InvalidWidthRate;
     }
     var ids: std.StringHashMap(void) = .init(gpa);
@@ -176,7 +176,7 @@ test "schema rejects invalid UTF-8 and missing fields" {
 }
 
 test "document settings survive serialization and validate ratios" {
-    const parsed = try parse(std.testing.allocator, "{\"version\":1,\"root\":[],\"title\":\"Notes\",\"config\":{\"showTitles\":false,\"outerWidthRate\":{\"left\":2,\"right\":3},\"innerIdthRate\":{\"left\":1,\"right\":4}}}");
+    const parsed = try parse(std.testing.allocator, "{\"version\":1,\"root\":[],\"title\":\"Notes\",\"config\":{\"showTitles\":false,\"outerWidthRate\":{\"left\":2,\"right\":3},\"innerWidthRate\":{\"left\":1,\"right\":4}}}");
     defer parsed.deinit();
     try validate(std.testing.allocator, parsed.value);
     const bytes = try serialize(std.testing.allocator, parsed.value);
@@ -185,7 +185,7 @@ test "document settings survive serialization and validate ratios" {
     defer roundtrip.deinit();
     try std.testing.expectEqualStrings("Notes", roundtrip.value.title);
     try std.testing.expectEqual(false, roundtrip.value.config.showTitles);
-    try std.testing.expectEqual(@as(f64, 4), roundtrip.value.config.innerIdthRate.right);
+    try std.testing.expectEqual(@as(f64, 4), roundtrip.value.config.innerWidthRate.right);
     try std.testing.expectError(error.InvalidWidthRate, validate(std.testing.allocator, .{ .version = 1, .root = &.{}, .config = .{ .outerWidthRate = .{ .left = 0, .right = 1 } } }));
     try std.testing.expectEqualStrings("my.notes", defaultTitle("/tmp/my.notes.json"));
     try std.testing.expectEqualStrings("notes", defaultTitle("notes"));

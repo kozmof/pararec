@@ -8,7 +8,7 @@ const schema: Schema = {
     showTitles: true,
     maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
-    innerIdthRate: { left: 35, right: 65 },
+    innerWidthRate: { left: 35, right: 65 },
   },
   root: [],
 };
@@ -19,7 +19,7 @@ const next: Schema = {
     showTitles: true,
     maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
-    innerIdthRate: { left: 35, right: 65 },
+    innerWidthRate: { left: 35, right: 65 },
   },
   root: [
     { id: "a", left: [{ id: "l", text: "" }], right: { id: "r", text: "日本", children: [] } },

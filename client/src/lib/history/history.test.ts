@@ -8,7 +8,7 @@ function snapshot(text: string, column = text.length): AppSnapshot {
     config: {
       showTitles: true, maxWidth: 1100,
       outerWidthRate: { left: 35, right: 65 },
-      innerIdthRate: { left: 35, right: 65 },
+      innerWidthRate: { left: 35, right: 65 },
     },
     root: [
       { id: "row", left: [{ id: "left", text: "" }], right: { id: "right", text, children: [] } },

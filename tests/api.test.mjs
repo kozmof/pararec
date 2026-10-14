@@ -19,7 +19,7 @@ const empty = {
     showTitles: true,
     maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
-    innerIdthRate: { left: 35, right: 65 },
+    innerWidthRate: { left: 35, right: 65 },
   },
   root: [],
 };
@@ -453,7 +453,7 @@ test("document settings persist and the default title uses the filename", async 
       showTitles: false,
       maxWidth: 900,
       outerWidthRate: { left: 1, right: 2 },
-      innerIdthRate: { left: 3, right: 4 },
+      innerWidthRate: { left: 3, right: 4 },
     },
   };
   const saved = await fetch(`${origin()}/api/document`, {

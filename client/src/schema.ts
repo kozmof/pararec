@@ -15,7 +15,7 @@ export type Config = {
   readonly showTitles: boolean;
   readonly maxWidth: number;
   readonly outerWidthRate: { readonly left: number; readonly right: number };
-  readonly innerIdthRate: { readonly left: number; readonly right: number };
+  readonly innerWidthRate: { readonly left: number; readonly right: number };
 };
 
 export type TextLink = { readonly id: string; readonly sourceId: string; readonly start: number; readonly end: number; readonly targets: readonly string[] };
@@ -68,7 +68,7 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
     showTitles: true,
     maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
-    innerIdthRate: { left: 35, right: 65 },
+    innerWidthRate: { left: 35, right: 65 },
   };
   const settings = document.config === undefined ? {} : object(document.config);
   if (settings.maxWidth !== undefined) {
@@ -83,7 +83,7 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
     if (typeof settings.showTitles !== "boolean") throw new Error("Expected boolean showTitles");
     config.showTitles = settings.showTitles;
   }
-  for (const key of ["outerWidthRate", "innerIdthRate"] as const) {
+  for (const key of ["outerWidthRate", "innerWidthRate"] as const) {
     if (settings[key] === undefined) continue;
     const rate = object(settings[key]);
     if (

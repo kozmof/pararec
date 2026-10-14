@@ -181,7 +181,7 @@ it("shows the filename title and applies configured width rates", async () => {
         config: {
           showTitles: true, maxWidth: 1100,
           outerWidthRate: { left: 2, right: 3 },
-          innerIdthRate: { left: 1, right: 4 },
+          innerWidthRate: { left: 1, right: 4 },
         },
       }),
       { headers: { ETag: '"v1"', "X-Document-Title": JSON.stringify("my.notes") } },

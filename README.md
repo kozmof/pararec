@@ -43,7 +43,7 @@ This example shows an empty document with the default layout settings.
     "showTitles": true,
     "maxWidth": 1100,
     "outerWidthRate": { "left": 35, "right": 65 },
-    "innerIdthRate": { "left": 35, "right": 65 }
+    "innerWidthRate": { "left": 35, "right": 65 }
   },
   "root": []
 }
@@ -55,11 +55,11 @@ This example shows an empty document with the default layout settings.
 | `config.showTitles` | `true` | Show the document title. Set to `false` to hide it and remove its space. |
 | `config.maxWidth` | `1100` | Maximum width of the notes area in pixels. |
 | `config.outerWidthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for rows in the current layer. |
-| `config.innerIdthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for child rows shown inside a right cell. |
+| `config.innerWidthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for child rows shown inside a right cell. |
 
 Documents support up to 64 nested container levels. Deeper documents are rejected by the client and server.
 
-Omitted fields use their defaults. Width values must be positive, finite numbers. Column rates are proportions and do not need to total 100. For example, `{ "left": 1, "right": 2 }` makes the right column twice as wide as the left. Use the exact key `innerIdthRate` as shown.
+Omitted fields use their defaults. Width values must be positive, finite numbers. Column rates are proportions and do not need to total 100. For example, `{ "left": 1, "right": 2 }` makes the right column twice as wide as the left. Use the exact key `innerWidthRate` as shown.
 
 ## Develop
 

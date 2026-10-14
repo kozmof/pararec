@@ -21,7 +21,7 @@ function fixture(): Schema {
     config: {
       showTitles: true, maxWidth: 1100,
       outerWidthRate: { left: 35, right: 65 },
-      innerIdthRate: { left: 35, right: 65 },
+      innerWidthRate: { left: 35, right: 65 },
     },
     root: [row("a", [row("b", [row("c")])]), row("d")],
   };

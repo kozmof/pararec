@@ -27,7 +27,7 @@ describe("file format", () => {
       config: {
         showTitles: true, maxWidth: 1100,
         outerWidthRate: { left: 35, right: 65 },
-        innerIdthRate: { left: 35, right: 65 },
+        innerWidthRate: { left: 35, right: 65 },
       },
       version: 1,
       root: [{ ...row, right: { ...row.right, text: "a\nb\nc" } }],
@@ -57,7 +57,7 @@ it("preserves document settings", () => {
     config: {
       showTitles: false, maxWidth: 1100,
       outerWidthRate: { left: 2, right: 3 },
-      innerIdthRate: { left: 1, right: 4 },
+      innerWidthRate: { left: 1, right: 4 },
     },
   };
   expect(parseSchema(value)).toEqual(value);
@@ -67,7 +67,7 @@ it.each([
   { title: 123 },
   { config: { showTitles: "false" } },
   { config: { outerWidthRate: { left: 0, right: 1 } } },
-  { config: { innerIdthRate: { left: 1, right: Infinity } } },
+  { config: { innerWidthRate: { left: 1, right: Infinity } } },
   { config: { outerWidthRate: { left: 1 } } },
 ])("rejects invalid settings %j", (settings) => {
   expect(() => parseSchema({ version: 1, root: [], ...settings })).toThrow();
@@ -80,7 +80,7 @@ it("populates required title and configuration for legacy files", () => {
     config: {
       showTitles: true, maxWidth: 1100,
       outerWidthRate: { left: 35, right: 65 },
-      innerIdthRate: { left: 35, right: 65 },
+      innerWidthRate: { left: 35, right: 65 },
     },
     root: [],
   });
