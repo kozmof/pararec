@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSchema, type Container } from "../../schema.js";
+import { MAX_CONTAINER_DEPTH, parseSchema, type Container } from "../../schema.js";
 import { TreeStore } from "./tree-store.svelte.js";
 import { buildIndex } from "./index.js";
 import { structureAction, type StructureCommand } from "./structure.js";
@@ -161,6 +161,31 @@ describe("structure actions", () => {
     expect(tree.schema.root[1].left[0].text).toBe("");
     expect(result.focus!.contentId).toBe(tree.schema.root[1].right.id);
   });
+  it.each(["a", "child"])("prepends a two-column child from the full-width parent %s", id => {
+    const tree = store();
+    const path = id === "a" ? ["a"] : ["a", "child"];
+    const before = tree.index.get(id)!.container;
+    const rootCount = tree.schema.root.length;
+    const result = action(tree, before.right.id, "newSibling", 0, 0, path)!;
+    const parent = tree.index.get(id)!.container;
+    const child = parent.right.children[0];
+    expect(parent.left).toEqual(before.left);
+    expect(parent.right.text).toBe(before.right.text);
+    expect(parent.right.children.slice(1)).toEqual(before.right.children);
+    expect(child.left).toHaveLength(1);
+    expect(child.left[0].text).toBe("");
+    expect(child.right.text).toBe("");
+    expect(tree.schema.root).toHaveLength(rootCount);
+    expect(result.path).toEqual(path);
+    expect(result.focus).toEqual({ contentId: child.right.id, entry: { kind: "edge", edge: "start" } });
+  });
+  it("keeps ordinary sibling creation away from the full-width parent's start", () => {
+    const tree = store();
+    const before = tree.schema.root[0].right.children;
+    action(tree, "a-r", "newSibling", 0, 1, ["a"]);
+    expect(tree.schema.root).toHaveLength(3);
+    expect(tree.schema.root[0].right.children).toEqual(before);
+  });
   it("joins with a newline and places the caret at the previous text's end", () => {
     const tree = store(),
       result = action(tree, "a-l1", "join")!;
@@ -285,4 +310,14 @@ it.each(["a-l0", "child-l0"])("creates a sibling row from left note %s at the sa
   expect(sibling.right.text).toBe("");
   expect(siblings[at].right).toEqual(before.right);
   expect(result.focus!.contentId).toBe(sibling.left[0].id);
+});
+
+it("does not prepend a child beyond the nesting limit", () => {
+  let rows: Container[] = [];
+  for (let depth = MAX_CONTAINER_DEPTH - 1; depth >= 0; depth--)
+    rows = [row(`depth-${depth}`, ["left"], "right", rows)];
+  const tree = new TreeStore({ version: 1, root: rows });
+  const path = Array.from({ length: MAX_CONTAINER_DEPTH }, (_, depth) => `depth-${depth}`);
+  expect(action(tree, `depth-${MAX_CONTAINER_DEPTH - 1}-r`, "newSibling", 0, 0, path)).toBeNull();
+  expect(tree.revision).toBe(0);
 });

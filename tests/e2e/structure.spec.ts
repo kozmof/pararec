@@ -45,3 +45,37 @@ test("structure shortcuts build and rearrange notes with valid saved snapshots",
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   expect(disk.root[0].right.children[0].right.children[0].right.text).toBe("日本");
 });
+
+for (const active of [false, true]) {
+  test(`clicking the left padding of an ${active ? "active" : "inactive"} parent note prepends a child`, async ({ page }) => {
+    let disk = JSON.parse(readFileSync("fixtures/three-levels.json", "utf8"));
+    await page.route("**/api/document", async route => {
+      if (route.request().method() === "GET") await route.fulfill({ json: disk, headers: { ETag: '"test"' } });
+      else {
+        disk = route.request().postDataJSON();
+        await route.fulfill({ status: 204, headers: { ETag: '"test"' } });
+      }
+    });
+    await page.goto("/#/c/root/child");
+    await expect(page.getByTestId("editor-sink")).toBeFocused();
+    const parent = page.locator('[data-content-id="child-right"]');
+    if (active) {
+      await parent.focus();
+      await expect(parent.getByTestId("editor-sink")).toBeFocused();
+      for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowRight");
+    }
+    await parent.locator('[data-line="0"]').click({ position: { x: 1, y: 10 } });
+    await expect(parent.getByTestId("editor-sink")).toBeFocused();
+    await page.keyboard.press("Shift+Enter");
+    await expect(page.getByTestId("pad-level").getByTestId("editor-sink")).toBeFocused();
+    await page.keyboard.type("!");
+    await page.keyboard.press("ControlOrMeta+s");
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    expect(disk.root).toHaveLength(1);
+    expect(disk.root[0].right.children).toHaveLength(1);
+    const note = disk.root[0].right.children[0].right;
+    expect(note.text).toBe("Child note");
+    expect(note.children.map((row: { right: { text: string } }) => row.right.text)).toEqual(["!", "Grandchild note"]);
+    await expect(page).toHaveURL(/#\/c\/root\/child$/);
+  });
+}

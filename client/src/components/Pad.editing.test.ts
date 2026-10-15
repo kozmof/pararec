@@ -1257,3 +1257,35 @@ it("releases offscreen editor stores and recreates them when a cell receives foc
   await save();
   expect(disk.root[59].right.text).toContain("!");
 });
+
+it("Shift Enter at the full-width parent start prepends a child and supports undo and redo", async () => {
+  disk = JSON.parse(readFileSync("fixtures/three-levels.json", "utf8"));
+  const before = clone(disk);
+  await opened();
+  await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Child note" }));
+  await waitFor(() => expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  content("child-right").focus();
+  await waitFor(() => expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await placeAtEdge("start");
+  await key("Enter", { shiftKey: true });
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  await key("!");
+  await save();
+  const children = disk.root[0].right.children[0].right.children;
+  expect(children).toHaveLength(2);
+  expect(children[0].left).toHaveLength(1);
+  expect(children[0].left[0].text).toBe("");
+  expect(children[0].right.text).toBe("!");
+  expect(children[1]).toEqual(before.root[0].right.children[0].right.children[0]);
+  expect(disk.root[0].right.children[0].right.text).toBe("Child note");
+  expect(window.location.hash).toBe("#/c/root/child");
+  await key("z", { ctrlKey: true });
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk).toEqual(before);
+  await key("z", { ctrlKey: true, shiftKey: true });
+  await waitFor(() => expect(content(children[0].right.id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await save();
+  expect(disk.root[0].right.children[0].right.children[0].right.text).toBe("");
+  expect(window.location.hash).toBe("#/c/root/child");
+});

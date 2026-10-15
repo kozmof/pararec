@@ -208,6 +208,9 @@ export function domLineMeasurer(lineElement: (line: number) => HTMLElement | nul
       };
       const rows = ctx.rows();
       const row = rows.filter((row) => row.top <= y).at(-1) ?? rows[0];
+      // Left padding on the first visual row always means the document line start.
+      // Native hit tests can choose an adjacent character or the transparent input sink.
+      if (x <= 0 && row === rows[0]) return 0;
       const screenX = ctx.origin.x + x,
         screenY = ctx.origin.y + row.top + row.height / 2;
       const hit = Number.isFinite(x) ? doc.caretPositionFromPoint?.(screenX, screenY) : null;

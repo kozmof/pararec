@@ -75,6 +75,15 @@ function planStructureAction(
       };
     }
     case "newSibling": {
+      if (current.side === "right" && container.id === path.at(-1) && offset === 0) {
+        if (containerPath(index, container.id).length >= MAX_CONTAINER_DEPTH) return null;
+        const child = createContainer();
+        return {
+          path,
+          ops: [{ type: "insertContainer", parentId: container.id, index: 0, container: child }],
+          focus: { contentId: child.right.id, entry: { kind: "edge", edge: "start" } },
+        };
+      }
       const sibling = createContainer();
       const destination = current.side === "left" ? sibling.left[0] : sibling.right;
       return {

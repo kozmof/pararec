@@ -110,7 +110,7 @@ While editing a note, use the following shortcuts. On macOS, use Cmd in place of
 | Shift+Left / Shift+Right | Move between cells and columns from any cursor position. |
 | Shift+Up / Shift+Down | Move to the cell above or below from any cursor position. |
 | Enter | Insert a line break. |
-| Shift+Enter | Create an empty sibling row with left and right cells and focus the same column in the new row. Keep all text in the original cell. |
+| Shift+Enter | Create an empty sibling row with left and right cells and focus the same column in the new row. Keep all text in the original cell. At the start of the full-width parent note in a child layer, insert the empty row before its children instead. |
 | Alt+Enter in a left cell | Split at the cursor into a new left cell in the same row. |
 | Ctrl+Enter in a right cell | Add an empty child row and focus its right cell. |
 | Shift+Delete | Remove the current row, including its children. |

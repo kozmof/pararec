@@ -160,6 +160,22 @@ describe("span DOM measurer", () => {
     expect(measure.pointToColumn(0, 1000, 0)).toBe(6);
   });
 
+  it.each(["caretPositionFromPoint", "caretRangeFromPoint"] as const)("clamps clicks at the text start before consulting %s", method => {
+    const { nodes, measure } = spans();
+    const range = document.createRange();
+    range.setStart(nodes[0], 1);
+    range.collapse(true);
+    const hit = vi.fn(() => method === "caretPositionFromPoint" ? { offsetNode: nodes[0], offset: 1 } : range);
+    Object.defineProperty(document, method, { configurable: true, value: hit });
+    try {
+      expect(measure.pointToColumn(0, -8, 0)).toBe(0);
+      expect(measure.pointToColumn(0, 0, 0)).toBe(0);
+      expect(hit).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(document, method);
+    }
+  });
+
   it("prefers caretPositionFromPoint and converts node offsets to columns", () => {
     const { nodes, measure } = spans();
     const hit = vi.fn(() => ({ offsetNode: nodes[1], offset: 1 }));
