@@ -29,7 +29,7 @@ test("structure shortcuts build and rearrange notes with valid saved snapshots",
   await page.keyboard.type("!");
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
-  expect(disk.root.map((row) => row.right.text)).toEqual(["First ", "!note", "Second note"]);
+  expect(disk.root.map((row) => row.right.text)).toEqual(["First note", "!", "Second note"]);
   const inserted = disk.root[1].id;
   await page.keyboard.press("Alt+ArrowUp");
   await expect(

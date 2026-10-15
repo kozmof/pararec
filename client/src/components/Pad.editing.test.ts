@@ -242,14 +242,14 @@ it("forwards all undo shortcuts to app history instead of native Reed history", 
   expect(disk.root[0].right.text).toBe("XFirst note");
 });
 
-it("Shift+Enter splits a right note into a sibling and saves both halves together", async () => {
+it("Shift+Enter keeps the right note and saves an empty sibling", async () => {
   await opened();
   for (let column = 0; column < 6; column++) await key("ArrowRight");
   await key("Enter", { shiftKey: true });
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
   await key("!");
   await save();
-  expect(disk.root.map((row) => row.right.text)).toEqual(["First ", "!note", "Second note"]);
+  expect(disk.root.map((row) => row.right.text)).toEqual(["First note", "!", "Second note"]);
   expect(puts).toHaveLength(1);
   expect(disk.root[1].left[0].text).toBe("");
 });
@@ -780,8 +780,8 @@ it("Shift Enter from a left cell creates a sibling row and can be undone", async
   await key("!");
   await save();
   expect(disk.root).toHaveLength(3);
-  expect(disk.root[0].left[0].text).toBe("left ");
-  expect(disk.root[1].left[0].text).toBe("!tail");
+  expect(disk.root[0].left[0].text).toBe("left tail");
+  expect(disk.root[1].left[0].text).toBe("!");
   expect(disk.root[1].right.text).toBe("");
   expect(disk.root[0].right.text).toBe(original.root[0].right.text);
   await key("z", { ctrlKey: true });

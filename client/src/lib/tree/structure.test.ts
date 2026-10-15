@@ -19,7 +19,7 @@ const store = () =>
     root: [row("a", ["日本\n👩‍🚀tail", "second"], "first\nsecond", [row("child")]), row("b")],
   });
 
-it.each(["split", "newSibling"] as const)("preserves UTF-8 labels across %s, undo, and redo", command => {
+it.each(["split"] as const)("preserves UTF-8 labels across %s, undo, and redo", command => {
   const tree = new TreeStore({ version: 1, root: [row("a", ["日本abcd"]), row("b")], links: [
     { id: "before", sourceId: "a-l0", start: 0, end: 3, targets: ["b-r"] },
     { id: "after", sourceId: "a-l0", start: 6, end: 10, targets: ["b-r"] },
@@ -127,10 +127,36 @@ describe("structure actions", () => {
     expect(tree.schema.root[0].left[0].id).toBe("a-l0");
     expect(result.focus!.contentId).toBe(tree.schema.root[0].left[1].id);
   });
-  it("creates a sibling with trailing text and leaves children with the original row", () => {
+  it.each([
+    ["a-l0", 0, 0], ["a-r", 0, 0],
+    ["a-l0", 0, 1], ["a-r", 0, 1],
+    ["a-l0", 1, 9], ["a-r", 1, 6],
+  ] as const)("keeps text and links in %s when creating a sibling at %i:%i", (id, line, column) => {
+    const tree = new TreeStore({ version: 1, root: [row("a", ["日本\n👩‍🚀tail"], "日本\nsecond", [row("child")]), row("b")], links: [
+      { id: "label", sourceId: id, start: 0, end: 6, targets: ["b-r"] },
+      { id: "incoming", sourceId: "b-r", start: 0, end: 1, targets: [id] },
+    ] });
+    const before = tree.schema;
+    const result = action(tree, id, "newSibling", line, column)!;
+    expect(tree.schema.root[0]).toEqual(before.root[0]);
+    expect(tree.schema.links).toEqual(before.links);
+    expect(tree.schema.root[1].left[0].text).toBe("");
+    expect(tree.schema.root[1].right.text).toBe("");
+    expect(tree.schema.root[2]).toEqual(before.root[1]);
+    expect(result.focus).toEqual({
+      contentId: id === "a-l0" ? tree.schema.root[1].left[0].id : tree.schema.root[1].right.id,
+      entry: { kind: "edge", edge: "start" },
+    });
+  });
+  it("keeps text at the start of a later line", () => {
+    const tree = store();
+    action(tree, "a-r", "newSibling", 1, 0);
+    expect(tree.schema.root.map(row => row.right.text)).toEqual(["first\nsecond", "", "right"]);
+  });
+  it("creates an empty sibling and leaves text and children with the original row", () => {
     const tree = store(),
       result = action(tree, "a-r", "newSibling", 0, 2)!;
-    expect(tree.schema.root.map((row) => row.right.text)).toEqual(["fi", "rst\nsecond", "right"]);
+    expect(tree.schema.root.map((row) => row.right.text)).toEqual(["first\nsecond", "", "right"]);
     expect(tree.schema.root[0].right.children[0].id).toBe("child");
     expect(tree.schema.root[1].left[0].text).toBe("");
     expect(result.focus!.contentId).toBe(tree.schema.root[1].right.id);
@@ -254,8 +280,8 @@ it.each(["a-l0", "child-l0"])("creates a sibling row from left note %s at the sa
   const siblings = parentId === null ? tree.schema.root : tree.index.get(parentId)!.container.right.children;
   const at = siblings.findIndex(row => row.id === before.id);
   const sibling = siblings[at + 1];
-  expect(siblings[at].left[0].text).toBe(before.left[0].text.slice(0, 1));
-  expect(sibling.left[0].text).toBe(before.left[0].text.slice(1));
+  expect(siblings[at].left[0].text).toBe(before.left[0].text);
+  expect(sibling.left[0].text).toBe("");
   expect(sibling.right.text).toBe("");
   expect(siblings[at].right).toEqual(before.right);
   expect(result.focus!.contentId).toBe(sibling.left[0].id);

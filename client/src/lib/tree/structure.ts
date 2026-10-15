@@ -75,12 +75,11 @@ function planStructureAction(
       };
     }
     case "newSibling": {
-      const sibling = createContainer(current.side === "left" ? text.slice(offset) : "", current.side === "right" ? text.slice(offset) : "");
+      const sibling = createContainer();
       const destination = current.side === "left" ? sibling.left[0] : sibling.right;
       return {
         path,
         ops: [
-          { type: "setText", id: contentId, text: text.slice(0, offset) },
           {
             type: "insertContainer",
             parentId: current.parentId,
@@ -227,7 +226,7 @@ export function structureAction(
   for (const op of action.ops) staged = applyOp(staged, op, buildIndex(staged), false).schema;
   const nextIndex = buildIndex(staged);
   let links = [...schema.links];
-  if (command === "split" || command === "newSibling") {
+  if (command === "split") {
     const source = nextIndex.get(contentId)!;
     const text = source.side === "left" ? source.container.left[source.index].text : source.container.right.text;
     const split = new TextEncoder().encode(text).length;
