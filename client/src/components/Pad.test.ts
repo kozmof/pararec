@@ -62,9 +62,56 @@ describe("pad navigation", () => {
       ).toHaveFocus(),
     );
     await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/"));
+    expect(screen.queryByRole("button", { name: "Go back" })).not.toBeInTheDocument();
     await waitFor(() =>
       expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
     );
+  });
+  it("backs through each visited layer in order", async () => {
+    await opened();
+    await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Root note" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/c/root"));
+    await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Child note" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/c/root/child"));
+    await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/c/root"));
+    await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/"));
+  });
+  it.each([
+    [1, 2, 4],
+    [1, 3, 4],
+    [0, 2, 4],
+  ])("returns through mixed layer jumps %i, %i, %i and can revisit a deeper view", async (...depths) => {
+    const deep = JSON.parse(readFileSync("fixtures/seven-levels.json", "utf8"));
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(response(deep)));
+    await opened();
+    const hashAt = (depth: number) => depth < 0 ? "#/" : "#/c/" + Array.from({ length: depth + 1 }, (_, i) => `layer-${i}`).join("/");
+    const visit = async (depth: number) => {
+      content(`layer-${depth}-right`).focus();
+      await waitFor(() => expect(content(`layer-${depth}-right`).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+      await fireEvent.click(screen.getByRole("button", { name: `Go deeper into Layer ${depth + 1} note` }));
+      await waitFor(() => expect(window.location.hash).toBe(hashAt(depth)));
+    };
+    for (const depth of depths) await visit(depth);
+    const previous = depths[depths.length - 2];
+    await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+    await waitFor(() => expect(window.location.hash).toBe(hashAt(previous)));
+    await waitFor(() => expect(content(`layer-${depths.at(-1)}-right`).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    await visit(depths.at(-1)!);
+    for (const depth of [...depths.slice(0, -1).reverse(), -1]) {
+      await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+      await waitFor(() => expect(window.location.hash).toBe(hashAt(depth)));
+      await waitFor(() => expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent(`${depth + 2}:7`));
+    }
+    expect(screen.queryByRole("button", { name: "Go back" })).not.toBeInTheDocument();
+  });
+  it("falls back to the parent when a deep layer is opened directly", async () => {
+    window.history.replaceState(null, "", "#/c/root/child");
+    await opened();
+    await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/c/root"));
   });
   it("ignores the removed layer navigation shortcuts", async () => {
     await opened();
@@ -288,17 +335,14 @@ it("navigates with arrows while linking without selecting their cells", async ()
   expect(screen.queryByTestId("editor-sink")).not.toBeInTheDocument();
   await fireEvent.mouseDown(content("grandchild-right"), { button: 0 });
   expect(toolbar).toHaveTextContent("Select cells to link (2)");
-  let back = screen.getByRole("button", { name: "Go back" });
+  const back = screen.getByRole("button", { name: "Go back" });
   await fireEvent.mouseDown(back.querySelector("svg")!, { button: 0 });
   expect(toolbar).toHaveTextContent("Select cells to link (2)");
   await fireEvent.click(back);
-  await waitFor(() => expect(window.location.hash).toBe("#/c/root"));
-  expect(content("child-left")).toHaveClass("chosen");
-  expect(content("grandchild-right")).toHaveClass("chosen");
-  back = screen.getByRole("button", { name: "Go back" });
-  await fireEvent.mouseDown(back, { button: 0 });
-  await fireEvent.click(back);
   await waitFor(() => expect(window.location.hash).toBe("#/"));
+  expect(content("child-left")).toHaveClass("chosen");
+  expect(content("grandchild-right")).toBeNull();
+  expect(toolbar).toHaveTextContent("Select cells to link (2)");
   await fireEvent.click(screen.getByRole("button", { name: "Done" }));
   await waitFor(() => expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
   await key("s");

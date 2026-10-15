@@ -639,7 +639,7 @@ it("edits the parent row in a deeper layer and preserves edits when leaving and 
   expect(disk.root[0].right.children[0].right.text).toBe("!Child note");
   expect(disk.root[0].right.children[0].left[0].text).toBe("");
   await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
-  await waitFor(() => expect(window.location.hash).toBe("#/c/root"));
+  await waitFor(() => expect(window.location.hash).toBe("#/"));
   expect(content("child-right")).toHaveTextContent("!Child note");
   expect(content("child-left")).toHaveTextContent("");
   await fireEvent.click(screen.getByRole("button", { name: "Go deeper into !Child note" }));
@@ -680,7 +680,7 @@ it("focuses and types beside navigation arrows before and after the cell is acti
     expect(window.location.hash).toBe("#/c/root/child");
   }
   await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
-  await waitFor(() => expect(window.location.hash).toBe("#/c/root"));
+  await waitFor(() => expect(window.location.hash).toBe("#/"));
 });
 
 it("edits, saves, undoes, and redoes the document title", async () => {

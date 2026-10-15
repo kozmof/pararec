@@ -70,6 +70,7 @@
   let active = true;
   let controller: AbortController;
   let navigationVersion = 0;
+  let previousLayers: string[][] = [];
   let seenSchema: Schema | null = null;
   const disabled = $derived(busy || session?.status === "conflict");
   const rows = $derived(tree ? levelAt(tree.schema, path) : []);
@@ -145,6 +146,7 @@
   }
   function install(loaded: LoadedDocument) {
     history.clear();
+    previousLayers = [];
     linking = null; linkMenu = null;
     liveCaret = null;
     cache?.dispose();
@@ -184,19 +186,28 @@
       element.focus();
     } else { focused = null; addButton?.focus(); }
   }
-  function navigate(next: string[]) {
+  function navigate(next: string[], rememberLayer = true) {
     if (!tree || disabled) return;
     if (focused) blur(focused);
-    path = validPath(tree.schema, next);
+    const destination = validPath(tree.schema, next);
+    if (rememberLayer && pathHash(destination) !== pathHash(path)) previousLayers.push([...path]);
+    path = destination;
     const hash = pathHash(path);
     if (window.location.hash !== hash) window.location.hash = hash;
     void restoreFocus();
+  }
+  function goBack() {
+    if (!tree || disabled) return;
+    let previous = previousLayers.pop();
+    while (previous && pathHash(validPath(tree.schema, previous)) === pathHash(path)) previous = previousLayers.pop();
+    navigate(previous ?? path.slice(0, -1), false);
   }
   function enter(id: string) { if (tree) navigate(containerPath(tree.index, id)); }
   function readHash(restore = true) {
     if (!tree) return;
     const next = validPath(tree.schema, pathFromHash(window.location.hash));
     const changed = pathHash(next) !== pathHash(path);
+    if (changed) previousLayers = [];
     if (changed && focused) blur(focused);
     path = next;
     const canonical = pathHash(next);
@@ -404,7 +415,7 @@
     {#if session.status === "failed"}<p role="alert">{session.error}</p><button onclick={() => session?.flush()}>Retry save</button>{/if}
     {#if session.status === "conflict"}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="File changed on disk" aria-modal="true"><p>The file changed on disk. Reload the disk version or overwrite it with your notes.</p>{#if session.error}<p>{session.error}</p>{/if}<button disabled={busy} onclick={reload}>Reload</button><button disabled={busy} onclick={overwrite}>Overwrite</button></dialog>{/if}
     <div inert={disabled}>
-      {#if parent}<div class="level parent-row" data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right">{#snippet navigation()}<button class="go-back" title="Go back" aria-label="Go back" onclick={() => navigate(path.slice(0, -1))}><ArrowIcon direction="up" /></button>{/snippet}</ContentView></div>{/if}
+      {#if parent}<div class="level parent-row" data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right">{#snippet navigation()}<button class="go-back" title="Go back" aria-label="Go back" onclick={goBack}><ArrowIcon direction="up" /></button>{/snippet}</ContentView></div>{/if}
       <div class="level" class:empty={rows.length === 0} data-testid="pad-level" data-etag={session.etag ?? ""}>
         {#each rows as container (container.id)}<ContainerRow {container} onenter={enter} />
         {:else}<button bind:this={addButton} class="add-row" aria-label="Add row" title="Add row" onclick={addRow}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" /></svg></button>{/each}

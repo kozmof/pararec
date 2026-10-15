@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "title": "Deep navigation",
+  "root": [
+    {
+      "id": "layer-0",
+      "left": [
+        {
+          "id": "layer-0-left",
+          "text": "Left 0"
+        }
+      ],
+      "right": {
+        "id": "layer-0-right",
+        "text": "Layer 1 note",
+        "children": [
+          {
+            "id": "layer-1",
+            "left": [
+              {
+                "id": "layer-1-left",
+                "text": "Left 1"
+              }
+            ],
+            "right": {
+              "id": "layer-1-right",
+              "text": "Layer 2 note",
+              "children": [
+                {
+                  "id": "layer-2",
+                  "left": [
+                    {
+                      "id": "layer-2-left",
+                      "text": "Left 2"
+                    }
+                  ],
+                  "right": {
+                    "id": "layer-2-right",
+                    "text": "Layer 3 note",
+                    "children": [
+                      {
+                        "id": "layer-3",
+                        "left": [
+                          {
+                            "id": "layer-3-left",
+                            "text": "Left 3"
+                          }
+                        ],
+                        "right": {
+                          "id": "layer-3-right",
+                          "text": "Layer 4 note",
+                          "children": [
+                            {
+                              "id": "layer-4",
+                              "left": [
+                                {
+                                  "id": "layer-4-left",
+                                  "text": "Left 4"
+                                }
+                              ],
+                              "right": {
+                                "id": "layer-4-right",
+                                "text": "Layer 5 note",
+                                "children": [
+                                  {
+                                    "id": "layer-5",
+                                    "left": [
+                                      {
+                                        "id": "layer-5-left",
+                                        "text": "Left 5"
+                                      }
+                                    ],
+                                    "right": {
+                                      "id": "layer-5-right",
+                                      "text": "Layer 6 note",
+                                      "children": [
+                                        {
+                                          "id": "layer-6",
+                                          "left": [
+                                            {
+                                              "id": "layer-6-left",
+                                              "text": "Left 6"
+                                            }
+                                          ],
+                                          "right": {
+                                            "id": "layer-6-right",
+                                            "text": "Layer 7 note",
+                                            "children": []
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
