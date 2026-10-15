@@ -79,3 +79,30 @@ for (const active of [false, true]) {
     await expect(page).toHaveURL(/#\/c\/root\/child$/);
   });
 }
+
+for (const side of ["left", "right"] as const) {
+  test(`Shift Alt Enter inserts above a record from its ${side} cell`, async ({ page }) => {
+    let disk = structuredClone(fixture);
+    await page.route("**/api/document", async route => {
+      if (route.request().method() === "GET") await route.fulfill({ json: disk, headers: { ETag: '"upper"' } });
+      else { disk = route.request().postDataJSON(); await route.fulfill({ status: 204, headers: { ETag: '"upper"' } }); }
+    });
+    await page.goto("/");
+    await expect(page.getByTestId("editor-sink")).toBeFocused();
+    await page.locator(`[data-content-id="flat-1-${side}"]`).focus();
+    await expect(page.getByTestId("editor-sink")).toBeFocused();
+    await page.keyboard.press("Shift+Alt+Enter");
+    await expect(page.getByTestId("editor-sink")).toBeFocused();
+    await page.keyboard.type("!");
+    await page.keyboard.press("ControlOrMeta+s");
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    expect(disk.root.slice(1)).toEqual(fixture.root);
+    expect(disk.root).toHaveLength(3);
+    expect(side === "left" ? disk.root[0].left[0].text : disk.root[0].right.text).toBe("!");
+    await page.keyboard.press("ControlOrMeta+z");
+    await page.keyboard.press("ControlOrMeta+z");
+    await page.keyboard.press("ControlOrMeta+s");
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    expect(disk).toEqual(fixture);
+  });
+}

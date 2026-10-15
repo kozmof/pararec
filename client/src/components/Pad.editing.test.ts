@@ -1289,3 +1289,29 @@ it("Shift Enter at the full-width parent start prepends a child and supports und
   expect(disk.root[0].right.children[0].right.children[0].right.text).toBe("");
   expect(window.location.hash).toBe("#/c/root/child");
 });
+
+it.each(["left", "right"])("Shift Alt Enter inserts above the record from its %s cell and supports history", async side => {
+  await opened();
+  const id = `flat-1-${side}`;
+  content(id).focus();
+  await waitFor(() => expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  if (side === "right") await key("ArrowRight");
+  await key("Enter", { shiftKey: true, altKey: true });
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  await key("!");
+  await save();
+  expect(disk.root).toHaveLength(3);
+  expect(disk.root.slice(1)).toEqual(original.root);
+  expect(side === "left" ? disk.root[0].left[0].text : disk.root[0].right.text).toBe("!");
+  expect(side === "left" ? disk.root[0].right.text : disk.root[0].left[0].text).toBe("");
+  const inserted = disk.root[0];
+  await key("z", { ctrlKey: true });
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk).toEqual(original);
+  await key("z", { ctrlKey: true, shiftKey: true });
+  await waitFor(() => expect(content(side === "left" ? inserted.left[0].id : inserted.right.id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await save();
+  expect(disk.root).toHaveLength(3);
+  expect(disk.root.slice(1)).toEqual(original.root);
+});

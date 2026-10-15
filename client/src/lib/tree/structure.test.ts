@@ -321,3 +321,35 @@ it("does not prepend a child beyond the nesting limit", () => {
   expect(action(tree, `depth-${MAX_CONTAINER_DEPTH - 1}-r`, "newSibling", 0, 0, path)).toBeNull();
   expect(tree.revision).toBe(0);
 });
+
+it.each(["a-l0", "a-r", "child-l0", "child-r"])("inserts a record above %s without changing its text, links, or children", id => {
+  const tree = store();
+  const source = tree.index.get(id)!;
+  const text = source.side === "left" ? source.container.left[source.index].text : source.container.right.text;
+  tree.apply({ type: "setLinks", links: [{ id: "label", sourceId: id, start: 0, end: new TextEncoder().encode([...text][0]).length, targets: ["b-r"] }] });
+  const entry = tree.index.get(id)!;
+  const before = entry.container;
+  const links = tree.schema.links;
+  const path = id.startsWith("child") ? ["a"] : [];
+  const result = action(tree, id, "newSiblingBefore", 0, 1, path)!;
+  const rows = entry.parentId ? tree.index.get(entry.parentId)!.container.right.children : tree.schema.root;
+  const at = rows.findIndex(row => row.id === before.id);
+  const inserted = rows[at - 1];
+  expect(inserted.left).toHaveLength(1);
+  expect(inserted.left[0].text).toBe("");
+  expect(inserted.right.text).toBe("");
+  expect(inserted.right.children).toEqual([]);
+  expect(rows[at]).toEqual(before);
+  expect(tree.schema.links).toEqual(links);
+  expect(result.path).toEqual(path);
+  expect(result.focus!.contentId).toBe(entry.side === "left" ? inserted.left[0].id : inserted.right.id);
+});
+it("reveals the inserted upper sibling when invoked from the full-width parent", () => {
+  const tree = store();
+  const result = action(tree, "child-r", "newSiblingBefore", 0, 0, ["a", "child"])!;
+  expect(result.path).toEqual(["a"]);
+  const children = tree.schema.root[0].right.children;
+  expect(children[0].right.text).toBe("");
+  expect(children[1].id).toBe("child");
+  expect(result.focus!.contentId).toBe(children[0].right.id);
+});

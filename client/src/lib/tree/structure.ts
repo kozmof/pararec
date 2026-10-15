@@ -9,6 +9,7 @@ import { containerPath } from "./navigation.js";
 export type StructureCommand =
   | "split"
   | "newSibling"
+  | "newSiblingBefore"
   | "newChild"
   | "removeRow"
   | "removeLeft"
@@ -74,8 +75,10 @@ function planStructureAction(
         focus: { contentId: content.id, entry: { kind: "edge", edge: "start" } },
       };
     }
-    case "newSibling": {
-      if (current.side === "right" && container.id === path.at(-1) && offset === 0) {
+    case "newSibling":
+    case "newSiblingBefore": {
+      const before = command === "newSiblingBefore";
+      if (!before && current.side === "right" && container.id === path.at(-1) && offset === 0) {
         if (containerPath(index, container.id).length >= MAX_CONTAINER_DEPTH) return null;
         const child = createContainer();
         return {
@@ -87,12 +90,12 @@ function planStructureAction(
       const sibling = createContainer();
       const destination = current.side === "left" ? sibling.left[0] : sibling.right;
       return {
-        path,
+        path: before && container.id === path.at(-1) ? path.slice(0, -1) : path,
         ops: [
           {
             type: "insertContainer",
             parentId: current.parentId,
-            index: containerEntry.index + 1,
+            index: containerEntry.index + (before ? 0 : 1),
             container: sibling,
           },
         ],

@@ -325,7 +325,7 @@
     }
     if (command === "save") { void session?.flush(); return; }
     if (!tree || !focused) return;
-    if (["split", "newSibling", "newChild", "removeRow", "removeLeft", "removeChildren", "moveUp", "moveDown"].includes(command)) {
+    if (["split", "newSibling", "newSiblingBefore", "newChild", "removeRow", "removeLeft", "removeChildren", "moveUp", "moveDown"].includes(command)) {
       const action = structureAction(tree.schema, tree.index, path, focused, caret, command as StructureCommand);
       if (!action || disabled) return;
       const before = snapshot({ contentId: focused, ...caret });

@@ -59,6 +59,7 @@
     if (accel && event.key.toLowerCase() === "z") command = event.shiftKey ? "redo" : "undo";
     if (accel && event.key.toLowerCase() === "y") command = "redo";
     if (event.key === "Enter" && event.shiftKey && !accel && !event.altKey) command = "newSibling";
+    if (event.key === "Enter" && event.shiftKey && event.altKey && !accel) command = "newSiblingBefore";
     const cellModifier = !event.shiftKey && (side === "left"
       ? event.altKey && !accel
       : accel && !event.altKey);
