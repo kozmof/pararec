@@ -81,7 +81,11 @@ export function renderMarkdown(source: string, options?: RenderOptions): string 
     if (name === "Link" || name === "Image") {
       const url = node.getChild("URL");
       if (!url) return annotations.atom(escapeHTML(raw), node.from, node.to);
-      const labelEnd = raw.indexOf("]");
+      const closing = node
+        .getChildren("LinkMark")
+        .find((mark) => source.slice(mark.from, mark.to) === "]");
+      if (!closing) return annotations.atom(escapeHTML(raw), node.from, node.to);
+      const labelEnd = closing.from - node.from;
       const label = raw.slice(name === "Image" ? 2 : 1, labelEnd);
       if (name === "Image")
         return annotations.atom(

@@ -77,9 +77,9 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
     if (typeof note.text !== "string") throw new Error("Expected string text");
     const contentId = id(note.id);
     if (note.text.includes("\r")) originalTexts.set(contentId, note.text);
-    if (note.renderType !== undefined) validateRenderType(note.renderType, config.renderTypes);
+    if (note.renderType != null) validateRenderType(note.renderType, config.renderTypes);
     return {
-      ...(note.renderType !== undefined ? { renderType: note.renderType } : {}),
+      ...(note.renderType != null ? { renderType: note.renderType } : {}),
       id: contentId,
       text: note.text.replace(/\r\n?/g, "\n"),
     };

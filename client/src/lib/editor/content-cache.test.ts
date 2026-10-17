@@ -206,3 +206,55 @@ it("keeps snapshot undo valid after more than 50 editor stores have been evicted
   cache = new ContentCache(store, () => {});
   expect(cache.get("r0").text()).toBe("!original");
 });
+
+it("keeps a single-character edit in a long line small and undoable", () => {
+  const store = tree();
+  const text = "a".repeat(100_000) + "日本";
+  store.apply({ type: "setText", id: "r", text });
+  const changed = vi.fn();
+  cache = new ContentCache(store, changed);
+  const doc = cache.get("r");
+  doc.insert({ line: 0, column: 50_000 }, "x");
+  const edit = changed.mock.calls[0][0];
+  expect(edit.textChange).toMatchObject({ from: 50_000, oldEnd: 50_000, newEnd: 50_001 });
+  expect(edit.textPatch).toEqual({ removed: "", inserted: "x" });
+  const history = new AppHistory();
+  history.record(
+    { schema: edit.before, path: [], focus: null },
+    { schema: edit.after, path: [], focus: null },
+    undefined,
+    edit.textChange,
+    edit.textPatch,
+  );
+  expect(history.undo()?.schema.root[0].right.text).toBe(text);
+  expect(history.redo()?.schema.root[0].right.text).toBe(
+    text.slice(0, 50_000) + "x" + text.slice(50_000),
+  );
+});
+
+it.each([
+  ["😀", "😁"],
+  ["a\u0301", "a\u0300"],
+  ["👩‍💻", "👩‍🔬"],
+])("restores compact Unicode patches: %s to %s", (before, after) => {
+  const store = tree(),
+    changed = vi.fn();
+  store.apply({ type: "setText", id: "r", text: "prefix " + before + " suffix" });
+  cache = new ContentCache(store, changed);
+  const doc = cache.get("r"),
+    original = store.schema;
+  doc.replace({ line: 0, column: 7 }, { line: 0, column: 7 + before.length }, after);
+  const edited = store.schema,
+    range = changed.mock.calls[0][0].textChange;
+  store.restore(original);
+  expect(
+    cache.restoreText(
+      { ...range, oldEnd: range.newEnd, newEnd: range.oldEnd },
+      edited.root[0].right.text,
+    ),
+  ).toBe(true);
+  expect(doc.lineText(0)).toBe(original.root[0].right.text);
+  store.restore(edited);
+  expect(cache.restoreText(range, original.root[0].right.text)).toBe(true);
+  expect(doc.lineText(0)).toBe(edited.root[0].right.text);
+});

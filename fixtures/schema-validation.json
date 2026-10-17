@@ -603,5 +603,167 @@
       },
       "root": []
     }
+  },
+  {
+    "name": "null left renderer inherits default",
+    "valid": true,
+    "document": {
+      "version": 1,
+      "root": [
+        {
+          "id": "row",
+          "left": [{ "id": "left", "text": "", "renderType": null }],
+          "right": { "id": "right", "text": "", "children": [] }
+        }
+      ]
+    }
+  },
+  {
+    "name": "null right renderer inherits default",
+    "valid": true,
+    "document": {
+      "version": 1,
+      "root": [
+        {
+          "id": "row",
+          "left": [{ "id": "left", "text": "" }],
+          "right": { "id": "right", "text": "", "children": [], "renderType": null }
+        }
+      ]
+    }
+  },
+  {
+    "name": "blank Unicode renderer U+9",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", "\t"] } }
+  },
+  {
+    "name": "blank Unicode renderer U+a",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", "\n"] } }
+  },
+  {
+    "name": "blank Unicode renderer U+b",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", "\u000b"] } }
+  },
+  {
+    "name": "blank Unicode renderer U+c",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", "\f"] } }
+  },
+  {
+    "name": "blank Unicode renderer U+d",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", "\r"] } }
+  },
+  {
+    "name": "blank Unicode renderer U+20",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+a0",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+1680",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2000",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2001",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2002",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2003",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2004",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2005",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2006",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2007",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2008",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2009",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+200a",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2028",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+2029",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+202f",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+205f",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", " "] } }
+  },
+  {
+    "name": "blank Unicode renderer U+3000",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", "　"] } }
+  },
+  {
+    "name": "blank Unicode renderer U+feff",
+    "valid": false,
+    "document": { "version": 1, "root": [], "config": { "renderTypes": ["none", "﻿"] } }
+  },
+  {
+    "name": "Unicode padded renderer remains literal",
+    "valid": true,
+    "document": {
+      "version": 1,
+      "root": [],
+      "config": { "renderTypes": ["none", " custom　"], "renderType": " custom　" }
+    }
   }
 ]

@@ -3,6 +3,8 @@ import type { Schema } from "../../schema.js";
 import { EditorDocument, type DocumentEdit } from "./document-store.svelte.js";
 import { query, rendering, type DocumentState } from "@kozmof/reed";
 import type { TextChange, TextPatch } from "../history/history.svelte.js";
+const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
 function span(state: DocumentState, from: number, to: number): string {
   if (from === to) return "";
   const start = query.findLineAtCharPosition(state, from)!;
@@ -88,14 +90,59 @@ export class ContentCache {
             ...current.resolvedLinks(),
           ]);
         } else this.tree.apply({ type: "setText", id, text, normalized: true });
+        // Retain only changed code units, even when a logical line is very long.
+        const removed = span(edit.before, textChange.from, textChange.oldEnd);
+        const inserted = span(edit.after, textChange.from, textChange.newEnd);
+        let prefix = 0;
+        while (
+          prefix < removed.length &&
+          prefix < inserted.length &&
+          removed[prefix] === inserted[prefix]
+        )
+          prefix++;
+        // Cached restoration goes through grapheme-aware editor operations.
+        const oldSegments = segmenter.segment(removed),
+          newSegments = segmenter.segment(inserted);
+        while (prefix > 0) {
+          const boundary = Math.min(
+            oldSegments.containing(prefix)?.index ?? prefix,
+            newSegments.containing(prefix)?.index ?? prefix,
+          );
+          if (boundary === prefix) break;
+          prefix = boundary;
+        }
+        let oldEnd = removed.length,
+          newEnd = inserted.length;
+        while (oldEnd > prefix && newEnd > prefix && removed[oldEnd - 1] === inserted[newEnd - 1]) {
+          oldEnd--;
+          newEnd--;
+        }
+        while (true) {
+          const oldSegment = oldSegments.containing(oldEnd),
+            newSegment = newSegments.containing(newEnd);
+          const extend = Math.max(
+            oldSegment && oldSegment.index !== oldEnd
+              ? oldSegment.index + oldSegment.segment.length - oldEnd
+              : 0,
+            newSegment && newSegment.index !== newEnd
+              ? newSegment.index + newSegment.segment.length - newEnd
+              : 0,
+          );
+          if (!extend) break;
+          oldEnd += extend;
+          newEnd += extend;
+        }
+        textChange.oldEnd = textChange.from + oldEnd;
+        textChange.newEnd = textChange.from + newEnd;
+        textChange.from += prefix;
         this.changed({
           contentId: id,
           before,
           after: this.tree.schema,
           textChange,
           textPatch: {
-            removed: span(edit.before, textChange.from, textChange.oldEnd),
-            inserted: span(edit.after, textChange.from, textChange.newEnd),
+            removed: removed.slice(prefix, oldEnd),
+            inserted: inserted.slice(prefix, newEnd),
           },
           beforeCaret: edit.beforeCaret,
           afterCaret: edit.afterCaret,

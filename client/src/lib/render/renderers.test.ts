@@ -165,3 +165,18 @@ it("tracks separate registrations of the same renderer function", () => {
   first();
   expect(getRenderer("overlap")).toBeUndefined();
 });
+
+it.each([
+  [String.raw`[a \] b](https://example.com)`, "a ] b"],
+  [String.raw`[a **b\] c** d](https://example.com)`, "a b] c d"],
+])("preserves complete bracketed link labels: %s", (source, label) => {
+  const node = document.createElement("div");
+  node.innerHTML = renderMarkdown(source);
+  expect(node.querySelector("a")?.textContent).toBe(label);
+  expect(node.querySelector("a")?.getAttribute("href")).toBe("https://example.com");
+});
+it("preserves nested brackets in image alt text", () => {
+  const node = document.createElement("div");
+  node.innerHTML = renderMarkdown("![a [b] c](https://example.com/image.png)");
+  expect(node.querySelector("img")?.alt).toBe("a [b] c");
+});

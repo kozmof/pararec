@@ -192,7 +192,19 @@ fn addId(ids: *std.StringHashMap(void), id: []const u8) !void {
 
 fn checkRenderType(value: ?[]const u8, allowed: ?*const std.StringHashMap(void)) !void {
     if (value) |name| {
-        if (std.mem.trim(u8, name, " \t\r\n").len == 0) return error.InvalidRenderType;
+        // Match ECMAScript String.trim whitespace, including the byte-order mark.
+        var codepoints = (try std.unicode.Utf8View.init(name)).iterator();
+        var nonblank = false;
+        while (codepoints.nextCodepoint()) |point| {
+            switch (point) {
+                0x0009...0x000d, 0x0020, 0x00a0, 0x1680, 0x2000...0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff => {},
+                else => {
+                    nonblank = true;
+                    break;
+                },
+            }
+        }
+        if (!nonblank) return error.InvalidRenderType;
         if (allowed) |types| {
             if (!types.contains(name)) return error.UnknownRenderType;
         }
