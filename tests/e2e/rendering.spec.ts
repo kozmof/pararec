@@ -65,7 +65,7 @@ test("rendered math labels keep their navigation and context menu", async ({ pag
   const disk = structuredClone(fixture);
   const source = disk.root[1].right;
   source.renderType = "markdown";
-  source.text = "Energy: $E = mc^2$";
+  source.text = "Pythagorean theorem: $a^2 + b^2 = c^2$";
   const target = disk.root[0].left[0].id;
   const start = new TextEncoder().encode(source.text.slice(0, source.text.indexOf("c^2"))).length;
   disk.links = [{ id: "energy", sourceId: source.id, start, end: start + 3, targets: [target] }];

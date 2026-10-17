@@ -540,7 +540,7 @@ it("shows math link labels in rendered cells and follows their destinations", as
   const value = structuredClone(fixture);
   const source = value.root[0].left[0];
   source.renderType = "markdown";
-  source.text = "Energy: $E = mc^2$";
+  source.text = "Pythagorean theorem: $a^2 + b^2 = c^2$";
   const target = value.root[0].right.id;
   const start = new TextEncoder().encode(source.text.slice(0, source.text.indexOf("c^2"))).length;
   value.links = [

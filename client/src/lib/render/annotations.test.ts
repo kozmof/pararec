@@ -48,7 +48,8 @@ describe("rendered text links", () => {
   it.each(["markdown", "katex"])(
     "highlights c squared inside %s math without changing the formula",
     (type) => {
-      const source = type === "markdown" ? "Energy: $E = mc^2$" : "E = mc^2";
+      const source =
+        type === "markdown" ? "Pythagorean theorem: $a^2 + b^2 = c^2$" : "a^2 + b^2 = c^2";
       const options = { links: [link(source, "c^2")] };
       const node = parse(
         type === "markdown" ? renderMarkdown(source, options) : renderKatex(source, true, options),
@@ -57,9 +58,10 @@ describe("rendered text links", () => {
       expect(label).toHaveAttribute("data-link-ids", "label");
       expect(label?.textContent).toContain("c");
       expect(label?.textContent).toContain("2");
-      expect(label?.textContent).not.toContain("E");
+      expect(label?.textContent).not.toContain("a");
+      expect(label?.textContent).not.toContain("b");
       expect(node.querySelector(".katex-error")).toBeNull();
-      expect(node.querySelector("annotation")).toHaveTextContent("E = mc^2");
+      expect(node.querySelector("annotation")).toHaveTextContent("a^2 + b^2 = c^2");
       expect(node.querySelector("button")?.closest('[aria-hidden="true"]')).toBeNull();
       expect(node.querySelectorAll("button")).toHaveLength(1);
     },

@@ -64,7 +64,7 @@ fields. Their implementation controls how those annotations appear.
 ## Linked labels
 
 Text-link annotations appear in the source editor and in Markdown and KaTeX
-previews. Create a link on `c^2` inside `$E = mc^2$` to highlight the rendered expression.
+previews. Create a link on `c^2` inside `$a^2 + b^2 = c^2$` to highlight the rendered expression.
 Destination numbers appear at the lower right of each linked label. Each label
 numbers its own destinations from 1.
 
