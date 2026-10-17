@@ -765,5 +765,193 @@
       "root": [],
       "config": { "renderTypes": ["none", " custom　"], "renderType": " custom　" }
     }
-  }
+  },
+  {
+    "name": "null config",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "root": [],
+      "config": null
+    }
+  },
+  {
+    "name": "null root",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "root": null
+    }
+  },
+  {
+    "name": "null default renderer",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "root": [],
+      "config": {
+        "renderType": null
+      }
+    }
+  },
+  {
+    "name": "null cell renderer inherits default",
+    "valid": true,
+    "document": {
+      "version": 1,
+      "root": [
+        {
+          "id": "row",
+          "left": [
+            {
+              "id": "left",
+              "text": "",
+              "renderType": null
+            }
+          ],
+          "right": {
+            "id": "right",
+            "text": "target",
+            "children": []
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "empty explicit links",
+    "valid": true,
+    "document": {
+      "version": 1,
+      "root": [],
+      "links": []
+    }
+  },
+  {
+    "name": "fractional version",
+    "valid": false,
+    "document": {
+      "version": 1.5,
+      "root": []
+    }
+  },
+  {
+    "name": "unsafe byte offset",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "root": [
+        {
+          "id": "row",
+          "left": [
+            {
+              "id": "left",
+              "text": "a\r\n日本👩🏽‍💻\rb"
+            }
+          ],
+          "right": {
+            "id": "right",
+            "text": "target",
+            "children": []
+          }
+        }
+      ],
+      "links": [
+        {
+          "id": "link",
+          "sourceId": "left",
+          "start": 0,
+          "end": 9007199254740992,
+          "targets": [
+            "right"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "CRLF and emoji byte range",
+    "valid": true,
+    "document": {
+      "version": 1,
+      "title": "a\rb\r\nc",
+      "root": [
+        {
+          "id": "row",
+          "left": [
+            {
+              "id": "left",
+              "text": "a\r\n日本👩🏽‍💻\rb"
+            }
+          ],
+          "right": {
+            "id": "right",
+            "text": "target",
+            "children": []
+          }
+        }
+      ],
+      "links": [
+        {
+          "id": "link",
+          "sourceId": "left",
+          "start": 9,
+          "end": 24,
+          "targets": [
+            "right"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "CRLF interior range collapses on normalization",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "root": [
+        {
+          "id": "row",
+          "left": [
+            {
+              "id": "left",
+              "text": "a\r\n日本👩🏽‍💻\rb"
+            }
+          ],
+          "right": {
+            "id": "right",
+            "text": "target",
+            "children": []
+          }
+        }
+      ],
+      "links": [
+        {
+          "id": "link",
+          "sourceId": "left",
+          "start": 1,
+          "end": 2,
+          "targets": [
+            "right"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "Unicode whitespace render type",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "root": [],
+      "config": {
+        "renderTypes": [
+          "none",
+          "  ﻿"
+        ]
+      }
+    }
+  },
+  {"name":"unknown fields at JSON nesting limit","valid":true,"document":{"version":1,"root":[],"future":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}},
+  {"name":"unknown fields beyond JSON nesting limit","valid":false,"document":{"version":1,"root":[],"future":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{"nested":{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}
 ]

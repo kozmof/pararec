@@ -1,11 +1,12 @@
 import type { Container, Schema } from "../../schema.js";
 
-export type IndexEntry = Readonly<{
-  container: Container;
-  parentId: string | null;
-  index: number;
-  side: "container" | "left" | "right";
-}>;
+type EntryOwner = Readonly<{ container: Container; parentId: string | null }>;
+export type IndexEntry = EntryOwner &
+  (
+    | Readonly<{ side: "container"; /** Position in the parent's child rows. */ index: number }>
+    | Readonly<{ side: "left"; /** Position in the row's left cells. */ index: number }>
+    | Readonly<{ side: "right"; index: 0 }>
+  );
 export type TreeIndex = ReadonlyMap<string, IndexEntry>;
 
 /** Prune all removed branches before installing moved branches in their new positions. */
@@ -22,6 +23,7 @@ export function updateIndex(
     row.right.children.forEach(remove);
   }
   function prune(oldRows: readonly Container[], newRows: readonly Container[]) {
+    if (oldRows === newRows) return;
     const next = new Map(newRows.map((row) => [row.id, row]));
     for (const row of oldRows) {
       const replacement = next.get(row.id);
@@ -42,6 +44,7 @@ export function updateIndex(
     newRows: readonly Container[],
     parent: string | null,
   ) {
+    if (oldRows === newRows) return;
     const previous = new Map(oldRows.map((row) => [row.id, row]));
     newRows.forEach((row, position) => {
       const old = previous.get(row.id),

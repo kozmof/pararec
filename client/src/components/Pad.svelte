@@ -14,66 +14,29 @@
   import ContainerRow from "./ContainerRow.svelte";
   import ContentView from "./ContentView.svelte";
   import ArrowIcon from "./ArrowIcon.svelte";
+  import { CellMenus } from "../lib/notebook/cell-menus.svelte.js";
+  import { DocumentActions } from "../lib/notebook/document-actions.js";
 
-  let renderMenu = $state<{ sourceId: string; x: number; y: number } | null>(null);
+  const menus = new CellMenus({ blur, focused: () => focused, restoreFocus });
   const cellRenderType = $derived.by(() => {
-    const item = renderMenu && tree?.index.get(renderMenu.sourceId);
+    const item = menus.render && tree?.index.get(menus.render.sourceId);
     if (!item || item.side === "container") return undefined;
     return (item.side === "right" ? item.container.right : item.container.left[item.index]).renderType;
   });
   const renderTypes = $derived.by(() => tree?.schema.config.renderTypes ?? []);
-  function closeMenus() { linkMenu = null; renderMenu = null; }
+  function closeMenus() { menus.close(); }
   function changeRenderType(renderType?: string) {
-    if (!tree || !renderMenu || disabled || linking) return;
-    const id = renderMenu.sourceId;
-    history.closeGroup();
-    cache?.get(id).closeHistoryGroup();
-    const before = snapshot();
-    tree.apply({ type: "setRenderType", id, renderType });
-    history.record(before, snapshot());
+    if (!tree || !menus.render || disabled || menus.linking) return;
+    const id = menus.render.sourceId;
+    actions.apply([{ type: "setRenderType", id, renderType }], { sourceId: id });
     closeMenus();
     if (focused) blur(focused);
-    changed();
   }
-  function menuKeydown(event: KeyboardEvent) {
-    if (!["ArrowDown", "ArrowUp", "Home", "End", "Tab"].includes(event.key)) return;
-    if (event.key === "Tab") {
-      const source = (renderMenu ?? linkMenu)?.sourceId;
-      if (source) blur(source);
-      closeMenus();
-      return;
-    }
-    event.preventDefault();
-    const buttons = [...(menuElement?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
-    const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (at + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
-    buttons[next]?.focus();
-  }
-  let linkMenu = $state<{ sourceId: string; start: number; end: number; x: number; y: number; labelIds?: readonly string[] } | null>(null);
-  let menuElement: HTMLDivElement | undefined = $state();
-  function menuBlur(event: FocusEvent) {
-    const menu = event.currentTarget as HTMLElement;
-    if (event.relatedTarget instanceof Node && menu.contains(event.relatedTarget)) return;
-    const source = menu.dataset.menuSourceId;
-    if (event.relatedTarget instanceof Element && event.relatedTarget.closest<HTMLElement>("[data-content-id]")?.dataset.contentId === source) return;
-    if (source) blur(source);
-    closeMenus();
-  }
-  function dismissMenuOutside(event: MouseEvent) {
-    if (!(linkMenu || renderMenu) || !(event.target instanceof Node) || menuElement?.contains(event.target)) return;
-    const source = (renderMenu ?? linkMenu)?.sourceId;
-    const cell = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-content-id]") : null;
-    if (source && cell?.dataset.contentId !== source) blur(source);
-    closeMenus();
-  }
-  let linking = $state<{ sourceId: string; start: number; end: number; targets: string[] } | null>(null);
   function finishLink() {
-    if (!tree || !linking || !linking.targets.length || disabled) return;
-    const before = snapshot();
-    tree.apply({ type: "setLinks", links: [...(tree.schema.links ?? []), { id: crypto.randomUUID(), ...linking, targets: [...linking.targets] }] });
-    history.record(before, snapshot());
-    const source = linking.sourceId;
-    linking = null; changed(); void restoreFocus(source);
+    if (!tree || !menus.linking || !menus.linking.targets.length || disabled) return;
+    actions.apply([{ type: "setLinks", links: [...(tree.schema.links ?? []), { id: crypto.randomUUID(), ...menus.linking, targets: [...menus.linking.targets] }] }], { sourceId: menus.linking.sourceId });
+    const source = menus.linking.sourceId;
+    menus.linking = null; void restoreFocus(source);
   }
   function destinationName(id: string) {
     const item = tree?.index.get(id);
@@ -82,21 +45,15 @@
     return text.replace(/\s+/g, " ").trim().slice(0, 60) || "Empty cell";
   }
   function removeLabel(id: string, targetId?: string) {
-    if (!tree || disabled || linking) return;
+    if (!tree || disabled || menus.linking) return;
     const link = tree.schema.links?.find(link => link.id === id);
     if (!link || (targetId && !link.targets.includes(targetId))) return;
-    const before = snapshot(focusSnapshot(link.sourceId));
-    history.closeGroup();
-    cache?.get(link.sourceId).closeHistoryGroup();
+    const focus = focusSnapshot(link.sourceId);
     const remaining = targetId ? link.targets.filter(target => target !== targetId) : [];
-    tree.apply({ type: "setLinks", links: (tree.schema.links ?? []).flatMap(item => item.id !== id ? [item] : remaining.length ? [{ ...item, targets: remaining }] : []) });
-    cache?.get(link.sourceId);
-    history.record(before, snapshot(before.focus));
+    actions.apply([{ type: "setLinks", links: (tree.schema.links ?? []).flatMap(item => item.id !== id ? [item] : remaining.length ? [{ ...item, targets: remaining }] : []) }], { sourceId: link.sourceId, beforeFocus: focus, afterFocus: () => focus, afterApply: () => { cache?.get(link.sourceId); } });
     closeMenus();
-    changed();
     void restoreFocus(link.sourceId);
   }
-  function cancelLink() { const source = linking?.sourceId ?? linkMenu?.sourceId ?? renderMenu?.sourceId; linking = null; closeMenus(); if (source) void restoreFocus(source); }
   let tree = $state<TreeStore | null>(null);
   let session = $state<SaveSession | null>(null);
   let cache = $state<ContentCache>();
@@ -111,6 +68,7 @@
   let titleInput = $state<HTMLInputElement>();
   let titleComposing = false;
   const history = new AppHistory();
+  const actions = new DocumentActions({ tree: () => tree, cache: () => cache, history, snapshot, changed });
   let liveCaret: Caret | null = null;
   const focusByLevel = new Map<string, string>();
   let active = true;
@@ -130,22 +88,20 @@
   const parent = $derived(ancestors.at(-1));
   setContext<ContentHost>(CONTENT_HOST, {
     renderMenu: (sourceId, event) => {
-      if (focused && focused !== sourceId) blur(focused);
-      closeMenus();
-      renderMenu = { sourceId, x: Math.max(8, Math.min(event.clientX, window.innerWidth - 280)), y: Math.max(8, Math.min(event.clientY, window.innerHeight - 320)) };
-      void tick().then(() => { if (renderMenu?.sourceId === sourceId) menuElement?.querySelector<HTMLButtonElement>("button")?.focus(); });
+      menus.openRender(sourceId, event);
+      void tick().then(() => { if (menus.render?.sourceId === sourceId) menus.element?.querySelector<HTMLButtonElement>("button")?.focus(); });
     },
     get renderType() { return tree?.schema.config.renderType ?? "none"; },
     get focused() { return focused; }, get cache() { return cache!; }, get entry() { return entry; }, get disabled() { return disabled; },
-    get linking() { return !!linking; }, get links() { return tree?.schema.links?.filter(link => tree!.index.has(link.sourceId)).map(link => ({ ...link, targets: link.targets.filter(id => tree!.index.has(id)) })); },
-    selectedCell: id => linking?.targets.includes(id) ?? false,
-    selectCell: id => { if (linking && id !== linking.sourceId) linking = { ...linking, targets: linking.targets.includes(id) ? linking.targets.filter(target => target !== id) : [...linking.targets, id] }; },
-    linkMenu: (sourceId, range, event) => { linkMenu = { sourceId, ...range, x: Math.min(event.clientX, window.innerWidth - 180), y: Math.min(event.clientY, window.innerHeight - 50) }; },
+    get linking() { return !!menus.linking; }, get links() { return tree?.schema.links?.filter(link => tree!.index.has(link.sourceId)).map(link => ({ ...link, targets: link.targets.filter(id => tree!.index.has(id)) })); },
+    selectedCell: id => menus.linking?.targets.includes(id) ?? false,
+    selectCell: id => menus.selectCell(id),
+    linkMenu: (sourceId, range, event) => { menus.link = { sourceId, ...range, x: Math.min(event.clientX, window.innerWidth - 180), y: Math.min(event.clientY, window.innerHeight - 50) }; },
     labelMenu: (sourceId, ids, event) => {
-      if (disabled || linking || !tree) return;
+      if (disabled || menus.linking || !tree) return;
       const labels = (tree.schema.links ?? []).filter(link => link.sourceId === sourceId && ids.includes(link.id));
       if (!labels.length) return;
-      linkMenu = { sourceId, start: labels[0].start, end: labels[0].end, labelIds: labels.map(link => link.id), x: Math.max(0, Math.min(event.clientX, window.innerWidth - 300)), y: Math.max(0, Math.min(event.clientY, window.innerHeight - 180)) };
+      menus.link = { sourceId, start: labels[0].start, end: labels[0].end, labelIds: labels.map(link => link.id), x: Math.max(0, Math.min(event.clientX, window.innerWidth - 300)), y: Math.max(0, Math.min(event.clientY, window.innerHeight - 180)) };
     },
     followLink: id => {
       if (!tree || disabled) return;
@@ -178,29 +134,19 @@
     liveCaret = { ...caret };
   }
   function changed(edit?: ContentChange) {
-    if (edit) {
-      const beforeCaret = edit.beforeCaret ?? liveCaret ?? { line: 0, column: 0 };
-      const afterCaret = edit.afterCaret ?? beforeCaret;
-      history.record({ schema: edit.before, path: [...path], focus: { contentId: edit.contentId, ...beforeCaret } },
-        { schema: edit.after, path: [...path], focus: { contentId: edit.contentId, ...afterCaret } },
-        edit.kind === "edit" && edit.groupable && edit.intent && edit.intent !== "replace" ? { contentId: edit.contentId, intent: edit.intent, group: edit.group } : undefined, edit.textChange, edit.textPatch);
-      liveCaret = { ...afterCaret };
-    }
+    if (edit) liveCaret = actions.recordEdit(edit, path, liveCaret);
     if (!tree || !session) return;
     seenSchema = tree.schema;
     session.changed(tree.schema);
   }
   function editTitle(value: string) {
     if (!tree || disabled || value === tree.schema.title) return;
-    const before = snapshot();
-    tree.apply({ type: "setTitle", title: value });
-    history.record(before, snapshot());
-    changed();
+    actions.apply([{ type: "setTitle", title: value }]);
   }
   function install(loaded: LoadedDocument) {
     history.clear();
     previousLayers = [];
-    linking = null; closeMenus();
+    menus.reset();
     liveCaret = null;
     cache?.dispose();
     session?.dispose();
@@ -214,7 +160,7 @@
     readHash(false);
   }
   function remember(id: string, nextEntry?: Entry) {
-    if (disabled || linking || !tree?.index.has(id)) return;
+    if (disabled || menus.linking || !tree?.index.has(id)) return;
     if (focused !== id) { history.closeGroup(); liveCaret = null; entry = nextEntry ?? { kind: "edge", edge: "start" }; }
     focused = id;
     focusByLevel.set(pathHash(path), id);
@@ -235,7 +181,7 @@
     const element = elements.find(element => element.dataset.contentId === target) ?? elements.find(element => element.closest('[data-testid="pad-level"]') && element.getAttribute("aria-label") === "Right note");
     if (element) {
       if (nextEntry) { if (focused && focused !== element.dataset.contentId) blur(focused); focused = element.dataset.contentId!; entry = nextEntry; focusByLevel.set(pathHash(path), focused); }
-      else if (!linking) remember(element.dataset.contentId!);
+      else if (!menus.linking) remember(element.dataset.contentId!);
       element.focus();
     } else { focused = null; addButton?.focus(); }
   }
@@ -283,11 +229,8 @@
   }
   function addRow() {
     if (!tree || rows.length || disabled) return;
-    const before = snapshot();
     const container = createContainer();
-    tree.apply({ type: "insertContainer", parentId: path.at(-1) ?? null, index: 0, container });
-    history.record(before, snapshot({ contentId: container.right.id, line: 0, column: 0 }));
-    changed();
+    actions.apply([{ type: "insertContainer", parentId: path.at(-1) ?? null, index: 0, container }], { afterFocus: () => ({ contentId: container.right.id, line: 0, column: 0 }) });
     void restoreFocus(container.right.id);
   }
   async function reload() {
@@ -363,11 +306,7 @@
         const keepEditor = !!target.textChange && focused !== null && focused === target.focus?.contentId && pathHash(path) === pathHash(nextPath);
         if (!keepEditor) focused = null;
         liveCaret = null;
-        const previous = target.textChange ? tree.index.get(target.textChange.contentId) : undefined;
-        const previousText = previous && previous.side !== "container"
-          ? previous.side === "right" ? previous.container.right.text : previous.container.left[previous.index].text : undefined;
-        tree.restore(target.schema);
-        cache?.restoreText(target.textChange, previousText);
+        actions.restore(target);
         path = nextPath; focusByLevel.clear();
         if (keepEditor && target.focus) entry = { kind: "caret", ...target.focus };
         const hash = pathHash(path); if (window.location.hash !== hash) window.location.hash = hash;
@@ -381,17 +320,14 @@
     if (["split", "newSibling", "newSiblingBefore", "newChild", "removeRow", "removeLeft", "removeChildren", "moveUp", "moveDown"].includes(command)) {
       const action = structureAction(tree.schema, tree.index, path, focused, caret, command as StructureCommand);
       if (!action || disabled) return;
-      const before = snapshot({ contentId: focused, ...caret });
-      history.closeGroup();
-      cache?.get(focused).closeHistoryGroup();
-      tree.applyMany(action.ops);
-      focused = null;
-      cache?.prune();
-      path = action.path; liveCaret = null;
-      history.record(before, snapshot(action.focus ? focusSnapshot(action.focus.contentId, action.focus.entry) : null));
+      actions.apply(action.ops, {
+        sourceId: focused,
+        beforeFocus: { contentId: focused, ...caret },
+        afterApply: () => { focused = null; cache?.prune(); path = action.path; liveCaret = null; },
+        afterFocus: () => action.focus ? focusSnapshot(action.focus.contentId, action.focus.entry) : null,
+      });
       const hash = pathHash(path);
       if (window.location.hash !== hash) window.location.hash = hash;
-      changed();
       void restoreFocus(action.focus?.contentId, action.focus?.entry);
       return;
     }
@@ -407,8 +343,8 @@
     else if (rows.length === 0 && document.activeElement !== titleInput) void restoreFocus();
   });
   function keydown(event: KeyboardEvent) {
-    if (event.key === "Escape" && (linking || linkMenu || renderMenu)) { event.preventDefault(); cancelLink(); return; }
-    if (linking) return;
+    if (event.key === "Escape" && (menus.linking || menus.link || menus.render)) { event.preventDefault(); menus.cancel(); return; }
+    if (menus.linking) return;
     if (event.isComposing || event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || disabled) return;
     if (event.key.toLowerCase() === "z") { event.preventDefault(); command(event.shiftKey ? "redo" : "undo"); }
     else if (event.key.toLowerCase() === "y") { event.preventDefault(); command("redo"); }
@@ -422,8 +358,8 @@
     window.addEventListener("hashchange", update);
     window.addEventListener("beforeunload", unload);
     document.addEventListener("visibilitychange", visibility);
-    document.addEventListener("click", dismissMenuOutside, true);
-    return () => { active = false; controller?.abort(); cache?.dispose(); session?.dispose(); window.removeEventListener("hashchange", update); window.removeEventListener("beforeunload", unload); document.removeEventListener("visibilitychange", visibility); document.removeEventListener("click", dismissMenuOutside, true); };
+    document.addEventListener("click", menus.dismissOutside, true);
+    return () => { active = false; controller?.abort(); cache?.dispose(); session?.dispose(); window.removeEventListener("hashchange", update); window.removeEventListener("beforeunload", unload); document.removeEventListener("visibilitychange", visibility); document.removeEventListener("click", menus.dismissOutside, true); };
   });
 </script>
 <svelte:window onkeydown={keydown} />
@@ -436,32 +372,32 @@
   {#if loading}<p role="status">Loading document…</p>
   {:else if error}<p role="alert">{error}</p><button onclick={load}>Retry</button>
   {:else if tree && session}
-    {#if linkMenu || renderMenu}
-      <div bind:this={menuElement} class="link-menu" role="menu" aria-label="Cell options" tabindex="-1" data-menu-source-id={(renderMenu ?? linkMenu)!.sourceId} onfocusout={menuBlur} onkeydown={menuKeydown} oncontextmenu={event => event.preventDefault()} style:left={(renderMenu ?? linkMenu)!.x + "px"} style:top={(renderMenu ?? linkMenu)!.y + "px"}>
-        {#if renderMenu}
+    {#if menus.link || menus.render}
+      <div bind:this={menus.element} class="link-menu" role="menu" aria-label="Cell options" tabindex="-1" data-menu-source-id={(menus.render ?? menus.link)!.sourceId} onfocusout={menus.blur} onkeydown={menus.keydown} oncontextmenu={event => event.preventDefault()} style:left={(menus.render ?? menus.link)!.x + "px"} style:top={(menus.render ?? menus.link)!.y + "px"}>
+        {#if menus.render}
           <div class="menu-heading">Render type</div>
           <button role="menuitemradio" aria-checked={cellRenderType === undefined} disabled={disabled} onclick={() => changeRenderType()}>Default ({tree.schema.config.renderType})</button>
           {#each renderTypes as type (type)}
             <button role="menuitemradio" aria-checked={cellRenderType === type} disabled={disabled} onclick={() => changeRenderType(type)}>{type === "none" ? "None" : type === "markdown" ? "Markdown" : type === "katex" ? "KaTeX" : type}</button>
           {/each}
         {/if}
-        {#if linkMenu}
-        {#if linkMenu.labelIds}
-          {#each linkMenu.labelIds as id, index (id)}
-            <button role="menuitem" disabled={disabled} onclick={() => removeLabel(id)}>{linkMenu.labelIds.length === 1 ? "Remove label" : `Remove label ${index + 1}`}</button>
+        {#if menus.link}
+        {#if menus.link.labelIds}
+          {#each menus.link.labelIds as id, index (id)}
+            <button role="menuitem" disabled={disabled} onclick={() => removeLabel(id)}>{menus.link.labelIds.length === 1 ? "Remove label" : `Remove label ${index + 1}`}</button>
             {#each tree.schema.links?.find(link => link.id === id)?.targets ?? [] as target, destinationIndex (target)}
               <button class="remove-destination" title={destinationName(target)} role="menuitem" disabled={disabled} onclick={() => removeLabel(id, target)}>Remove {destinationIndex + 1}</button>
             {/each}
           {/each}
         {:else}
-        <button role="menuitem" onclick={() => { if (linkMenu) { const { sourceId, start, end } = linkMenu; linking = { sourceId, start, end, targets: [] }; closeMenus(); if (focused) blur(focused); } }}>Start linking</button>
+        <button role="menuitem" onclick={() => menus.startLink()}>Start linking</button>
         {/if}
         {/if}
       </div>
     {/if}
-    {#if linking}<div class="link-toolbar" role="region" aria-label="Link selected text"><span>Select cells to link ({linking.targets.length})</span><button disabled={!linking.targets.length || disabled} onclick={finishLink}>Done</button><button onclick={cancelLink}>Cancel</button></div>{/if}
+    {#if menus.linking}<div class="link-toolbar" role="region" aria-label="Link selected text"><span>Select cells to link ({menus.linking.targets.length})</span><button disabled={!menus.linking.targets.length || disabled} onclick={finishLink}>Done</button><button onclick={() => menus.cancel()}>Cancel</button></div>{/if}
     {#if tree.schema.config.showTitles}
-      <div class="document-title"><input bind:this={titleInput} class="title-input" aria-label="Document title" value={tree.schema.title} disabled={disabled || !!linking}
+      <div class="document-title"><input bind:this={titleInput} class="title-input" aria-label="Document title" value={tree.schema.title} disabled={disabled || !!menus.linking}
         onfocus={() => { if (focused) blur(focused); history.closeGroup(); }}
         oncompositionstart={() => { titleComposing = true; }}
         oninput={event => { if (!titleComposing) editTitle(event.currentTarget.value); }}

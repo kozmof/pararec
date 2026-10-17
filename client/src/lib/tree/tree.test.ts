@@ -294,3 +294,31 @@ it("publishes linked text and ranges atomically and preserves state on invalid r
   store.restore(before);
   check(store);
 });
+
+it("preserves unaffected index entries across known and reconstructed restores", () => {
+  const store = new TreeStore(fixture());
+  const before = store.schema;
+  const untouched = store.index.get("d-r");
+  store.apply({ type: "setText", id: "c-r", text: "edited" });
+  const edited = store.schema;
+  expect(store.index.get("d-r")).toBe(untouched);
+  store.restore(before);
+  expect(store.index.get("d-r")).toBe(untouched);
+  store.restore({ ...edited, title: "Reconstructed" });
+  expect(store.schema.root[1]).toBe(before.root[1]);
+  expect(store.index.get("d-r")).toBe(untouched);
+  expect(store.schema.root[0].right.children[0].right.children[0].right.text).toBe("edited");
+  check(store);
+});
+
+it("owns mutable branches while preserving validated immutable siblings on restore", () => {
+  const store = new TreeStore(fixture());
+  const untouched = store.schema.root[1];
+  const replacement = row("replacement");
+  store.restore({ ...store.schema, root: [replacement, untouched] });
+  expect(store.schema.root[0]).not.toBe(replacement);
+  expect(store.schema.root[1]).toBe(untouched);
+  expect(Object.isFrozen(replacement)).toBe(false);
+  expect(Object.isFrozen(store.schema.root[0])).toBe(true);
+  check(store);
+});

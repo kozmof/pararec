@@ -1,4 +1,15 @@
 export const MAX_CONTAINER_DEPTH = 64;
+export const MAX_JSON_DEPTH = 256;
+
+// Match the server's JSON scanner, including fields discarded during normalization.
+function validateJSONDepth(value: unknown, depth = 0): void {
+  if (value === null || typeof value !== "object") return;
+  if (depth >= MAX_JSON_DEPTH) throw new Error("Maximum JSON depth exceeded");
+  for (const key in value) {
+    if (Object.hasOwn(value, key))
+      validateJSONDepth((value as Record<string, unknown>)[key], depth + 1);
+  }
+}
 
 export type RenderType = string;
 export const DEFAULT_RENDER_TYPES = ["none", "markdown", "katex"] as const;
@@ -58,6 +69,7 @@ export type Schema = {
 
 /** Parse the file format, discard unknown fields, and normalize loaded text. */
 export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
+  validateJSONDepth(value);
   const ids = new Set<string>();
   const originalTexts = new Map<string, string>();
   function object(input: unknown): Record<string, unknown> {

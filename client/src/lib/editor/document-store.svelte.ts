@@ -9,6 +9,7 @@ import type {
 } from "@kozmof/reed";
 
 type DocumentState = ReturnType<ReturnType<typeof store.createDocumentStore>["getSnapshot"]>;
+type ByteOffset = ReturnType<typeof position.byteOffset>;
 type ReedStore = ReturnType<typeof store.createDocumentStoreWithEvents>;
 export type { LineChange } from "./document-change.js";
 
@@ -26,7 +27,7 @@ export type DocumentEdit = {
 };
 type EditContext = {
   beforeCaret: Caret;
-  afterByte: number;
+  afterByte: ByteOffset;
   intent: NonNullable<DocumentEdit["intent"]>;
   groupable: boolean;
 };
@@ -130,7 +131,7 @@ export class EditorDocument {
     });
     if (corrected) this.syncLinks(links);
   }
-  linkRange(start: Caret, end: Caret): { start: number; end: number } {
+  linkRange(start: Caret, end: Caret): { start: ByteOffset; end: ByteOffset } {
     return { start: this.#byteOffset(start), end: this.#byteOffset(end) };
   }
   #unsubscribe: (() => void) | null = null;
@@ -464,7 +465,7 @@ export class EditorDocument {
     return boundaries[Math.min(boundaries.length - 1, index + 1)];
   }
 
-  #byteOffset({ line, column }: Caret): number {
+  #byteOffset({ line, column }: Caret): ByteOffset {
     // Resolve byte offsets only at whole grapheme boundaries.
     const offset = rendering.lineColumnToPosition(
       this.state,
@@ -472,10 +473,10 @@ export class EditorDocument {
       this.#graphemes.snap(line, this.lineText(line), column),
     );
     // Clamp unresolved carets beyond the document to its end.
-    return offset ?? this.state.pieceTable.totalLength;
+    return offset ?? position.byteOffset(this.state.pieceTable.totalLength);
   }
 
-  #caretAt(byteOffset: number): Caret {
+  #caretAt(byteOffset: ByteOffset): Caret {
     // Use the branded byte-offset constructor so Reed's offset type remains checked.
     const at = rendering.positionToLineColumn(this.state, position.byteOffset(byteOffset));
     return at ? this.clamp(at) : { line: 0, column: 0 };
@@ -485,7 +486,7 @@ export class EditorDocument {
    * Record the pre-edit selection on the action so undo restores the caret near the text it
    * changes.
    */
-  #selectionAt(byteOffset: number): [SelectionRange] {
+  #selectionAt(byteOffset: ByteOffset): [SelectionRange] {
     const at = position.byteOffset(byteOffset);
     // Use a tuple to satisfy Reed's non-empty selection requirement.
     return [{ anchor: at, head: at }];
@@ -499,12 +500,12 @@ export class EditorDocument {
       store.DocumentActions.insert(position.byteOffset(start), text, this.#selectionAt(start)),
       {
         beforeCaret: this.clamp(at),
-        afterByte: start + byteLength(text),
+        afterByte: position.byteOffset(start + byteLength(text)),
         intent: "insert",
         groupable: !text.includes("\n"),
       },
     );
-    return this.#caretAt(start + byteLength(text));
+    return this.#caretAt(position.byteOffset(start + byteLength(text)));
   }
 
   /**
@@ -549,12 +550,12 @@ export class EditorDocument {
       ),
       {
         beforeCaret: this.clamp(caretBefore),
-        afterByte: from + byteLength(text),
+        afterByte: position.byteOffset(from + byteLength(text)),
         intent: "replace",
         groupable: false,
       },
     );
-    return this.#caretAt(from + byteLength(text));
+    return this.#caretAt(position.byteOffset(from + byteLength(text)));
   }
 
   /**

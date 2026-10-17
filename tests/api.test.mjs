@@ -524,6 +524,7 @@ test("document settings persist and the default title uses the filename", async 
 });
 
 test("shared client/server validation cases", async () => {
+  const { parseSchema } = await import("../client/src/schema.ts");
   const cases = JSON.parse(await readFile("fixtures/schema-validation.json", "utf8"));
   await writeFile(documentPath, JSON.stringify(empty));
   for (const { name, valid, document } of cases) {
@@ -531,6 +532,20 @@ test("shared client/server validation cases", async () => {
     const response = await put(document, { "if-match": before.headers.etag });
     assert.equal(response.status, valid ? 200 : 400, name);
     if (!valid) assert.equal(await readFile(documentPath, "utf8"), before.body, name);
+    else {
+      const saved = JSON.parse(await readFile(documentPath, "utf8"));
+      assert.deepEqual(
+        saved,
+        parseSchema(document),
+        name + ": canonical server output matches client normalization",
+      );
+      const loaded = await request();
+      assert.deepEqual(
+        parseSchema(JSON.parse(loaded.body)),
+        parseSchema(document),
+        name + ": load/save parity",
+      );
+    }
   }
 });
 

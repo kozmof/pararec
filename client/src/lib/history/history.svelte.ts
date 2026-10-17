@@ -1,6 +1,6 @@
 import type { Schema } from "../../schema.js";
 import type { Caret } from "../editor/document-store.svelte.js";
-import { buildIndex } from "../tree/index.js";
+import { buildIndex, updateIndex, type TreeIndex } from "../tree/index.js";
 import { applyOp } from "../tree/ops.js";
 import { applySchemaChanges, schemaChanges, type SchemaChange } from "./schema-change.js";
 export type FocusSnapshot = Caret & { contentId: string };
@@ -33,8 +33,8 @@ export type HistoryEntry =
       afterLinks: Schema["links"];
     };
 
-function contentText(schema: Schema, id: string): string {
-  const entry = buildIndex(schema).get(id);
+function contentText(schema: Schema, id: string, index: TreeIndex = buildIndex(schema)): string {
+  const entry = index.get(id);
   if (!entry || entry.side === "container") throw new Error("Unknown history content");
   return entry.side === "right"
     ? entry.container.right.text
@@ -47,25 +47,35 @@ function navigation(snapshot: AppSnapshot): Navigation {
 function patchText(text: string): string {
   return JSON.parse(JSON.stringify(text)) as string;
 }
-function restore(entry: HistoryEntry, schema: Schema, undo: boolean): AppSnapshot {
+function restore(
+  entry: HistoryEntry,
+  schema: Schema,
+  undo: boolean,
+  currentIndex?: TreeIndex,
+): AppSnapshot {
   if (entry.kind === "structure")
     return {
       ...navigation({ schema, ...(undo ? entry.before : entry.after) }),
       schema: applySchemaChanges(schema, entry.changes, undo),
     };
   const change = entry.textChange;
-  const text = contentText(schema, change.contentId);
+  const index = currentIndex ?? buildIndex(schema);
+  const text = contentText(schema, change.contentId, index);
   const end = undo ? change.newEnd : change.oldEnd;
   const replacement = undo ? entry.removed : entry.inserted;
   return {
     ...navigation({ schema, ...(undo ? entry.before : entry.after) }),
     schema: {
-      ...applyOp(schema, {
-        type: "setText",
-        id: change.contentId,
-        text: text.slice(0, change.from) + replacement + text.slice(end),
-        normalized: true,
-      }).schema,
+      ...applyOp(
+        schema,
+        {
+          type: "setText",
+          id: change.contentId,
+          text: text.slice(0, change.from) + replacement + text.slice(end),
+          normalized: true,
+        },
+        index,
+      ).schema,
       links: undo ? entry.beforeLinks : entry.afterLinks,
     },
   };
@@ -102,7 +112,29 @@ export class AppHistory {
   #redo = $state.raw<HistoryEntry[]>([]);
   #group: (TypingGroup & { time: number }) | null = null;
   #current: Schema | null = null;
-  #sizes = new WeakMap<HistoryEntry, number>();
+  #sizes = new WeakMap<object, number>();
+  #index: ReturnType<typeof buildIndex> | null = null;
+  #setCurrent(schema: Schema) {
+    if (this.#index && this.#current) updateIndex(this.#index, this.#current.root, schema.root);
+    this.#current = schema;
+  }
+  // Estimate retained data without allocating a serialized copy of a potentially huge action.
+  // History values are immutable; shared subtrees only need to be measured once.
+  #size(value: unknown): number {
+    if (typeof value === "string") return value.length * 2;
+    if (value === null || typeof value !== "object") return 8;
+    const cached = this.#sizes.get(value);
+    if (cached !== undefined) return cached;
+    let size = 16;
+    if (Array.isArray(value)) {
+      for (const child of value) size += 8 + this.#size(child);
+    } else {
+      for (const [key, child] of Object.entries(value))
+        size += key.length * 2 + 8 + this.#size(child);
+    }
+    this.#sizes.set(value, size);
+    return size;
+  }
   constructor(
     private limit = 500,
     private byteLimit = 16 * 1024 * 1024,
@@ -131,6 +163,8 @@ export class AppHistory {
     this.#undo = [];
     this.#redo = [];
     this.#current = null;
+    this.#index = null;
+    this.#sizes = new WeakMap();
     this.closeGroup();
   }
   record(
@@ -180,7 +214,10 @@ export class AppHistory {
         };
       }
     }
-    const first = merge && !mergedPatch ? restore(last!, before.schema, true) : before;
+    const first =
+      merge && !mergedPatch
+        ? restore(last!, before.schema, true, this.#index ?? undefined)
+        : before;
     const savedPatch = mergedPatch ?? (!merge ? patch : undefined);
     const entry: HistoryEntry = combined
       ? {
@@ -221,7 +258,7 @@ export class AppHistory {
       : [...this.#undo, entry].slice(-this.limit);
     this.#redo = [];
     // Bound retained changes; keep the latest action undoable even if it exceeds the budget.
-    this.#sizes.set(entry, JSON.stringify(entry).length * 2);
+    this.#size(entry);
     let bytes = 0;
     let keep = this.#undo.length;
     for (let i = this.#undo.length - 1; i >= 0; i--) {
@@ -230,7 +267,7 @@ export class AppHistory {
       keep = i;
     }
     this.#undo = this.#undo.slice(keep);
-    this.#current = after.schema;
+    this.#setCurrent(after.schema);
     this.#group = typing ? { ...typing, time } : null;
   }
   undo(): AppSnapshot | null {
@@ -239,8 +276,9 @@ export class AppHistory {
     if (!entry) return null;
     this.#undo = this.#undo.slice(0, -1);
     this.#redo = [...this.#redo, entry];
-    const result = restore(entry, this.#current!, true);
-    this.#current = result.schema;
+    this.#index ??= buildIndex(this.#current!);
+    const result = restore(entry, this.#current!, true, this.#index);
+    this.#setCurrent(result.schema);
     if (entry.textChange)
       result.textChange = {
         ...entry.textChange,
@@ -255,8 +293,9 @@ export class AppHistory {
     if (!entry) return null;
     this.#redo = this.#redo.slice(0, -1);
     this.#undo = [...this.#undo, entry].slice(-this.limit);
-    const result = restore(entry, this.#current!, false);
-    this.#current = result.schema;
+    this.#index ??= buildIndex(this.#current!);
+    const result = restore(entry, this.#current!, false, this.#index);
+    this.#setCurrent(result.schema);
     if (entry.textChange) result.textChange = { ...entry.textChange };
     return result;
   }

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 const rows = readFileSync("docs/ime-checks.md", "utf8")
   .split("\n")
-  .filter((line) => /^\| (macOS|Windows) \|/.test(line))
+  .filter((line) => /^\|\s*(macOS|Windows)\s*\|/.test(line))
   .map((line) =>
     line
       .split("|")

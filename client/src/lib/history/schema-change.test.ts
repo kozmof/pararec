@@ -80,3 +80,23 @@ it("keeps structural undo on a large document within a small history budget", ()
   store.restore(history.redo()!.schema);
   expect(store.schema).toEqual(after);
 });
+
+it("restores a large removed subtree even when the latest action exceeds the budget", () => {
+  const store = tree();
+  const history = new AppHistory(500, 1024);
+  const before = store.schema;
+  const snap = () => ({ schema: store.schema, path: [], focus: null });
+  const first = snap();
+  store.apply({ type: "setTitle", title: "Renamed" });
+  history.record(first, snap());
+  const renamed = snap();
+  store.apply({ type: "removeContainer", id: "a" });
+  history.record(renamed, snap());
+  const removed = store.schema;
+  expect(history.undoCount).toBe(1);
+  store.restore(history.undo()!.schema);
+  expect(store.schema.root[0]).toBe(before.root[0]);
+  expect(store.schema.title).toBe("Renamed");
+  store.restore(history.redo()!.schema);
+  expect(store.schema).toEqual(removed);
+});

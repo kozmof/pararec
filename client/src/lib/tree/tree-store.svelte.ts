@@ -1,4 +1,4 @@
-import { parseSchema, validateLinks, type Schema } from "../../schema.js";
+import { parseSchema, validateLinks, type Schema, type Container } from "../../schema.js";
 import { buildIndex, updateIndex, readonlyIndex, type TreeIndex } from "./index.js";
 import { applyOp, type Op } from "./ops.js";
 
@@ -21,19 +21,18 @@ export class TreeStore {
   get revision(): number {
     return this.#revision;
   }
-  /** Restore a previously validated immutable app snapshot and rebuild its index. */
+  /** Restore an app snapshot and update only changed index branches. */
   restore(schema: Schema): void {
     if (!this.#validated.has(schema)) {
       const emptyLinks = schema.links?.length === 0;
-      schema = parseSchema(schema);
+      const parsed = parseSchema(schema);
+      schema = { ...parsed, root: reuseFrozenRows(parsed.root, schema.root) };
       // Reconstructed history snapshots can contain an explicitly emptied link list.
       if (emptyLinks) schema = { ...schema, links: [] };
       freezeSnapshot(schema);
       this.#validated.add(schema);
     }
-    const index = buildIndex(schema);
-    this.#index.clear();
-    for (const [id, entry] of index) this.#index.set(id, entry);
+    updateIndex(this.#index, this.schema.root, schema.root);
     this.#schema = schema;
     this.#revision++;
   }
@@ -122,4 +121,29 @@ function indexedText(index: TreeIndex, id: string): string | undefined {
   return entry.side === "right"
     ? entry.container.right.text
     : entry.container.left[entry.index].text;
+}
+
+// Parsing still checks all global invariants. Reuse only branches previously frozen by
+// this module, so history restores retain structural sharing without trusting caller data.
+function reuseFrozenRows(
+  parsed: readonly Container[],
+  source: readonly Container[],
+): readonly Container[] {
+  if (frozen.has(source)) return source;
+  return parsed.map((row, index) => {
+    const original = source[index];
+    if (frozen.has(original)) return original;
+    return {
+      ...row,
+      left: frozen.has(original.left)
+        ? original.left
+        : row.left.map((cell, at) => (frozen.has(original.left[at]) ? original.left[at] : cell)),
+      right: frozen.has(original.right)
+        ? original.right
+        : {
+            ...row.right,
+            children: reuseFrozenRows(row.right.children, original.right.children),
+          },
+    };
+  });
 }

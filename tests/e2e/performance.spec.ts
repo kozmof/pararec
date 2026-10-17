@@ -154,3 +154,88 @@ for (const scenario of [
     if (report.inputMs) expect(report.inputMs.p95, "p95 input-to-DOM budget").toBeLessThan(8);
   });
 }
+
+// Include tree restoration, editor reconciliation, and focus recovery in this measurement.
+test("measure structural undo in a 1000-Container level", async ({
+  page,
+  browser,
+  browserName,
+}, info) => {
+  test.skip(process.env.PARAREC_PERFORMANCE !== "1", "Run with pnpm test:performance");
+  test.setTimeout(120_000);
+  const schema = fixture(1000);
+  await page.route("**/api/document", (route) =>
+    route.fulfill({ json: schema, headers: { ETag: '"bench"' } }),
+  );
+  await page.goto("/");
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
+  const samples: number[] = [];
+  for (let i = 0; i < 15; i++) {
+    await page.keyboard.press("Shift+Enter");
+    await expect(page.locator('[data-testid="pad-level"] > [data-container-id]')).toHaveCount(1001);
+    await expect(page.getByTestId("editor-sink")).toBeFocused();
+    const duration = await page.evaluate(
+      () =>
+        new Promise<number>((resolve, reject) => {
+          const start = performance.now();
+          let frame = 0;
+          const timer = setTimeout(() => {
+            cancelAnimationFrame(frame);
+            reject(new Error("Structural undo did not settle"));
+          }, 5000);
+          function settled() {
+            const rows = document.querySelectorAll(
+              '[data-testid="pad-level"] > [data-container-id]',
+            );
+            const sink = document.querySelector(
+              '[data-content-id="right-0"] [data-testid="editor-sink"]',
+            );
+            if (rows.length !== 1000 || !sink || document.activeElement !== sink) {
+              frame = requestAnimationFrame(settled);
+              return;
+            }
+            frame = requestAnimationFrame(() => {
+              clearTimeout(timer);
+              resolve(performance.now() - start);
+            });
+          }
+          frame = requestAnimationFrame(settled);
+          document.querySelector('[data-testid="editor-sink"]')!.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "z",
+              ctrlKey: true,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+        }),
+    );
+    await expect(
+      page.locator('[data-content-id="right-0"] [data-testid="editor-sink"]'),
+    ).toBeFocused();
+    if (i >= 5) samples.push(duration);
+  }
+  const report = {
+    scenario: "1000-Container structural undo",
+    browser: browserName,
+    browserVersion: browser.version(),
+    scope:
+      "Synthetic undo key through row restoration, editor focus recovery, and two animation frames",
+    warmup: 5,
+    samples: samples.length,
+    undoMs: {
+      p50: percentile(samples, 0.5),
+      p95: percentile(samples, 0.95),
+      max: Math.max(...samples),
+      targetMs: 250,
+    },
+  };
+  await info.attach("structural-undo-performance.json", {
+    body: JSON.stringify(report, null, 2),
+    contentType: "application/json",
+  });
+  console.log(JSON.stringify(report));
+  expect(report.undoMs.p95, "structural undo responsiveness budget").toBeLessThan(
+    report.undoMs.targetMs,
+  );
+});
