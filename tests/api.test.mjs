@@ -382,11 +382,22 @@ test(
         await once(socket, "connect");
         socket.write("GET /api/health HTTP/1.1\r\n");
       }
-      assert.equal((await request("GET", "/api/health")).status, 200);
       const last = net.createConnection({ host: "127.0.0.1", port });
       sockets.push(last);
       last.on("error", () => {});
       await once(last, "connect");
+      // Check health on the sixteenth connection and keep its slot occupied.
+      // A separate health request can finish before its server slot is released.
+      let response = "";
+      const healthy = new Promise((resolve) => {
+        last.on("data", (chunk) => {
+          response += chunk.toString();
+          if (response.endsWith('{"status":"ok"}\n')) resolve();
+        });
+      });
+      last.write(`GET /api/health HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n\r\n`);
+      await healthy;
+      assert.match(response, /^HTTP\/1\.1 200 /);
       last.write("GET /api/health HTTP/1.1\r\n");
       // All sixteen admitted connections must close at the absolute deadline.
       const closed = Promise.all(

@@ -75,7 +75,7 @@ test("rendered math labels keep their navigation and context menu", async ({ pag
   });
   await page.goto("/");
   const cell = page.locator(`[data-content-id="${source.id}"]`);
-  const label = cell.locator('.katex-html [data-link-ids="energy"]');
+  const label = cell.locator('.katex-html .link-label[data-link-ids="energy"]');
   await expect(label).toBeVisible();
   await expect(label).toContainText("c");
   await expect(label).toContainText("2");
