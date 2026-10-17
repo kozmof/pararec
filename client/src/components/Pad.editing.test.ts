@@ -1483,3 +1483,38 @@ it.each(["left", "right"])(
     expect(disk.root.slice(1)).toEqual(original.root);
   },
 );
+
+it("preserves unaffected editor stores across a row move", async () => {
+  const dispose = vi.spyOn(EditorDocument.prototype, "dispose");
+  await opened();
+  await key("ArrowDown", { altKey: true });
+  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+  expect(dispose).not.toHaveBeenCalled();
+  await key("!");
+  await save();
+  expect(disk.root[1].right.text).toBe("!First note");
+  await key("z", { ctrlKey: true });
+  await key("z", { ctrlKey: true });
+  await save();
+  expect(disk.root.map(row => row.right.text)).toEqual(original.root.map((row: Schema["root"][number]) => row.right.text));
+});
+
+it("routes input history intents through notebook history", async () => {
+  await opened();
+  const input = async (inputType: string, data: string | null = null) => {
+    await fireEvent(screen.getByTestId("editor-sink"), new InputEvent("beforeinput", {
+      bubbles: true, cancelable: true, inputType, data,
+    }));
+    await tick();
+  };
+  await input("deleteContentForward");
+  await input("insertText", "日本");
+  await key("ArrowLeft");
+  await key("ArrowRight");
+  await input("insertLineBreak");
+  await save();
+  expect(disk.root[0].right.text).toBe("日本\nirst note");
+  await input("historyUndo");
+  await save();
+  expect(disk.root[0].right.text).toBe("日本irst note");
+});

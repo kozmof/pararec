@@ -150,3 +150,52 @@ for (const side of ["left", "right"] as const) {
     await expect(note.locator('[data-line="0"]')).toHaveText("ab!ghij");
   });
 }
+
+test("input intents edit and undo through application history", async ({ page }) => {
+  let disk = structuredClone(fixture);
+  await page.route("**/api/document", async route => {
+    if (route.request().method() === "PUT") {
+      disk = route.request().postDataJSON();
+      await route.fulfill({ status: 204, headers: { ETag: '"saved"' } });
+    } else await route.fulfill({ json: disk, headers: { ETag: '"v1"' } });
+  });
+  await page.goto("/");
+  const sink = page.getByTestId("editor-sink");
+  await expect(sink).toBeFocused();
+  const input = async (inputType: string, data: string | null = null) => {
+    await sink.evaluate((node, detail) => node.dispatchEvent(new InputEvent("beforeinput", {
+      bubbles: true, cancelable: true, ...detail,
+    })), { inputType, data });
+  };
+  await input("deleteContentForward");
+  await input("insertText", "日本");
+  // Caret movement ends the typing group before the newline.
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowRight");
+  await input("insertLineBreak");
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(disk.root[0].right.text).toBe("日本\nirst note");
+  await input("historyUndo");
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(disk.root[0].right.text).toBe("日本irst note");
+});
+
+test("verifies a committed save when the response is lost", async ({ page }) => {
+  let disk = structuredClone(fixture), etag = '"v1"';
+  await page.route("**/api/document", async route => {
+    if (route.request().method() === "PUT") {
+      disk = route.request().postDataJSON();
+      etag = '"written"';
+      await route.abort("failed");
+    } else await route.fulfill({ json: disk, headers: { ETag: etag } });
+  });
+  await page.goto("/");
+  await expect(page.getByTestId("editor-sink")).toBeFocused();
+  await page.keyboard.type("Recovered ");
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(disk.root[0].right.text).toBe("Recovered First note");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});

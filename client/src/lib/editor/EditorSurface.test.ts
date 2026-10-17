@@ -498,3 +498,55 @@ it("removes window drag listeners when destroyed during selection", async () => 
     doc.dispose();
   }
 });
+
+function beforeInput(sink: HTMLTextAreaElement, inputType: string, data: string | null = null) {
+  return fireEvent(sink, new InputEvent("beforeinput", {
+    bubbles: true, cancelable: true, inputType, data,
+  }));
+}
+it("deletes graphemes and joins lines without keyboard events", async () => {
+  const { doc, sink } = mount("a👩‍💻\nb", { caret: { line: 0, column: 6 } });
+  sink.focus();
+  await beforeInput(sink, "deleteContentBackward");
+  expect(doc.text()).toBe("a\nb");
+  await beforeInput(sink, "deleteContentForward");
+  expect(doc.text()).toBe("ab");
+  doc.dispose();
+});
+it("replaces selections and handles line breaks and history from input intents", async () => {
+  const { doc, sink } = mount("abc", {
+    caret: { line: 0, column: 2 }, anchor: { line: 0, column: 1 },
+  });
+  sink.focus();
+  await beforeInput(sink, "insertReplacementText", "日本");
+  expect(doc.text()).toBe("a日本c");
+  await beforeInput(sink, "insertLineBreak");
+  expect(doc.text()).toBe("a日本\nc");
+  doc.closeHistoryGroup();
+  await beforeInput(sink, "insertText", "!");
+  await beforeInput(sink, "historyUndo");
+  expect(doc.text()).toBe("a日本\nc");
+  await beforeInput(sink, "historyRedo");
+  expect(doc.text()).toBe("a日本\n!c");
+  doc.dispose();
+});
+it("leaves composing input intents to the IME", async () => {
+  const { doc, sink } = mount("abc");
+  sink.focus();
+  await fireEvent.compositionStart(sink);
+  await beforeInput(sink, "deleteContentForward");
+  await beforeInput(sink, "insertText", "日本");
+  expect(doc.text()).toBe("abc");
+  await fireEvent.compositionEnd(sink, { data: "日" });
+  expect(doc.text()).toBe("日abc");
+  doc.dispose();
+});
+it("handles noncancelable deletion through its input event", async () => {
+  const { doc, sink } = mount("abc", { caret: { line: 0, column: 1 } });
+  sink.focus();
+  await fireEvent(sink, new InputEvent("beforeinput", { inputType: "deleteContentBackward" }));
+  expect(doc.text()).toBe("abc");
+  await fireEvent.input(sink, { inputType: "deleteContentBackward" });
+  expect(doc.text()).toBe("bc");
+  doc.dispose();
+});

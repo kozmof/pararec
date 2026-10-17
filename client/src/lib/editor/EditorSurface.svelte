@@ -670,11 +670,40 @@
    * Handle text input that arrives without keydown, such as mobile keyboard commits or
    * dictation. Composition uses its separate handler.
    */
-  function handleInput(): void {
+  function handleBeforeInput(event: InputEvent): void {
+    if (composing || event.isComposing || !focused || readonly || !event.cancelable) return;
+    const key = ({
+      deleteContentBackward: "Backspace",
+      deleteContentForward: "Delete",
+      historyUndo: "z",
+      historyRedo: "y",
+    } as Record<string, string>)[event.inputType];
+    if (key) {
+      event.preventDefault();
+      // Share editor and host commands with physical keyboard input.
+      handleKeydown(new KeyboardEvent("keydown", {
+        key, ctrlKey: event.inputType.startsWith("history"),
+      }));
+    } else if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") {
+      event.preventDefault();
+      insertText("\n");
+    } else if ((event.inputType === "insertText" || event.inputType === "insertReplacementText") && event.data !== null) {
+      event.preventDefault();
+      insertText(event.data);
+    }
+  }
+
+  function handleInput(event: Event): void {
+    const inputType = (event as InputEvent).inputType;
     if (composing || !sinkEl) return;
     const typed = sinkEl.value;
     sinkEl.value = "";
-    if (typed && focused && !readonly) insertText(typed);
+    if (!focused || readonly) return;
+    if (typed) insertText(typed);
+    else if (inputType === "deleteContentBackward" || inputType === "deleteContentForward")
+      handleKeydown(new KeyboardEvent("keydown", {
+        key: inputType === "deleteContentBackward" ? "Backspace" : "Delete",
+      }));
   }
 
   function handlePaste(event: ClipboardEvent): void {
@@ -915,6 +944,7 @@
       style:height={`${LINE_HEIGHT}px`}
       style:line-height={`${LINE_HEIGHT}px`}
       onkeydown={handleKeydown}
+      onbeforeinput={handleBeforeInput}
       oninput={handleInput}
       oncompositionstart={handleCompositionStart}
       oncompositionupdate={handleCompositionUpdate}

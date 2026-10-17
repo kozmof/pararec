@@ -18,16 +18,42 @@ async function sendDocument(
   etag: string | null,
   signal: AbortSignal,
 ): Promise<string> {
-  const response = await fetch("/api/document", {
-    method: "PUT",
-    signal,
-    headers: {
-      "Content-Type": "application/json",
-      ...(etag === null ? { "If-None-Match": "*" } : { "If-Match": etag }),
-    },
-    body: JSON.stringify(schema),
-  });
-  if (response.status === 412) throw new SaveConflict();
+  async function verifiedETag(): Promise<string | null> {
+    const loaded = await loadDocument(signal);
+    return loaded.etag !== null &&
+      JSON.stringify(loaded.schema) === JSON.stringify(parseSchema(schema))
+      ? loaded.etag
+      : null;
+  }
+  let response: Response;
+  try {
+    response = await fetch("/api/document", {
+      method: "PUT",
+      signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(etag === null ? { "If-None-Match": "*" } : { "If-Match": etag }),
+      },
+      body: JSON.stringify(schema),
+    });
+  } catch (cause) {
+    // A transport failure can happen after the server has committed the snapshot.
+    if (!signal?.aborted) {
+      try {
+        const verified = await verifiedETag();
+        if (verified) return verified;
+      } catch {}
+    }
+    throw cause;
+  }
+  if (response.status === 412) {
+    // Recover a previous write whose response timed out before verification.
+    try {
+      const verified = await verifiedETag();
+      if (verified) return verified;
+    } catch {}
+    throw new SaveConflict();
+  }
   if (!response.ok) {
     const detail: unknown = await response.json().catch(() => null);
     const code =
@@ -35,12 +61,8 @@ async function sendDocument(
         ? detail.error
         : null;
     if (code === "SaveOutcomeUncertain") {
-      const loaded = await loadDocument(signal);
-      if (
-        loaded.etag !== null &&
-        JSON.stringify(loaded.schema) === JSON.stringify(parseSchema(schema))
-      )
-        return loaded.etag;
+      const verified = await verifiedETag();
+      if (verified) return verified;
       throw new SaveConflict();
     }
     throw new Error(`Unable to save document (${response.status}${code ? `: ${code}` : ""})`);

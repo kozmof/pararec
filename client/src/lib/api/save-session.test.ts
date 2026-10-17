@@ -111,11 +111,12 @@ describe("serialized saving", () => {
     await vi.advanceTimersByTimeAsync(2000);
     await session.flush();
     expect(session.status).toBe("conflict");
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
   it("overwrite fetches a fresh ETag and requires another choice after a second conflict", async () => {
     fetchMock
       .mockResolvedValueOnce(new Response(null, { status: 412 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(schema), { headers: { ETag: '"disk"' } }))
       .mockResolvedValueOnce(
         new Response(JSON.stringify(schema), { headers: { ETag: '"external"' } }),
       )
@@ -123,17 +124,18 @@ describe("serialized saving", () => {
     session.changed(next);
     await session.flush();
     await session.overwrite();
-    expect(fetchMock.mock.calls[2][1].headers["If-Match"]).toBe('"external"');
+    expect(fetchMock.mock.calls[3][1].headers["If-Match"]).toBe('"external"');
     expect(session.status).toBe("conflict");
   });
   it("overwrite uses creation preconditions if the disk file was deleted", async () => {
     fetchMock
       .mockResolvedValueOnce(new Response(null, { status: 412 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(schema), { headers: { ETag: '"disk"' } }))
       .mockResolvedValueOnce(new Response(null, { status: 404 }));
     session.changed(next);
     await session.flush();
     await session.overwrite();
-    expect(fetchMock.mock.calls[2][1].headers["If-None-Match"]).toBe("*");
+    expect(fetchMock.mock.calls[3][1].headers["If-None-Match"]).toBe("*");
   });
   it("reload waits for the current write and clears queued edits before another save", async () => {
     const first = deferred<Response>();
@@ -177,11 +179,12 @@ it.each(["{broken", '{"version":2,"root":[]}'])(
   async (body) => {
     fetchMock
       .mockResolvedValueOnce(new Response(null, { status: 412 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(schema), { headers: { ETag: '"disk"' } }))
       .mockResolvedValueOnce(new Response(body, { headers: { ETag: '"invalid"' } }));
     session.changed(next);
     await session.flush();
     await session.overwrite();
-    expect(fetchMock.mock.calls[2][1].headers["If-Match"]).toBe('"invalid"');
+    expect(fetchMock.mock.calls[3][1].headers["If-Match"]).toBe('"invalid"');
     expect(session.status).toBe("saved");
     expect(session.dirty).toBe(false);
   },
@@ -256,5 +259,62 @@ it("acknowledges uncertain writes after the last link is removed", async () => {
   session.changed({ ...next, links: [] });
   await session.flush();
   expect(session.status).toBe("saved");
+  expect(session.dirty).toBe(false);
+});
+
+it("acknowledges a committed write after its response is lost", async () => {
+  fetchMock.mockRejectedValueOnce(new TypeError("Connection lost"))
+    .mockResolvedValueOnce(new Response(JSON.stringify(next), { headers: { ETag: '"written"' } }));
+  session.changed(next);
+  await session.flush();
+  expect(session.status).toBe("saved");
+  expect(session.etag).toBe('"written"');
+  expect(session.dirty).toBe(false);
+});
+it("recovers an earlier committed snapshot when a retry gets 412", async () => {
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 412 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify(next), { headers: { ETag: '"written"' } }));
+  session.changed(next);
+  await session.flush();
+  expect(session.status).toBe("saved");
+  expect(session.dirty).toBe(false);
+});
+
+it("verifies the sent snapshot before saving edits queued after a lost response", async () => {
+  const readback = deferred<Response>();
+  fetchMock.mockRejectedValueOnce(new TypeError("Connection lost"))
+    .mockReturnValueOnce(readback.promise);
+  session.changed(next);
+  const flush = session.flush();
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  const newer = { ...next, title: "Queued edit" };
+  session.changed(newer);
+  readback.resolve(new Response(JSON.stringify(next), { headers: { ETag: '"verified"' } }));
+  await flush;
+  expect(fetchMock.mock.calls[2][1].headers["If-Match"]).toBe('"verified"');
+  expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual(newer);
+  expect(session.dirty).toBe(false);
+});
+it("keeps a failed transport save dirty when disk content differs", async () => {
+  fetchMock.mockRejectedValueOnce(new TypeError("Connection lost"))
+    .mockResolvedValueOnce(new Response(JSON.stringify(schema), { headers: { ETag: '"disk"' } }));
+  session.changed(next);
+  await session.flush();
+  expect(session.status).toBe("failed");
+  expect(session.etag).toBe('"v1"');
+  expect(session.dirty).toBe(true);
+});
+it("recovers a committed save after its response times out", async () => {
+  fetchMock.mockReturnValueOnce(new Promise(() => {}));
+  session.changed(next);
+  const flush = session.flush();
+  await vi.advanceTimersByTimeAsync(15_000);
+  await flush;
+  expect(session.status).toBe("failed");
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 412 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify(next), { headers: { ETag: '"written"' } }));
+  await session.flush();
+  expect(session.status).toBe("saved");
+  expect(session.etag).toBe('"written"');
   expect(session.dirty).toBe(false);
 });

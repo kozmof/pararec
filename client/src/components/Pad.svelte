@@ -386,8 +386,7 @@
       cache?.get(focused).closeHistoryGroup();
       tree.applyMany(action.ops);
       focused = null;
-      cache?.dispose();
-      cache = new ContentCache(tree, changed);
+      cache?.prune();
       path = action.path; liveCaret = null;
       history.record(before, snapshot(action.focus ? focusSnapshot(action.focus.contentId, action.focus.entry) : null));
       const hash = pathHash(path);
