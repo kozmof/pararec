@@ -1,7 +1,6 @@
 # Pararec
 
-Pararec is a recursive two-column notebook that saves notes in a local JSON file.
-Each row has one or more left notes and a right note that can contain child rows.
+Pararec is a recursive two-column notebook.
 Notes support plain text, Markdown, KaTeX formulas, and links to other cells.
 
 Pararec runs on your own computer. Public hosting and shared remote access are
