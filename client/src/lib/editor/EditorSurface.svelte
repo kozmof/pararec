@@ -297,10 +297,11 @@
   $effect(() => {
     void lines;
     void viewportWidth;
-    if (!autoHeight) {
-      void caret;
-      void anchor;
-    }
+    void caret;
+    void anchor;
+    void mode;
+    void readonly;
+    void measurementVersion;
     void preedit;
     void composing;
     void decorations;
@@ -333,7 +334,7 @@
         layoutVersion++;
         restoreScroll(anchor);
       }
-      measurementVersion++;
+      updateGeometry();
       if (pendingCaretScroll && lineEls[caret.line]) {
         pendingCaretScroll = !ensureCaretVisible();
       }
@@ -348,43 +349,32 @@
     return orderCarets(anchor, caret);
   });
 
-  // Recomputed against the document's revision as well as the carets, because the same
-  // (line, column) pair sits at a different pixel once the text around it has changed.
-  const rects = $derived.by(() => {
-    void layoutVersion;
-    void measurementVersion;
-    void doc.state.revision;
-    void lines;
-    if (readonly || !selection) return [];
-    return selectionRects(selection.start, selection.end, layout, measure, (line) =>
-      doc.lineText(line).length, lines.map(line => line.lineNumber),
-    );
-  });
+  // Rendering consumes cached geometry. Reading ranges during rendering would force
+  // layout against the old spans, then force it again after the text DOM updates.
+  let rects = $state.raw<ReturnType<typeof selectionRects>>([]);
+  let caretXY = $state.raw({ x: 0, y: 0 });
+  let caretWidth = $state(2);
 
-  const caretXY = $derived.by(() => {
-    void layoutVersion;
-    void measurementVersion;
-    void doc.state.revision;
-    void lines;
+  function updateGeometry(): void {
+    if (readonly) {
+      rects = [];
+      return;
+    }
+    rects = selection
+      ? selectionRects(selection.start, selection.end, layout, measure, (line) =>
+          doc.lineText(line).length, lines.map(line => line.lineNumber))
+      : [];
     const measuredCaret = composing
       ? { line: caret.line, column: caret.column + preedit.length }
       : caret;
-    return caretPoint(measuredCaret, layout, measure);
-  });
-
-  /** Normal-mode block cursor width, matching the current cell. */
-  const caretWidth = $derived.by(() => {
-    void measurementVersion;
-    void doc.state.revision;
-    if (mode !== "normal") return 2;
+    caretXY = caretPoint(measuredCaret, layout, measure);
     const text = doc.lineText(caret.line);
-    if (caret.column >= text.length) return FONT_SIZE * 0.6;
-    return Math.max(
-      2,
-      measure.columnToPoint(caret.line, doc.columnAfter(caret.line, caret.column), "upstream").x -
-        measure.columnToPoint(caret.line, caret.column).x,
-    );
-  });
+    caretWidth = mode !== "normal" ? 2
+      : caret.column >= text.length ? FONT_SIZE * 0.6
+      : Math.max(2,
+          measure.columnToPoint(caret.line, doc.columnAfter(caret.line, caret.column), "upstream").x -
+          measure.columnToPoint(caret.line, caret.column).x);
+  }
 
   export function focus(): void {
     sinkEl?.focus();
