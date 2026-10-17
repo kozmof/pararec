@@ -74,3 +74,28 @@ test("destination glyphs do not introduce extra measured text rows", () => {
     else Reflect.deleteProperty(Range.prototype, "getClientRects");
   }
 });
+
+test("preserves annotation buttons when edits shift a label's source offsets", async () => {
+  const decoration = {
+    id: "link",
+    kind: "link" as const,
+    start: { line: 0, column: 1 },
+    end: { line: 0, column: 6 },
+    destinations: [{ id: "target", label: "Target" }],
+  };
+  const { container, rerender } = render(InlineContent, {
+    text: "xhello world",
+    line: 0,
+    decorations: [decoration],
+  });
+  const button = screen.getByRole("button", { name: "Linked cell 1: Target" });
+  const source = container.querySelector('[data-from="1"]');
+  await rerender({
+    text: "xxhello world",
+    line: 0,
+    decorations: [{ ...decoration, start: { line: 0, column: 2 }, end: { line: 0, column: 7 } }],
+  });
+  expect(screen.getByRole("button", { name: "Linked cell 1: Target" })).toBe(button);
+  expect(container.querySelector('[data-from="2"]')).toBe(source);
+  expect(container.querySelector(".link-label")).toHaveTextContent("hello");
+});

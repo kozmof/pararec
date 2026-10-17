@@ -5,7 +5,7 @@
   import { createContainer } from "../lib/tree/ops.js";
   import { structureAction, type StructureCommand } from "../lib/tree/structure.js";
   import type { Caret } from "../lib/editor/document-store.svelte.js";
-  import { containerPath, layerDepth, levelAt, pathFromHash, pathHash, validPath } from "../lib/tree/navigation.js";
+  import { containerPath, layerDepth, pathFromHash, pathHash, validPath } from "../lib/tree/navigation.js";
   import { loadDocument, type LoadedDocument } from "../lib/api/document.js";
   import { SaveSession } from "../lib/api/save-session.svelte.js";
   import { AppHistory, type AppSnapshot, type FocusSnapshot } from "../lib/history/history.svelte.js";
@@ -78,13 +78,13 @@
   let previousLayers: string[][] = [];
   let seenSchema: Schema | null = null;
   const disabled = $derived(busy || session?.status === "conflict");
-  const rows = $derived(tree ? levelAt(tree.schema, path) : []);
+  const rows = $derived(tree ? tree.rowsAt(path) : []);
   const currentLayer = $derived(tree ? validPath(tree.schema, path).length + 1 : 1);
   const totalLayers = $derived(tree ? layerDepth(tree.schema) : 1);
   const ancestors = $derived.by(() => {
     if (!tree) return [];
     void tree.schema;
-    return validPath(tree.schema, path).map(id => tree!.index.get(id)!.container);
+    return validPath(tree.schema, path).map(id => tree!.rowView(id)!);
   });
   const parent = $derived(ancestors.at(-1));
   setContext<ContentHost>(CONTENT_HOST, {

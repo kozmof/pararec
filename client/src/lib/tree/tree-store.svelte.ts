@@ -2,12 +2,14 @@ import { parseSchema, validateLinks, type Schema, type Container } from "../../s
 import { buildIndex, updateIndex, readonlyIndex, type TreeIndex } from "./index.js";
 import { applyOp, type Op } from "./ops.js";
 import { LinkIndex } from "./link-index.js";
+import { TreeView } from "./tree-view.svelte.js";
 
 export class TreeStore {
   #schema = $state.raw<Schema>();
   #revision = $state(0);
   #validated = new WeakSet<Schema>();
   readonly #links = new LinkIndex();
+  readonly #view;
   readonly #index;
   readonly index;
   constructor(value: unknown) {
@@ -17,9 +19,17 @@ export class TreeStore {
     this.index = readonlyIndex(this.#index);
     freezeSnapshot(this.#schema);
     this.#links.update(this.#schema.links);
+    this.#view = new TreeView(this.#schema.root);
   }
   get schema(): Schema {
     return this.#schema!;
+  }
+  /** Reactive presentation rows; persistence and history always use schema. */
+  rowsAt(path: readonly string[]) {
+    return this.#view.rowsAt(path);
+  }
+  rowView(id: string) {
+    return this.#view.row(id);
   }
   linksFor(id: string) {
     return this.#links.forSource(id);
@@ -39,6 +49,7 @@ export class TreeStore {
       this.#validated.add(schema);
     }
     updateIndex(this.#index, this.schema.root, schema.root);
+    this.#view.update(schema.root, this.index);
     this.#links.update(schema.links);
     this.#schema = schema;
     this.#revision++;
@@ -64,6 +75,7 @@ export class TreeStore {
       );
     updateIndex(this.#index, before.root, result.schema.root);
     freezeSnapshot(result.schema);
+    this.#view.update(result.schema.root, this.index);
     this.#links.update(result.schema.links);
     this.#schema = result.schema;
     this.#validated.add(result.schema);
@@ -85,6 +97,7 @@ export class TreeStore {
     );
     freezeSnapshot(next);
     updateIndex(this.#index, before.root, next.root);
+    this.#view.update(next.root, this.index);
     this.#links.update(next.links);
     this.#schema = next;
     this.#validated.add(next);
@@ -106,6 +119,7 @@ export class TreeStore {
     validateLinks(staged, (id) => indexedText(stagedIndex, id));
     updateIndex(this.#index, before.root, staged.root);
     freezeSnapshot(staged);
+    this.#view.update(staged.root, this.index);
     this.#links.update(staged.links);
     this.#schema = staged;
     this.#validated.add(staged);

@@ -150,6 +150,60 @@ for (const scenario of [
       contentType: "application/json",
     });
     console.log(JSON.stringify(report));
+    // Collect diagnostics in a separate pass so profiling cannot affect the budget samples.
+    if (browserName === "chromium" && report.inputMs && report.inputMs.p95 >= 8) {
+      const session = await page.context().newCDPSession(page);
+      try {
+        await session.send("Performance.enable");
+        await session.send("Profiler.enable");
+        await session.send("Profiler.setSamplingInterval", { interval: 500 });
+        const before = await session.send("Performance.getMetrics");
+        await session.send("Profiler.start");
+        await page.evaluate(async () => {
+          const sink = document.querySelector<HTMLTextAreaElement>('[data-testid="editor-sink"]')!;
+          for (let i = 0; i < 30; i++) {
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+            sink.value = "x";
+            sink.dispatchEvent(
+              new InputEvent("input", { bubbles: true, inputType: "insertText", data: "x" }),
+            );
+          }
+        });
+        const { profile } = await session.send("Profiler.stop");
+        const after = await session.send("Performance.getMetrics");
+        const previous = new Map(before.metrics.map((metric) => [metric.name, metric.value]));
+        const metrics = Object.fromEntries(
+          after.metrics
+            .filter((metric) =>
+              [
+                "ScriptDuration",
+                "LayoutDuration",
+                "RecalcStyleDuration",
+                "TaskDuration",
+                "LayoutCount",
+                "RecalcStyleCount",
+              ].includes(metric.name),
+            )
+            .map((metric) => [metric.name, metric.value - (previous.get(metric.name) ?? 0)]),
+        );
+        await info.attach("failed-input.cpuprofile", {
+          body: JSON.stringify(profile),
+          contentType: "application/json",
+        });
+        await info.attach("failed-input-metrics.json", {
+          body: JSON.stringify({ samples: 30, metrics }, null, 2),
+          contentType: "application/json",
+        });
+        console.log(JSON.stringify({ scenario, diagnosticInputPass: { samples: 30, metrics } }));
+      } catch (error) {
+        await info.attach("profiling-error.txt", {
+          body: String(error),
+          contentType: "text/plain",
+        });
+      } finally {
+        await session.detach();
+      }
+    }
     expect(report.navigationToReadyMs, "navigation-to-ready budget").toBeLessThan(10_000);
     if (report.inputMs) expect(report.inputMs.p95, "p95 input-to-DOM budget").toBeLessThan(8);
   });

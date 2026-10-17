@@ -30,6 +30,7 @@ function fixture(): Schema {
   };
 }
 function check(store: TreeStore) {
+  expect(parseSchema({ ...store.schema, root: store.rowsAt([]) })).toEqual(store.schema);
   expect(parseSchema(store.schema)).toEqual(store.schema);
   expect([...store.index.entries()].sort()).toEqual([...buildIndex(store.schema).entries()].sort());
   for (const [id, entry] of store.index) {
