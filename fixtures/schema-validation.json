@@ -297,5 +297,311 @@
       ],
       "links": [{ "id": "label", "sourceId": "left", "start": 3, "end": 9, "targets": ["right"] }]
     }
+  },
+  {
+    "name": "render defaults",
+    "valid": true,
+    "document": {
+      "version": 1,
+      "config": {},
+      "root": []
+    }
+  },
+  {
+    "name": "empty renderTypes",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderTypes": []
+      },
+      "root": []
+    }
+  },
+  {
+    "name": "null renderTypes",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderTypes": null
+      },
+      "root": []
+    }
+  },
+  {
+    "name": "string renderTypes",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderTypes": "none"
+      },
+      "root": []
+    }
+  },
+  {
+    "name": "duplicate renderTypes",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderTypes": ["none", "none"]
+      },
+      "root": []
+    }
+  },
+  {
+    "name": "blank renderTypes",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderTypes": ["none", " "]
+      },
+      "root": []
+    }
+  },
+  {
+    "name": "nonstring renderTypes",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderTypes": ["none", 1]
+      },
+      "root": []
+    }
+  },
+  {
+    "name": "unlisted default renderer",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderType": "custom"
+      },
+      "root": []
+    }
+  },
+  {
+    "name": "default excluded from renderTypes",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderTypes": ["markdown"]
+      },
+      "root": []
+    }
+  },
+  {
+    "name": "custom default renderer",
+    "valid": true,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderType": "custom",
+        "renderTypes": ["custom"]
+      },
+      "root": []
+    }
+  },
+  {
+    "name": "unlisted left renderer",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {},
+      "root": [
+        {
+          "id": "row",
+          "left": [
+            {
+              "id": "left",
+              "text": "",
+              "renderType": "custom"
+            }
+          ],
+          "right": {
+            "id": "right",
+            "text": "",
+            "children": []
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "allowed left renderer",
+    "valid": true,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderTypes": ["none", "custom"]
+      },
+      "root": [
+        {
+          "id": "row",
+          "left": [
+            {
+              "id": "left",
+              "text": "",
+              "renderType": "custom"
+            }
+          ],
+          "right": {
+            "id": "right",
+            "text": "",
+            "children": []
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "unlisted right renderer",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {},
+      "root": [
+        {
+          "id": "row",
+          "left": [
+            {
+              "id": "left",
+              "text": ""
+            }
+          ],
+          "right": {
+            "id": "right",
+            "text": "",
+            "children": [],
+            "renderType": "custom"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "allowed right renderer",
+    "valid": true,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderTypes": ["none", "custom"]
+      },
+      "root": [
+        {
+          "id": "row",
+          "left": [
+            {
+              "id": "left",
+              "text": ""
+            }
+          ],
+          "right": {
+            "id": "right",
+            "text": "",
+            "children": [],
+            "renderType": "custom"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "unlisted nested renderer",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {},
+      "root": [
+        {
+          "id": "row",
+          "left": [
+            {
+              "id": "left",
+              "text": ""
+            }
+          ],
+          "right": {
+            "id": "right",
+            "text": "",
+            "children": [
+              {
+                "id": "child",
+                "left": [
+                  {
+                    "id": "child-left",
+                    "text": "",
+                    "renderType": "custom"
+                  }
+                ],
+                "right": {
+                  "id": "child-right",
+                  "text": "",
+                  "children": []
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "allowed nested renderer",
+    "valid": true,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderTypes": ["none", "custom"]
+      },
+      "root": [
+        {
+          "id": "row",
+          "left": [
+            {
+              "id": "left",
+              "text": ""
+            }
+          ],
+          "right": {
+            "id": "right",
+            "text": "",
+            "children": [
+              {
+                "id": "child",
+                "left": [
+                  {
+                    "id": "child-left",
+                    "text": "",
+                    "renderType": "custom"
+                  }
+                ],
+                "right": {
+                  "id": "child-right",
+                  "text": "",
+                  "children": []
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "null default renderer",
+    "valid": false,
+    "document": {
+      "version": 1,
+      "config": {
+        "renderType": null
+      },
+      "root": []
+    }
   }
 ]

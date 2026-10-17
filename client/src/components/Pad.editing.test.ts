@@ -1338,13 +1338,18 @@ for (const ime of [false, true]) {
 it("suppresses the native context menu throughout cells and linking mode", async () => {
   await opened();
   for (const target of [
-    content("flat-1-right"),
-    screen.getByTestId("editor-sink"),
-    content("flat-2-right"),
+    () => screen.getByTestId("editor-sink"),
+    () => content("flat-1-right"),
+    () => content("flat-2-right"),
   ]) {
-    expect(await fireEvent.contextMenu(target)).toBe(false);
+    expect(await fireEvent.contextMenu(target())).toBe(false);
+    expect(screen.getByRole("menu", { name: "Cell options" })).toBeInTheDocument();
+    await fireEvent.keyDown(window, { key: "Escape" });
+    await screen.findByTestId("editor-sink");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   }
-  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  content("flat-1-right").focus();
+  await tick();
   await key("a", { ctrlKey: true });
   expect(await fireEvent.contextMenu(content("flat-1-right"))).toBe(false);
   await fireEvent.click(screen.getByRole("menuitem", { name: "Start linking" }));

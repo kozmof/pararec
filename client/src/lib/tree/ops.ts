@@ -1,5 +1,7 @@
 import {
   MAX_CONTAINER_DEPTH,
+  validateRenderType,
+  validateRenderTypes,
   parseSchema,
   validateLinks,
   type Container,
@@ -15,6 +17,9 @@ function spliced<T>(items: readonly T[], at: number, count: number, ...insert: T
 }
 
 export type Op =
+  | { type: "setRenderType"; id: string; renderType?: string }
+  | { type: "setDefaultRenderType"; renderType: string }
+  | { type: "setRenderTypes"; renderTypes: readonly string[] }
   | { type: "setLinks"; links: NonNullable<Schema["links"]> }
   | { type: "setTitle"; title: string }
   | { type: "insertContainer"; parentId: string | null; index: number; container: Container }
@@ -97,6 +102,48 @@ export function applyOp(
     });
   }
   switch (op.type) {
+    case "setRenderTypes": {
+      validateRenderTypes(op.renderTypes);
+      const next = { ...schema, config: { ...schema.config, renderTypes: [...op.renderTypes] } };
+      // Check the default and every explicit cell override before changing the list.
+      parseSchema(next);
+      return {
+        schema: next,
+        inverse: { type: "setRenderTypes", renderTypes: schema.config.renderTypes },
+      };
+    }
+    case "setDefaultRenderType": {
+      validateRenderType(op.renderType, schema.config.renderTypes);
+      return {
+        schema: { ...schema, config: { ...schema.config, renderType: op.renderType } },
+        inverse: { type: "setDefaultRenderType", renderType: schema.config.renderType },
+      };
+    }
+    case "setRenderType": {
+      if (op.renderType !== undefined) validateRenderType(op.renderType, schema.config.renderTypes);
+      const entry = index.get(op.id);
+      if (!entry || entry.side === "container") throw new Error("Unknown Content");
+      const container = entry.container;
+      const previous = entry.side === "left" ? container.left[entry.index] : container.right;
+      const { renderType, ...content } = previous;
+      const next = {
+        ...content,
+        ...(op.renderType === undefined ? {} : { renderType: op.renderType }),
+      };
+      return {
+        schema: replaceRow(
+          schema,
+          container.id,
+          entry.side === "left"
+            ? {
+                ...container,
+                left: container.left.map((cell) => (cell.id === op.id ? next : cell)),
+              }
+            : { ...container, right: { ...next, children: container.right.children } },
+        ),
+        inverse: { type: "setRenderType", id: op.id, renderType },
+      };
+    }
     case "setLinks": {
       const next = { ...schema, links: op.links };
       if (validateLinkChanges) validateLinks(next);
@@ -112,7 +159,8 @@ export function applyOp(
     }
     case "insertContainer": {
       position(op.index, level(op.parentId).length);
-      const container = parseSchema({ version: 1, root: [op.container] }).root[0];
+      const container = parseSchema({ version: 1, config: schema.config, root: [op.container] })
+        .root[0];
       fresh(buildIndex({ ...schema, root: [container] }).keys());
       checkDepth(op.parentId, [container]);
       return {
@@ -166,7 +214,13 @@ export function applyOp(
       if (typeof op.content.id !== "string" || typeof op.content.text !== "string")
         throw new Error("Invalid Content");
       fresh([op.content.id]);
-      const content = { id: op.content.id, text: op.content.text.replace(/\r\n?/g, "\n") };
+      if (op.content.renderType !== undefined)
+        validateRenderType(op.content.renderType, schema.config.renderTypes);
+      const content: Content = {
+        id: op.content.id,
+        text: op.content.text.replace(/\r\n?/g, "\n"),
+        ...(op.content.renderType === undefined ? {} : { renderType: op.content.renderType }),
+      };
       return {
         schema: replaceRow(schema, container.id, {
           ...container,

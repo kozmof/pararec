@@ -246,6 +246,8 @@ it("shows the filename title and applies configured width rates", async () => {
         ...fixture,
         title: undefined,
         config: {
+          renderType: "none",
+          renderTypes: ["none", "markdown", "katex"],
           showTitles: true,
           maxWidth: 1100,
           outerWidthRate: { left: 2, right: 3 },
@@ -395,4 +397,97 @@ it("navigates with arrows while linking without selecting their cells", async ()
     "child-left",
     "grandchild-right",
   ]);
+});
+
+it("renders inherited Markdown and opens the source for editing", async () => {
+  const value = structuredClone(fixture);
+  value.config.renderType = "markdown";
+  value.root[0].left[0].text = "**bold** and $x^2$";
+  vi.mocked(fetch).mockResolvedValue(response(value));
+  await opened();
+  const cell = content(value.root[0].left[0].id);
+  expect(cell.querySelector("strong")).toHaveTextContent("bold");
+  expect(cell.querySelector(".katex")).not.toBeNull();
+  await fireEvent.mouseDown(cell.querySelector("strong")!);
+  await waitFor(() => expect(cell.querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  expect(cell.querySelector("[data-render-type]")).toBeNull();
+});
+
+it("switches a cell renderer from its context menu and supports undo", async () => {
+  const value = structuredClone(fixture);
+  value.root[0].left[0].text = "**bold**";
+  vi.mocked(fetch).mockResolvedValue(response(value));
+  await opened();
+  const cell = content(value.root[0].left[0].id);
+  await fireEvent.contextMenu(cell, { clientX: 100, clientY: 100 });
+  expect(screen.getByRole("menuitemradio", { name: "Default (none)" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await fireEvent.click(screen.getByRole("menuitemradio", { name: "Markdown" }));
+  expect(screen.queryByRole("menu")).toBeNull();
+  expect(cell.querySelector("strong")).toHaveTextContent("bold");
+  await key("z");
+  expect(cell.querySelector("strong")).toBeNull();
+  await fireEvent.keyDown(window, { key: "z", ctrlKey: true, shiftKey: true });
+  await tick();
+  expect(cell.querySelector("strong")).toHaveTextContent("bold");
+});
+
+it("offers inheritance, explicit plain text, and registered renderers", async () => {
+  const { registerRenderer, escapeHTML } = await import("../lib/render/renderers.js");
+  const dispose = registerRenderer("notice", (text) => `<aside>${escapeHTML(text)}</aside>`);
+  try {
+    const value = structuredClone(fixture);
+    value.config.renderType = "markdown";
+    value.config.renderTypes = ["none", "markdown", "katex", "notice"];
+    value.root[0].left[0].text = "**bold**";
+    vi.mocked(fetch).mockResolvedValue(response(value));
+    await opened();
+    const cell = content(value.root[0].left[0].id);
+    await fireEvent.contextMenu(cell);
+    await fireEvent.click(screen.getByRole("menuitemradio", { name: "None" }));
+    expect(cell.querySelector("strong")).toBeNull();
+    await fireEvent.contextMenu(cell);
+    expect(screen.getByRole("menuitemradio", { name: "None" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await fireEvent.click(screen.getByRole("menuitemradio", { name: "Default (markdown)" }));
+    expect(cell.querySelector("strong")).toHaveTextContent("bold");
+    await fireEvent.contextMenu(cell);
+    await fireEvent.click(screen.getByRole("menuitemradio", { name: "notice" }));
+    expect(cell.querySelector("aside")).toHaveTextContent("**bold**");
+  } finally {
+    dispose();
+  }
+});
+
+it("dismisses the render menu with Escape or an outside click", async () => {
+  await opened();
+  const cell = content(fixture.root[0].left[0].id);
+  await fireEvent.contextMenu(cell);
+  await fireEvent.keyDown(window, { key: "Escape" });
+  expect(screen.queryByRole("menu")).toBeNull();
+  await fireEvent.contextMenu(cell);
+  await fireEvent.click(document.body);
+  expect(screen.queryByRole("menu")).toBeNull();
+});
+
+it("limits the context menu to config.renderTypes", async () => {
+  const value = structuredClone(fixture);
+  value.config.renderTypes = ["none", "custom"];
+  vi.mocked(fetch).mockResolvedValue(response(value));
+  await opened();
+  const cell = content(value.root[0].left[0].id);
+  await fireEvent.contextMenu(cell);
+  expect(screen.queryByRole("menuitemradio", { name: "Markdown" })).toBeNull();
+  expect(screen.queryByRole("menuitemradio", { name: "KaTeX" })).toBeNull();
+  await fireEvent.click(screen.getByRole("menuitemradio", { name: "custom" }));
+  expect(cell).toHaveTextContent(value.root[0].left[0].text);
+  await fireEvent.contextMenu(cell);
+  expect(screen.getByRole("menuitemradio", { name: "custom" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
 });

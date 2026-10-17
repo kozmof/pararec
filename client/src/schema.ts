@@ -1,6 +1,26 @@
 export const MAX_CONTAINER_DEPTH = 64;
 
+export type RenderType = string;
+export const DEFAULT_RENDER_TYPES = ["none", "markdown", "katex"] as const;
+
+export function validateRenderTypes(value: unknown): asserts value is readonly RenderType[] {
+  if (!Array.isArray(value) || value.length === 0)
+    throw new Error("Expected nonempty renderTypes array");
+  value.forEach((type) => validateRenderType(type));
+  if (new Set(value).size !== value.length) throw new Error("Duplicate render type");
+}
+
+export function validateRenderType(
+  value: unknown,
+  allowed?: readonly RenderType[],
+): asserts value is RenderType {
+  if (typeof value !== "string" || !value.trim()) throw new Error("Expected nonempty render type");
+  if (allowed && !allowed.includes(value))
+    throw new Error("Render type is not in config.renderTypes");
+}
+
 export type Content = {
+  readonly renderType?: RenderType;
   readonly id: string;
   readonly text: string;
 };
@@ -12,6 +32,8 @@ export type Container = {
 };
 
 export type Config = {
+  readonly renderType: RenderType;
+  readonly renderTypes: readonly RenderType[];
   readonly showTitles: boolean;
   readonly maxWidth: number;
   readonly outerWidthRate: { readonly left: number; readonly right: number };
@@ -55,7 +77,12 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
     if (typeof note.text !== "string") throw new Error("Expected string text");
     const contentId = id(note.id);
     if (note.text.includes("\r")) originalTexts.set(contentId, note.text);
-    return { id: contentId, text: note.text.replace(/\r\n?/g, "\n") };
+    if (note.renderType !== undefined) validateRenderType(note.renderType, config.renderTypes);
+    return {
+      ...(note.renderType !== undefined ? { renderType: note.renderType } : {}),
+      id: contentId,
+      text: note.text.replace(/\r\n?/g, "\n"),
+    };
   }
   function level(input: unknown, depth = 1): Container[] {
     if (!Array.isArray(input)) throw new Error("Expected a Container array");
@@ -75,12 +102,23 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
   if (document.version !== 1) throw new Error("Unsupported version");
   let title = defaultTitle;
   const config: { -readonly [K in keyof Config]: Config[K] } = {
+    renderType: "none",
+    renderTypes: [...DEFAULT_RENDER_TYPES],
     showTitles: true,
     maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
     innerWidthRate: { left: 35, right: 65 },
   };
   const settings = document.config === undefined ? {} : object(document.config);
+  if (settings.renderTypes !== undefined) {
+    validateRenderTypes(settings.renderTypes);
+    config.renderTypes = [...settings.renderTypes];
+  }
+  if (settings.renderType !== undefined) {
+    validateRenderType(settings.renderType);
+    config.renderType = settings.renderType;
+  }
+  validateRenderType(config.renderType, config.renderTypes);
   if (settings.maxWidth !== undefined) {
     if (
       typeof settings.maxWidth !== "number" ||

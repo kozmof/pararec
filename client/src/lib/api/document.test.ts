@@ -8,6 +8,8 @@ it("loads and validates the document with its ETag", async () => {
         version: 1,
         title: "document",
         config: {
+          renderType: "none",
+          renderTypes: ["none", "markdown", "katex"],
           showTitles: true,
           maxWidth: 1100,
           outerWidthRate: { left: 35, right: 65 },
@@ -24,6 +26,8 @@ it("loads and validates the document with its ETag", async () => {
       version: 1,
       title: "document",
       config: {
+        renderType: "none",
+        renderTypes: ["none", "markdown", "katex"],
         showTitles: true,
         maxWidth: 1100,
         outerWidthRate: { left: 35, right: 65 },
@@ -45,6 +49,8 @@ it("opens a missing file as an empty unsaved document", async () => {
       version: 1,
       title: "document",
       config: {
+        renderType: "none",
+        renderTypes: ["none", "markdown", "katex"],
         showTitles: true,
         maxWidth: 1100,
         outerWidthRate: { left: 35, right: 65 },

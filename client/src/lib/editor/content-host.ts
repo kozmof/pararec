@@ -16,6 +16,8 @@ export type Command =
   | "undo"
   | "redo";
 export interface ContentHost {
+  readonly renderType?: string;
+  renderMenu?(id: string, event: MouseEvent): void;
   readonly linking?: boolean;
   readonly links?: readonly import("../../schema.js").TextLink[];
   selectedCell?(id: string): boolean;

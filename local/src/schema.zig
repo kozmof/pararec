@@ -1,10 +1,12 @@
 const std = @import("std");
 
-pub const Content = struct { id: []const u8, text: []const u8 };
-pub const RightContent = struct { id: []const u8, text: []const u8, children: []const Container };
+pub const Content = struct { renderType: ?[]const u8 = null, id: []const u8, text: []const u8 };
+pub const RightContent = struct { renderType: ?[]const u8 = null, id: []const u8, text: []const u8, children: []const Container };
 pub const Container = struct { id: []const u8, left: []const Content, right: RightContent };
 pub const WidthRate = struct { left: f64, right: f64 };
 pub const Config = struct {
+    renderType: []const u8 = "none",
+    renderTypes: []const []const u8 = &.{ "none", "markdown", "katex" },
     showTitles: bool = true,
     maxWidth: f64 = 1100,
     outerWidthRate: WidthRate = .{ .left = 35, .right = 65 },
@@ -129,6 +131,14 @@ pub fn validate(gpa: std.mem.Allocator, document: Schema) !void {
     if (document.version != 1) return error.UnsupportedVersion;
     if (!std.math.isFinite(document.config.maxWidth) or document.config.maxWidth <= 0) return error.InvalidMaxWidth;
     try checkText(document.title);
+    if (document.config.renderTypes.len == 0) return error.InvalidRenderTypes;
+    var render_types: std.StringHashMap(void) = .init(gpa);
+    defer render_types.deinit();
+    for (document.config.renderTypes) |name| {
+        try checkRenderType(name, null);
+        if ((try render_types.getOrPut(name)).found_existing) return error.DuplicateRenderType;
+    }
+    try checkRenderType(document.config.renderType, &render_types);
     for ([_]WidthRate{ document.config.outerWidthRate, document.config.innerWidthRate }) |rate| {
         if (!std.math.isFinite(rate.left) or !std.math.isFinite(rate.right) or rate.left <= 0 or rate.right <= 0) return error.InvalidWidthRate;
     }
@@ -149,10 +159,12 @@ pub fn validate(gpa: std.mem.Allocator, document: Schema) !void {
             for (container.left) |content| {
                 try addId(&ids, content.id);
                 try checkText(content.text);
+                try checkRenderType(content.renderType, &render_types);
                 try texts.put(content.id, content.text);
             }
             try addId(&ids, container.right.id);
             try checkText(container.right.text);
+            try checkRenderType(container.right.renderType, &render_types);
             try texts.put(container.right.id, container.right.text);
             try pending.append(gpa, .{ .rows = container.right.children, .depth = level.depth + 1 });
         }
@@ -176,6 +188,15 @@ pub fn validate(gpa: std.mem.Allocator, document: Schema) !void {
 fn addId(ids: *std.StringHashMap(void), id: []const u8) !void {
     const entry = try ids.getOrPut(id);
     if (entry.found_existing) return error.DuplicateId;
+}
+
+fn checkRenderType(value: ?[]const u8, allowed: ?*const std.StringHashMap(void)) !void {
+    if (value) |name| {
+        if (std.mem.trim(u8, name, " \t\r\n").len == 0) return error.InvalidRenderType;
+        if (allowed) |types| {
+            if (!types.contains(name)) return error.UnknownRenderType;
+        }
+    }
 }
 
 fn checkText(text: []const u8) !void {
@@ -355,4 +376,18 @@ test "normalizes newlines and linked UTF-8 offsets" {
     try std.testing.expectEqualStrings("a\n日本", parsed.value.root[0].left[0].text);
     try std.testing.expectEqual(@as(usize, 2), parsed.value.links[0].start);
     try std.testing.expectEqual(@as(usize, 8), parsed.value.links[0].end);
+}
+
+test "custom render types survive serialization" {
+    const gpa = std.testing.allocator;
+    const parsed = try parse(gpa, "{\"version\":1,\"config\":{\"renderType\":\"markdown\",\"renderTypes\":[\"none\",\"markdown\",\"katex\",\"custom\"]},\"root\":[{\"id\":\"row\",\"left\":[{\"id\":\"left\",\"text\":\"formula\",\"renderType\":\"custom\"}],\"right\":{\"id\":\"right\",\"text\":\"\",\"renderType\":\"none\",\"children\":[]}}]}");
+    defer parsed.deinit();
+    try validate(gpa, parsed.value);
+    const bytes = try serialize(gpa, parsed.value);
+    defer gpa.free(bytes);
+    const restored = try parse(gpa, bytes);
+    defer restored.deinit();
+    try std.testing.expectEqualStrings("markdown", restored.value.config.renderType);
+    try std.testing.expectEqualStrings("custom", restored.value.root[0].left[0].renderType.?);
+    try std.testing.expectEqualStrings("none", restored.value.root[0].right.renderType.?);
 }

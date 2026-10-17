@@ -15,10 +15,39 @@
   import ContentView from "./ContentView.svelte";
   import ArrowIcon from "./ArrowIcon.svelte";
 
+  let renderMenu = $state<{ sourceId: string; x: number; y: number } | null>(null);
+  const cellRenderType = $derived.by(() => {
+    const item = renderMenu && tree?.index.get(renderMenu.sourceId);
+    if (!item || item.side === "container") return undefined;
+    return (item.side === "right" ? item.container.right : item.container.left[item.index]).renderType;
+  });
+  const renderTypes = $derived.by(() => tree?.schema.config.renderTypes ?? []);
+  function closeMenus() { linkMenu = null; renderMenu = null; }
+  function changeRenderType(renderType?: string) {
+    if (!tree || !renderMenu || disabled || linking) return;
+    const id = renderMenu.sourceId;
+    history.closeGroup();
+    cache?.get(id).closeHistoryGroup();
+    const before = snapshot();
+    tree.apply({ type: "setRenderType", id, renderType });
+    history.record(before, snapshot());
+    closeMenus();
+    if (focused) blur(focused);
+    changed();
+  }
+  function menuKeydown(event: KeyboardEvent) {
+    if (!["ArrowDown", "ArrowUp", "Home", "End", "Tab"].includes(event.key)) return;
+    if (event.key === "Tab") { closeMenus(); return; }
+    event.preventDefault();
+    const buttons = [...(menuElement?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
+    const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (at + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[next]?.focus();
+  }
   let linkMenu = $state<{ sourceId: string; start: number; end: number; x: number; y: number; labelIds?: readonly string[] } | null>(null);
   let menuElement: HTMLDivElement | undefined = $state();
   function dismissMenuOutside(event: MouseEvent) {
-    if (linkMenu && event.target instanceof Node && !menuElement?.contains(event.target)) linkMenu = null;
+    if ((linkMenu || renderMenu) && event.target instanceof Node && !menuElement?.contains(event.target)) closeMenus();
   }
   let linking = $state<{ sourceId: string; start: number; end: number; targets: string[] } | null>(null);
   function finishLink() {
@@ -46,11 +75,11 @@
     tree.apply({ type: "setLinks", links: (tree.schema.links ?? []).flatMap(item => item.id !== id ? [item] : remaining.length ? [{ ...item, targets: remaining }] : []) });
     cache?.get(link.sourceId);
     history.record(before, snapshot(before.focus));
-    linkMenu = null;
+    closeMenus();
     changed();
     void restoreFocus(link.sourceId);
   }
-  function cancelLink() { const source = linking?.sourceId ?? linkMenu?.sourceId; linking = null; linkMenu = null; if (source) void restoreFocus(source); }
+  function cancelLink() { const source = linking?.sourceId ?? linkMenu?.sourceId ?? renderMenu?.sourceId; linking = null; closeMenus(); if (source) void restoreFocus(source); }
   let tree = $state<TreeStore | null>(null);
   let session = $state<SaveSession | null>(null);
   let cache = $state<ContentCache>();
@@ -83,6 +112,12 @@
   });
   const parent = $derived(ancestors.at(-1));
   setContext<ContentHost>(CONTENT_HOST, {
+    renderMenu: (sourceId, event) => {
+      closeMenus();
+      renderMenu = { sourceId, x: Math.max(8, Math.min(event.clientX, window.innerWidth - 280)), y: Math.max(8, Math.min(event.clientY, window.innerHeight - 320)) };
+      void tick().then(() => { if (renderMenu?.sourceId === sourceId) menuElement?.querySelector<HTMLButtonElement>("button")?.focus(); });
+    },
+    get renderType() { return tree?.schema.config.renderType ?? "none"; },
     get focused() { return focused; }, get cache() { return cache!; }, get entry() { return entry; }, get disabled() { return disabled; },
     get linking() { return !!linking; }, get links() { return tree?.schema.links?.filter(link => tree!.index.has(link.sourceId)).map(link => ({ ...link, targets: link.targets.filter(id => tree!.index.has(id)) })); },
     selectedCell: id => linking?.targets.includes(id) ?? false,
@@ -147,7 +182,7 @@
   function install(loaded: LoadedDocument) {
     history.clear();
     previousLayers = [];
-    linking = null; linkMenu = null;
+    linking = null; closeMenus();
     liveCaret = null;
     cache?.dispose();
     session?.dispose();
@@ -355,7 +390,7 @@
     else if (rows.length === 0 && document.activeElement !== titleInput) void restoreFocus();
   });
   function keydown(event: KeyboardEvent) {
-    if (event.key === "Escape" && (linking || linkMenu)) { event.preventDefault(); cancelLink(); return; }
+    if (event.key === "Escape" && (linking || linkMenu || renderMenu)) { event.preventDefault(); cancelLink(); return; }
     if (linking) return;
     if (event.isComposing || event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || disabled) return;
     if (event.key.toLowerCase() === "z") { event.preventDefault(); command(event.shiftKey ? "redo" : "undo"); }
@@ -384,8 +419,16 @@
   {#if loading}<p role="status">Loading document…</p>
   {:else if error}<p role="alert">{error}</p><button onclick={load}>Retry</button>
   {:else if tree && session}
-    {#if linkMenu}
-      <div bind:this={menuElement} class="link-menu" role="menu" tabindex="-1" oncontextmenu={event => event.preventDefault()} style:left={linkMenu.x + "px"} style:top={linkMenu.y + "px"}>
+    {#if linkMenu || renderMenu}
+      <div bind:this={menuElement} class="link-menu" role="menu" aria-label="Cell options" tabindex="-1" onkeydown={menuKeydown} oncontextmenu={event => event.preventDefault()} style:left={(renderMenu ?? linkMenu)!.x + "px"} style:top={(renderMenu ?? linkMenu)!.y + "px"}>
+        {#if renderMenu}
+          <div class="menu-heading">Render type</div>
+          <button role="menuitemradio" aria-checked={cellRenderType === undefined} disabled={disabled} onclick={() => changeRenderType()}>Default ({tree.schema.config.renderType})</button>
+          {#each renderTypes as type (type)}
+            <button role="menuitemradio" aria-checked={cellRenderType === type} disabled={disabled} onclick={() => changeRenderType(type)}>{type === "none" ? "None" : type === "markdown" ? "Markdown" : type === "katex" ? "KaTeX" : type}</button>
+          {/each}
+        {/if}
+        {#if linkMenu}
         {#if linkMenu.labelIds}
           {#each linkMenu.labelIds as id, index (id)}
             <button role="menuitem" disabled={disabled} onclick={() => removeLabel(id)}>{linkMenu.labelIds.length === 1 ? "Remove label" : `Remove label ${index + 1}`}</button>
@@ -394,7 +437,8 @@
             {/each}
           {/each}
         {:else}
-        <button role="menuitem" onclick={() => { if (linkMenu) { const { sourceId, start, end } = linkMenu; linking = { sourceId, start, end, targets: [] }; linkMenu = null; if (focused) blur(focused); } }}>Start linking</button>
+        <button role="menuitem" onclick={() => { if (linkMenu) { const { sourceId, start, end } = linkMenu; linking = { sourceId, start, end, targets: [] }; closeMenus(); if (focused) blur(focused); } }}>Start linking</button>
+        {/if}
         {/if}
       </div>
     {/if}
@@ -424,6 +468,10 @@
   {/if}
 </main>
 <style>
+  .menu-heading { padding: 4px 8px; color: #666; font-size: 12px; }
+  .link-menu button { text-align: left; padding: 6px 10px; border: 0; background: transparent; font: inherit; }
+  .link-menu button:hover, .link-menu button:focus-visible { background: #eff6ff; outline: none; }
+  .link-menu button[aria-checked="true"] { background: #dbeafe; }
   .link-menu { max-width: min(300px, calc(100vw - 16px)); max-height: min(400px, 70vh); overflow: auto; position: fixed; z-index: 100; background: white; border: 1px solid #ddd; padding: 6px; box-shadow: 0 3px 12px #0002; display: flex; flex-direction: column; }
   .remove-destination { text-align: left; overflow-wrap: anywhere; }
   .link-toolbar { position: sticky; top: 0; z-index: 10; background: #eff6ff; padding: 10px; display: flex; gap: 12px; align-items: center; }

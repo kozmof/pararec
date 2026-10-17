@@ -16,6 +16,8 @@ const empty = {
   version: 1,
   title: "document",
   config: {
+    renderType: "none",
+    renderTypes: ["none", "markdown", "katex"],
     showTitles: true,
     maxWidth: 1100,
     outerWidthRate: { left: 35, right: 65 },
@@ -484,6 +486,8 @@ test("document settings persist and the default title uses the filename", async 
     ...empty,
     title: "Custom title",
     config: {
+      renderType: "none",
+      renderTypes: ["none", "markdown", "katex"],
       showTitles: false,
       maxWidth: 900,
       outerWidthRate: { left: 1, right: 2 },

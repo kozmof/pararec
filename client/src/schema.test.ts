@@ -10,10 +10,13 @@ const row = {
 
 describe("file format", () => {
   it.each(["empty", "flat", "three-levels", "long"])(
-    "loads the %s fixture without changing it",
+    "loads the %s fixture and supplies render defaults",
     (name) => {
       const value = JSON.parse(readFileSync(`fixtures/${name}.json`, "utf8"));
-      expect(parseSchema(value)).toEqual(value);
+      expect(parseSchema(value)).toEqual({
+        ...value,
+        config: { renderType: "none", renderTypes: ["none", "markdown", "katex"], ...value.config },
+      });
     },
   );
   it("normalizes line breaks and discards unknown fields", () => {
@@ -25,6 +28,8 @@ describe("file format", () => {
     expect(result).toEqual({
       title: "document",
       config: {
+        renderType: "none",
+        renderTypes: ["none", "markdown", "katex"],
         showTitles: true,
         maxWidth: 1100,
         outerWidthRate: { left: 35, right: 65 },
@@ -56,6 +61,8 @@ it("preserves document settings", () => {
     root: [],
     title: "My notes",
     config: {
+      renderType: "none",
+      renderTypes: ["none", "markdown", "katex"],
       showTitles: false,
       maxWidth: 1100,
       outerWidthRate: { left: 2, right: 3 },
@@ -80,6 +87,8 @@ it("populates required title and configuration for legacy files", () => {
     version: 1,
     title: "my.notes",
     config: {
+      renderType: "none",
+      renderTypes: ["none", "markdown", "katex"],
       showTitles: true,
       maxWidth: 1100,
       outerWidthRate: { left: 35, right: 65 },
