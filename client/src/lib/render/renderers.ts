@@ -145,15 +145,28 @@ const renderers = new SvelteMap<string, Renderer>([
   ["markdown", renderMarkdown],
   ["katex", (source, options) => renderKatex(source, true, options)],
 ]);
-/** Registration is reactive. Dispose to restore the previous renderer. */
+type Registration = { renderer: Renderer };
+const registrations = new Map<string, { base?: Renderer; active: Registration[] }>();
+
+/** Registration is reactive. Dispose in any order to restore the last active renderer. */
 export function registerRenderer(name: string, renderer: Renderer): () => void {
   if (!name.trim() || name === "none") throw new Error("Invalid renderer name");
-  const previous = renderers.get(name);
+  let group = registrations.get(name);
+  if (!group) {
+    group = { base: renderers.get(name), active: [] };
+    registrations.set(name, group);
+  }
+  const registration = { renderer };
+  group.active.push(registration);
   renderers.set(name, renderer);
   return () => {
-    if (renderers.get(name) !== renderer) return;
-    if (previous) renderers.set(name, previous);
+    const index = group.active.indexOf(registration);
+    if (index === -1) return;
+    group.active.splice(index, 1);
+    const next = group.active.at(-1)?.renderer ?? group.base;
+    if (next) renderers.set(name, next);
     else renderers.delete(name);
+    if (!group.active.length) registrations.delete(name);
   };
 }
 export function getRenderer(name: string): Renderer | undefined {

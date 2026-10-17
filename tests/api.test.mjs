@@ -243,7 +243,7 @@ test("document API over real sockets", async (t) => {
     );
   });
   await t.test(
-    "rejects declared bodies above 32 MiB and accepts large chunked documents",
+    "rejects bodies above 128 MiB and saves edits to loaded documents above 32 MiB",
     async () => {
       const before = await request();
       assert.equal(
@@ -251,7 +251,7 @@ test("document API over real sockets", async (t) => {
           await request("PUT", "/api/document", {
             origin: origin(),
             "if-match": "*",
-            "content-length": String(32 * 1024 * 1024 + 1),
+            "content-length": String(128 * 1024 * 1024 + 1),
           })
         ).status,
         413,
@@ -263,25 +263,30 @@ test("document API over real sockets", async (t) => {
           {
             id: "large",
             left: [{ id: "large-l", text: "" }],
-            right: { id: "large-r", text: "x".repeat(17 * 1024 * 1024), children: [] },
+            right: { id: "large-r", text: "x".repeat(33 * 1024 * 1024), children: [] },
           },
         ],
       };
       try {
+        await writeFile(documentPath, JSON.stringify(large));
+        const loaded = await request();
+        assert.equal(loaded.status, 200);
+        const edited = JSON.parse(loaded.body);
+        edited.root[0].right.text += "edited";
         assert.equal(
           (
             await request(
               "PUT",
               "/api/document",
-              { origin: origin(), "if-match": "*", "transfer-encoding": "chunked" },
-              JSON.stringify(large),
+              { origin: origin(), "if-match": loaded.headers.etag, "transfer-encoding": "chunked" },
+              JSON.stringify(edited),
             )
           ).status,
           200,
         );
         assert.equal(
           JSON.parse(await readFile(documentPath, "utf8")).root[0].right.text.length,
-          17 * 1024 * 1024,
+          33 * 1024 * 1024 + "edited".length,
         );
       } finally {
         await writeFile(documentPath, before.body);

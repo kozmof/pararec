@@ -83,15 +83,9 @@ export class ContentCache {
               : text.length,
         };
         if (before.links?.some((link) => link.sourceId === id)) {
-          this.tree.applyMany([
-            { type: "setText", id, text, normalized: true },
-            {
-              type: "setLinks",
-              links: [
-                ...before.links.filter((link) => link.sourceId !== id),
-                ...current.resolvedLinks(),
-              ],
-            },
+          this.tree.setTextAndLinks(id, text, [
+            ...before.links.filter((link) => link.sourceId !== id),
+            ...current.resolvedLinks(),
           ]);
         } else this.tree.apply({ type: "setText", id, text, normalized: true });
         this.changed({

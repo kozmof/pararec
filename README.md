@@ -249,8 +249,7 @@ closes each connection after 30 seconds, including incomplete requests.
 Excess connections close immediately. Document requests wait for one shared
 permit before reading or parsing data.
 
-Documents support up to 64 nested container levels. Uploads are limited to
-32 MiB. Files read from disk and formatted saves are limited to 128 MiB.
+Documents support up to 64 nested container levels. Uploads, files read from disk, and formatted saves are limited to 128 MiB.
 
 ## Document API
 

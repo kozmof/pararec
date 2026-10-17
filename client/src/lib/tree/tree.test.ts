@@ -274,3 +274,23 @@ it("rejects subtree inserts and moves beyond the nesting limit atomically", () =
   expect([...store.index]).toEqual(entries);
   check(store);
 });
+
+it("publishes linked text and ranges atomically and preserves state on invalid ranges", () => {
+  const store = new TreeStore(fixture());
+  const link = { id: "link", sourceId: "c-r", start: 0, end: 5, targets: ["d-r"] };
+  store.apply({ type: "setLinks", links: [link] });
+  const before = store.schema;
+  const revision = store.revision;
+  const indexed = store.index.get("c-r");
+  expect(() => store.setTextAndLinks("c-r", "日", [link])).toThrow();
+  expect(store.schema).toBe(before);
+  expect(store.revision).toBe(revision);
+  expect(store.index.get("c-r")).toBe(indexed);
+  store.setTextAndLinks("c-r", "日", [{ ...link, end: 3 }]);
+  expect(store.schema.root[0].right.children[0].right.children[0].right.text).toBe("日");
+  expect(store.schema.links?.[0].end).toBe(3);
+  expect(store.revision).toBe(revision + 1);
+  check(store);
+  store.restore(before);
+  check(store);
+});

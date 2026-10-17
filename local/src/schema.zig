@@ -29,7 +29,7 @@ pub const max_container_depth = 64;
 pub const max_json_depth = 256;
 
 pub const max_document_size = 128 * 1024 * 1024;
-pub const max_body_size = 32 * 1024 * 1024;
+pub const max_body_size = max_document_size;
 
 pub fn parse(gpa: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(Schema) {
     return parseWithDefaultTitle(gpa, bytes, "document");

@@ -137,3 +137,31 @@ it("renders the reported list and requires a space after heading markers", () =>
   node.innerHTML = renderMarkdown("# test\n\n- abc\n- def");
   expect(node.querySelector("h1")).toHaveTextContent("test");
 });
+
+it("disposes overlapping registrations in any order without reviving removed renderers", () => {
+  const original = getRenderer("markdown");
+  const first = () => "first";
+  const second = () => "second";
+  const disposeFirst = registerRenderer("markdown", first);
+  const disposeSecond = registerRenderer("markdown", second);
+  disposeFirst();
+  expect(getRenderer("markdown")).toBe(second);
+  disposeSecond();
+  expect(getRenderer("markdown")).toBe(original);
+  const disposeNew = registerRenderer("markdown", first);
+  disposeFirst();
+  disposeSecond();
+  expect(getRenderer("markdown")).toBe(first);
+  disposeNew();
+  expect(getRenderer("markdown")).toBe(original);
+});
+
+it("tracks separate registrations of the same renderer function", () => {
+  const renderer = () => "same";
+  const first = registerRenderer("overlap", renderer);
+  const second = registerRenderer("overlap", renderer);
+  second();
+  expect(getRenderer("overlap")).toBe(renderer);
+  first();
+  expect(getRenderer("overlap")).toBeUndefined();
+});

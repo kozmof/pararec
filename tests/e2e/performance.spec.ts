@@ -33,12 +33,22 @@ for (const scenario of [
   "50000-line Content",
   "500000-line Content",
   "1000-Container level",
+  "1000-Container linked editing",
 ] as const) {
   test(`measure ${scenario}`, async ({ page, browser, browserName }, info) => {
     test.skip(process.env.PARAREC_PERFORMANCE !== "1", "Run with pnpm test:performance");
     test.setTimeout(120_000);
-    const largeNote = scenario !== "1000-Container level";
-    const schema = largeNote ? fixture(1, Number.parseInt(scenario, 10)) : fixture(1000);
+    const largeNote = !scenario.startsWith("1000-Container");
+    const linked = scenario === "1000-Container linked editing";
+    const base = largeNote ? fixture(1, Number.parseInt(scenario, 10)) : fixture(1000);
+    const schema: Schema = linked
+      ? {
+          ...base,
+          links: [
+            { id: "bench-link", sourceId: "right-0", start: 0, end: 4, targets: ["right-999"] },
+          ],
+        }
+      : base;
     await page.route("**/api/document", (route) =>
       route.fulfill({
         json: schema,
@@ -67,41 +77,44 @@ for (const scenario of [
       expect(await page.locator('[data-testid="editor-surface"] [data-line]').count()).toBeLessThan(
         150,
       );
-    const durations = largeNote
-      ? await page.evaluate(async () => {
-          const sink = document.querySelector<HTMLTextAreaElement>('[data-testid="editor-sink"]')!;
-          const surface = document.querySelector('[data-testid="editor-surface"]')!;
-          const samples: number[] = [];
-          for (let i = 0; i < 105; i++) {
-            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-            const duration = await new Promise<number>((resolve, reject) => {
-              const timeout = setTimeout(() => {
-                observer.disconnect();
-                reject(new Error("Input did not render"));
-              }, 5000);
-              const observer = new MutationObserver((records) => {
-                if (
-                  !records.some(
-                    (record) => record.type === "characterData" || record.type === "childList",
+    const durations =
+      largeNote || linked
+        ? await page.evaluate(async () => {
+            const sink = document.querySelector<HTMLTextAreaElement>(
+              '[data-testid="editor-sink"]',
+            )!;
+            const surface = document.querySelector('[data-testid="editor-surface"]')!;
+            const samples: number[] = [];
+            for (let i = 0; i < 105; i++) {
+              await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+              const duration = await new Promise<number>((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                  observer.disconnect();
+                  reject(new Error("Input did not render"));
+                }, 5000);
+                const observer = new MutationObserver((records) => {
+                  if (
+                    !records.some(
+                      (record) => record.type === "characterData" || record.type === "childList",
+                    )
                   )
-                )
-                  return;
-                clearTimeout(timeout);
-                observer.disconnect();
-                resolve(performance.now() - start);
+                    return;
+                  clearTimeout(timeout);
+                  observer.disconnect();
+                  resolve(performance.now() - start);
+                });
+                observer.observe(surface, { subtree: true, characterData: true, childList: true });
+                const start = performance.now();
+                sink.value = "x";
+                sink.dispatchEvent(
+                  new InputEvent("input", { bubbles: true, inputType: "insertText", data: "x" }),
+                );
               });
-              observer.observe(surface, { subtree: true, characterData: true, childList: true });
-              const start = performance.now();
-              sink.value = "x";
-              sink.dispatchEvent(
-                new InputEvent("input", { bubbles: true, inputType: "insertText", data: "x" }),
-              );
-            });
-            if (i >= 5) samples.push(duration);
-          }
-          return samples;
-        })
-      : [];
+              if (i >= 5) samples.push(duration);
+            }
+            return samples;
+          })
+        : [];
     const report = {
       scenario,
       date: new Date().toISOString(),

@@ -63,6 +63,25 @@ export class TreeStore {
     this.#revision++;
     return result.inverse;
   }
+  /** Publish edited text and its resolved links without cloning the tree index. */
+  setTextAndLinks(id: string, text: string, links: NonNullable<Schema["links"]>): void {
+    const before = this.schema;
+    const edited = applyOp(
+      before,
+      { type: "setText", id, text, normalized: true },
+      this.index,
+      false,
+    );
+    const next = applyOp(edited.schema, { type: "setLinks", links }, this.index, false).schema;
+    validateLinks(next, (contentId) =>
+      contentId === id ? text : indexedText(this.index, contentId),
+    );
+    freezeSnapshot(next);
+    updateIndex(this.#index, before.root, next.root);
+    this.#schema = next;
+    this.#validated.add(next);
+    this.#revision++;
+  }
   /** Validate every step before publishing a compound structure action once. */
   applyMany(ops: Op[]): Op[] {
     if (!ops.length) return [];
