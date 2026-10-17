@@ -1,22 +1,12 @@
 import type { SyntaxNode } from "@lezer/common";
 import { parser } from "@lezer/markdown";
-import katex from "katex";
 import { SvelteMap } from "svelte/reactivity";
 
+import { escapeHTML, RenderAnnotations, type RenderOptions } from "./annotations.js";
+export { escapeHTML, type RenderOptions } from "./annotations.js";
+
 /** Custom renderers return trusted HTML and must escape untrusted source text. */
-export type Renderer = (source: string) => string;
-export const escapeHTML = (text: string): string =>
-  text.replace(
-    /[&<>"']/g,
-    (char) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[char]!,
-  );
+export type Renderer = (source: string, options?: RenderOptions) => string;
 
 const markdown = parser.configure({
   defineNodes: ["InlineMath", "DisplayMath"],
@@ -42,13 +32,8 @@ const markdown = parser.configure({
   ],
 });
 
-export function renderKatex(source: string, displayMode = true): string {
-  return katex.renderToString(source, {
-    displayMode,
-    throwOnError: false,
-    trust: false,
-    maxExpand: 1000,
-  });
+export function renderKatex(source: string, displayMode = true, options?: RenderOptions): string {
+  return new RenderAnnotations(source, options).math(source, 0, displayMode);
 }
 
 function safeURL(value: string): string {
@@ -60,50 +45,62 @@ function safeURL(value: string): string {
     : "";
 }
 
-export function renderMarkdown(source: string): string {
+export function renderMarkdown(source: string, options?: RenderOptions): string {
+  const annotations = new RenderAnnotations(source, options);
   function children(node: SyntaxNode): string {
     let html = "",
       at = node.from;
     for (let child = node.firstChild; child; child = child.nextSibling) {
-      html += escapeHTML(source.slice(at, child.from)) + render(child);
+      html += annotations.text(at, child.from) + render(child);
       at = child.to;
     }
-    return html + escapeHTML(source.slice(at, node.to));
+    return html + annotations.text(at, node.to);
   }
   function render(node: SyntaxNode): string {
+    return renderNode(node) + annotations.finish(node.to);
+  }
+  function renderNode(node: SyntaxNode): string {
     const raw = source.slice(node.from, node.to),
       name = node.name;
     if (name === "InlineMath" || name === "DisplayMath") {
       const size = name === "DisplayMath" ? 2 : 1;
-      return renderKatex(raw.slice(size, -size), size === 2);
+      return annotations.math(raw.slice(size, -size), node.from + size, size === 2, node.to);
     }
     if (name === "InlineCode")
-      return `<code>${escapeHTML(raw.replace(/^(`+)([\s\S]*?)\1$/, "$2").replace(/\n/g, " "))}</code>`;
+      return annotations.atom(
+        `<code>${escapeHTML(raw.replace(/^(`+)([\s\S]*?)\1$/, "$2").replace(/\n/g, " "))}</code>`,
+        node.from,
+        node.to,
+      );
     if (name === "FencedCode" || name === "CodeBlock") {
       const lines: string[] = [];
       for (let child = node.firstChild; child; child = child.nextSibling)
-        if (child.name === "CodeText") lines.push(source.slice(child.from, child.to));
-      return `<pre><code>${escapeHTML(lines.join("\n"))}</code></pre>`;
+        if (child.name === "CodeText") lines.push(annotations.text(child.from, child.to));
+      return `<pre><code>${lines.join("\n")}</code></pre>`;
     }
     if (name === "Link" || name === "Image") {
       const url = node.getChild("URL");
-      if (!url) return escapeHTML(raw);
+      if (!url) return annotations.atom(escapeHTML(raw), node.from, node.to);
       const labelEnd = raw.indexOf("]");
       const label = raw.slice(name === "Image" ? 2 : 1, labelEnd);
       if (name === "Image")
-        return `<img src="${safeURL(source.slice(url.from, url.to))}" alt="${escapeHTML(label)}">`;
-      let labelHTML = "";
-      // Include plain text gaps and inline formatting in the label.
-      const start = node.from + 1,
-        end = node.from + labelEnd;
-      let at = start;
-      labelHTML = "";
-      for (let child = node.firstChild; child; child = child.nextSibling) {
-        if (child.from < start || child.to > end) continue;
-        labelHTML += escapeHTML(source.slice(at, child.from)) + render(child);
-        at = child.to;
-      }
-      labelHTML += escapeHTML(source.slice(at, end));
+        return annotations.atom(
+          `<img src="${safeURL(source.slice(url.from, url.to))}" alt="${escapeHTML(label)}">`,
+          node.from,
+          node.to,
+        );
+      const labelHTML = annotations.deferEndings(() => {
+        const start = node.from + 1,
+          end = node.from + labelEnd;
+        let at = start,
+          html = "";
+        for (let child = node.firstChild; child; child = child.nextSibling) {
+          if (child.from < start || child.to > end) continue;
+          html += annotations.text(at, child.from) + render(child);
+          at = child.to;
+        }
+        return html + annotations.text(at, end);
+      });
       return `<a href="${safeURL(source.slice(url.from, url.to))}" rel="noopener noreferrer">${labelHTML}</a>`;
     }
     if (
@@ -113,13 +110,13 @@ export function renderMarkdown(source: string): string {
     if (name === "Entity") {
       const decoder = document.createElement("textarea");
       decoder.innerHTML = raw;
-      return escapeHTML(decoder.value);
+      return annotations.atom(escapeHTML(decoder.value), node.from, node.to);
     }
     if (name === "Autolink") {
       const label = raw.slice(1, -1);
-      return `<a href="${safeURL(label.includes(":") ? label : `mailto:${label}`)}" rel="noopener noreferrer">${escapeHTML(label)}</a>`;
+      return `<a href="${safeURL(label.includes(":") ? label : `mailto:${label}`)}" rel="noopener noreferrer">${annotations.atom(escapeHTML(label), node.from, node.to)}</a>`;
     }
-    if (name === "Escape") return escapeHTML(raw.slice(1));
+    if (name === "Escape") return annotations.atom(escapeHTML(raw.slice(1)), node.from, node.to);
     if (name === "HardBreak") return "<br>";
     if (name === "HorizontalRule") return "<hr>";
     const heading = /^(?:ATX|Setext)Heading([1-6])$/.exec(name);
@@ -138,7 +135,7 @@ export function renderMarkdown(source: string): string {
         )[name];
     if (tag) return `<${tag}>${children(node)}</${tag}>`;
     if (name === "Document") return children(node);
-    return escapeHTML(raw);
+    return annotations.atom(escapeHTML(raw), node.from, node.to);
   }
   return render(markdown.parse(source).topNode);
 }
@@ -146,7 +143,7 @@ export function renderMarkdown(source: string): string {
 const renderers = new SvelteMap<string, Renderer>([
   ["none", escapeHTML],
   ["markdown", renderMarkdown],
-  ["katex", renderKatex],
+  ["katex", (source, options) => renderKatex(source, true, options)],
 ]);
 /** Registration is reactive. Dispose to restore the previous renderer. */
 export function registerRenderer(name: string, renderer: Renderer): () => void {

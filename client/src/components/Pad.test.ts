@@ -535,3 +535,68 @@ it("returns to the rendered preview when focus leaves the context menu", async (
   expect(screen.queryByRole("menu")).toBeNull();
   expect(cell.querySelector("strong")).toHaveTextContent("bold");
 });
+
+it("shows math link labels in rendered cells and follows their destinations", async () => {
+  const value = structuredClone(fixture);
+  const source = value.root[0].left[0];
+  source.renderType = "markdown";
+  source.text = "Energy: $E = mc^2$";
+  const target = value.root[0].right.id;
+  const start = new TextEncoder().encode(source.text.slice(0, source.text.indexOf("c^2"))).length;
+  value.links = [
+    { id: "math-label", sourceId: source.id, start, end: start + 3, targets: [target] },
+  ];
+  vi.mocked(fetch).mockResolvedValue(response(value));
+  await opened();
+  const cell = content(source.id);
+  expect(cell.querySelector(".katex-html .link-label")).toHaveAttribute(
+    "data-link-ids",
+    "math-label",
+  );
+  const destination = cell.querySelector<HTMLButtonElement>("button[data-render-target]")!;
+  expect(destination).toHaveAccessibleName("Linked cell 1: Go to linked cell");
+  destination.focus();
+  await tick();
+  expect(cell.querySelector("[data-render-type]")).not.toBeNull();
+  await fireEvent.click(destination);
+  await waitFor(() =>
+    expect(content(target).querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
+  expect(cell.querySelector("[data-render-type]")).not.toBeNull();
+  await fireEvent.contextMenu(cell.querySelector(".link-label")!);
+  await fireEvent.click(screen.getByRole("menuitem", { name: "Remove label" }));
+  await waitFor(() => expect(cell.querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await fireEvent.contextMenu(cell);
+  await fireEvent.click(screen.getByRole("menuitemradio", { name: "Markdown" }));
+  expect(cell.querySelector("[data-render-type]")).not.toBeNull();
+  expect(cell.querySelector("[data-link-ids]")).toBeNull();
+});
+
+it.each(["markdown", "katex"])(
+  "follows b squared's destination inside a rendered %s quadratic formula",
+  async (type) => {
+    const value = structuredClone(fixture);
+    const source = value.root[0].left[0];
+    const formula = String.raw`x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}`;
+    source.renderType = type;
+    source.text = type === "markdown" ? `$$\n${formula}\n$$` : formula;
+    const target = value.root[0].right.id;
+    const start = new TextEncoder().encode(source.text.slice(0, source.text.indexOf("b^2"))).length;
+    value.links = [
+      { id: "quadratic", sourceId: source.id, start, end: start + 3, targets: [target] },
+    ];
+    vi.mocked(fetch).mockResolvedValue(response(value));
+    await opened();
+    const cell = content(source.id);
+    const destination = cell.querySelector<HTMLButtonElement>(".sqrt button[data-render-target]")!;
+    expect(destination).not.toBeNull();
+    expect(cell.querySelector(".katex-error")).toBeNull();
+    await fireEvent.mouseDown(destination, { button: 0 });
+    expect(cell.querySelector("[data-render-type]")).not.toBeNull();
+    await fireEvent.click(destination);
+    await waitFor(() =>
+      expect(content(target).querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+    );
+    expect(cell.querySelector("[data-render-type]")).not.toBeNull();
+  },
+);
