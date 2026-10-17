@@ -18,7 +18,13 @@ export type Config = {
   readonly innerWidthRate: { readonly left: number; readonly right: number };
 };
 
-export type TextLink = { readonly id: string; readonly sourceId: string; readonly start: number; readonly end: number; readonly targets: readonly string[] };
+export type TextLink = {
+  readonly id: string;
+  readonly sourceId: string;
+  readonly start: number;
+  readonly end: number;
+  readonly targets: readonly string[];
+};
 
 export type Schema = {
   readonly links?: readonly TextLink[];
@@ -53,7 +59,8 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
   }
   function level(input: unknown, depth = 1): Container[] {
     if (!Array.isArray(input)) throw new Error("Expected a Container array");
-    if (input.length && depth > MAX_CONTAINER_DEPTH) throw new Error("Maximum container depth exceeded");
+    if (input.length && depth > MAX_CONTAINER_DEPTH)
+      throw new Error("Maximum container depth exceeded");
     return input.map((input) => {
       const row = object(input);
       const containerId = id(row.id);
@@ -75,7 +82,12 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
   };
   const settings = document.config === undefined ? {} : object(document.config);
   if (settings.maxWidth !== undefined) {
-    if (typeof settings.maxWidth !== "number" || !Number.isFinite(settings.maxWidth) || settings.maxWidth <= 0) throw new Error("Expected positive finite maxWidth in pixels");
+    if (
+      typeof settings.maxWidth !== "number" ||
+      !Number.isFinite(settings.maxWidth) ||
+      settings.maxWidth <= 0
+    )
+      throw new Error("Expected positive finite maxWidth in pixels");
     config.maxWidth = settings.maxWidth;
   }
   if (document.title !== undefined) {
@@ -103,30 +115,56 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
   const root = level(document.root);
   const links = document.links === undefined ? [] : document.links;
   if (!Array.isArray(links)) throw new Error("Expected links array");
-  const parsedLinks = links.map(input => {
+  const parsedLinks = links.map((input) => {
     const link = object(input);
-    if (typeof link.id !== "string" || typeof link.sourceId !== "string" || !Number.isSafeInteger(link.start) || !Number.isSafeInteger(link.end) || (link.start as number) < 0 || (link.end as number) <= (link.start as number) || !Array.isArray(link.targets) || !link.targets.every(target => typeof target === "string")) throw new Error("Invalid text link");
-    let start = link.start as number, end = link.end as number;
+    if (
+      typeof link.id !== "string" ||
+      typeof link.sourceId !== "string" ||
+      !Number.isSafeInteger(link.start) ||
+      !Number.isSafeInteger(link.end) ||
+      (link.start as number) < 0 ||
+      (link.end as number) <= (link.start as number) ||
+      !Array.isArray(link.targets) ||
+      !link.targets.every((target) => typeof target === "string")
+    )
+      throw new Error("Invalid text link");
+    let start = link.start as number,
+      end = link.end as number;
     const original = originalTexts.get(link.sourceId);
     if (original !== undefined && original.includes("\r")) {
       const bytes = new TextEncoder().encode(original);
-      if (end > bytes.length || (bytes[start] & 0xc0) === 0x80 || (end < bytes.length && (bytes[end] & 0xc0) === 0x80)) throw new Error("Invalid link byte range");
+      if (
+        end > bytes.length ||
+        (bytes[start] & 0xc0) === 0x80 ||
+        (end < bytes.length && (bytes[end] & 0xc0) === 0x80)
+      )
+        throw new Error("Invalid link byte range");
       const offset = (end: number) => {
         let removed = 0;
         for (let i = 0; i < end; i++) if (bytes[i] === 13 && bytes[i + 1] === 10) removed++;
         return end - removed;
       };
-      start = offset(start); end = offset(end);
+      start = offset(start);
+      end = offset(end);
     }
     return { id: link.id, sourceId: link.sourceId, start, end, targets: link.targets as string[] };
   });
-  const schema: Schema = { version: 1, title, config, root, ...(parsedLinks.length ? { links: parsedLinks } : {}) };
+  const schema: Schema = {
+    version: 1,
+    title,
+    config,
+    root,
+    ...(parsedLinks.length ? { links: parsedLinks } : {}),
+  };
   validateLinks(schema);
   return schema;
 }
 
 /** Link coordinates are UTF-8 byte offsets into normalized source text. */
-export function validateLinks(schema: Schema, contentText?: (id: string) => string | undefined): void {
+export function validateLinks(
+  schema: Schema,
+  contentText?: (id: string) => string | undefined,
+): void {
   if (!schema.links?.length) return;
   const texts = new Map<string, string>();
   function visit(rows: readonly Container[]) {
@@ -140,7 +178,8 @@ export function validateLinks(schema: Schema, contentText?: (id: string) => stri
   const ids = new Set<string>();
   const encoded = new Map<string, Uint8Array>();
   for (const link of schema.links) {
-    if (typeof link.id !== "string" || ids.has(link.id)) throw new Error("Duplicate or invalid link id");
+    if (typeof link.id !== "string" || ids.has(link.id))
+      throw new Error("Duplicate or invalid link id");
     ids.add(link.id);
     const text = getText(link.sourceId);
     if (text === undefined) throw new Error("Unknown link source");
@@ -150,7 +189,22 @@ export function validateLinks(schema: Schema, contentText?: (id: string) => stri
       encoded.set(link.sourceId, bytes);
     }
     const boundary = (offset: number) => offset === bytes.length || (bytes[offset] & 0xc0) !== 0x80;
-    if (!Number.isSafeInteger(link.start) || !Number.isSafeInteger(link.end) || link.start < 0 || link.end <= link.start || link.end > bytes.length || !boundary(link.start) || !boundary(link.end)) throw new Error("Invalid link byte range");
-    if (!Array.isArray(link.targets) || !link.targets.length || new Set(link.targets).size !== link.targets.length || link.targets.some(id => id === link.sourceId || getText(id) === undefined)) throw new Error("Invalid link targets");
+    if (
+      !Number.isSafeInteger(link.start) ||
+      !Number.isSafeInteger(link.end) ||
+      link.start < 0 ||
+      link.end <= link.start ||
+      link.end > bytes.length ||
+      !boundary(link.start) ||
+      !boundary(link.end)
+    )
+      throw new Error("Invalid link byte range");
+    if (
+      !Array.isArray(link.targets) ||
+      !link.targets.length ||
+      new Set(link.targets).size !== link.targets.length ||
+      link.targets.some((id) => id === link.sourceId || getText(id) === undefined)
+    )
+      throw new Error("Invalid link targets");
   }
 }

@@ -123,7 +123,7 @@ export function domLineMeasurer(lineElement: (line: number) => HTMLElement | nul
     const hasAnnotations = !!el.querySelector("[data-editor-annotation]");
     const readRects = (value: Range): DOMRect[] => {
       const rects = value.getClientRects?.();
-      if (rects?.length) return [...rects].filter(rect => rect.height > 0);
+      if (rects?.length) return [...rects].filter((rect) => rect.height > 0);
       const rect = value.getBoundingClientRect?.();
       return rect && rect.height > 0 ? [rect] : [];
     };
@@ -131,12 +131,12 @@ export function domLineMeasurer(lineElement: (line: number) => HTMLElement | nul
       if (!value) return [];
       if (!hasAnnotations || value.collapsed) return readRects(value);
       // Read source text separately so number buttons never contribute rows or selection rectangles.
-      const start = segments.find(segment => segment.node === value.startContainer);
-      const end = segments.find(segment => segment.node === value.endContainer);
+      const start = segments.find((segment) => segment.node === value.startContainer);
+      const end = segments.find((segment) => segment.node === value.endContainer);
       if (!start || !end) return readRects(value);
       const from = start.from + value.startOffset;
       const to = end.from + value.endOffset;
-      return segments.flatMap(segment => {
+      return segments.flatMap((segment) => {
         const low = Math.max(from, segment.from);
         const high = Math.min(to, segment.from + segment.node.length);
         if (high <= low) return [];

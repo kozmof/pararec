@@ -3,12 +3,18 @@ import { expect, test } from "@playwright/test";
 import type { Schema } from "../../client/src/schema.js";
 const fixture: Schema = JSON.parse(readFileSync("fixtures/flat.json", "utf8"));
 
-test("mounted cells remain editable after exceeding the idle editor cache limit", async ({ page }) => {
-  let disk = { ...structuredClone(fixture), root: Array.from({ length: 60 }, (_, i) => ({
-    id: `row-${i}`, left: [{ id: `left-${i}`, text: `Left ${i}` }],
-    right: { id: `right-${i}`, text: `Right ${i}`, children: [] },
-  })) };
-  await page.route("**/api/document", async route => {
+test("mounted cells remain editable after exceeding the idle editor cache limit", async ({
+  page,
+}) => {
+  let disk = {
+    ...structuredClone(fixture),
+    root: Array.from({ length: 60 }, (_, i) => ({
+      id: `row-${i}`,
+      left: [{ id: `left-${i}`, text: `Left ${i}` }],
+      right: { id: `right-${i}`, text: `Right ${i}`, children: [] },
+    })),
+  };
+  await page.route("**/api/document", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({ json: disk, headers: { ETag: '"v1"' } });
     } else {
@@ -22,7 +28,10 @@ test("mounted cells remain editable after exceeding the idle editor cache limit"
     await expect(page.getByTestId("editor-sink")).toBeFocused();
     // Home is intentionally unsupported. Select all to put the caret at the end,
     // then use supported arrow keys to reach the start before inserting.
-    const text = await page.locator(`[data-content-id="right-${i}"] [data-line]`).first().textContent();
+    const text = await page
+      .locator(`[data-content-id="right-${i}"] [data-line]`)
+      .first()
+      .textContent();
     await page.keyboard.press("ControlOrMeta+a");
     for (let column = 0; column < text!.length; column++) await page.keyboard.press("ArrowLeft");
     await page.keyboard.type("!");

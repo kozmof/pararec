@@ -45,9 +45,13 @@ describe("EditorDocument", () => {
     };
     try {
       for (const [from, to, text] of [
-        [20, 20, "abc"], [21, 22, "XY"], [18, 25, "\n"],
-        [23, 23, "nearby"], [10, 28, "replacement"],
-        [9000, 9000, "distant"], [8998, 9009, "joined"],
+        [20, 20, "abc"],
+        [21, 22, "XY"],
+        [18, 25, "\n"],
+        [23, 23, "nearby"],
+        [10, 28, "replacement"],
+        [9000, 9000, "distant"],
+        [8998, 9009, "joined"],
         [12, 15, "back"],
       ] as const) {
         snapshots.push(expected);

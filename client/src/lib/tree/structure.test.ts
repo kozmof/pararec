@@ -19,26 +19,41 @@ const store = () =>
     root: [row("a", ["日本\n👩‍🚀tail", "second"], "first\nsecond", [row("child")]), row("b")],
   });
 
-it.each(["split"] as const)("preserves UTF-8 labels across %s, undo, and redo", command => {
-  const tree = new TreeStore({ version: 1, root: [row("a", ["日本abcd"]), row("b")], links: [
-    { id: "before", sourceId: "a-l0", start: 0, end: 3, targets: ["b-r"] },
-    { id: "after", sourceId: "a-l0", start: 6, end: 10, targets: ["b-r"] },
-    { id: "cross", sourceId: "a-l0", start: 3, end: 8, targets: ["b-r"] },
-  ] });
+it.each(["split"] as const)("preserves UTF-8 labels across %s, undo, and redo", (command) => {
+  const tree = new TreeStore({
+    version: 1,
+    root: [row("a", ["日本abcd"]), row("b")],
+    links: [
+      { id: "before", sourceId: "a-l0", start: 0, end: 3, targets: ["b-r"] },
+      { id: "after", sourceId: "a-l0", start: 6, end: 10, targets: ["b-r"] },
+      { id: "cross", sourceId: "a-l0", start: 3, end: 8, targets: ["b-r"] },
+    ],
+  });
   const result = action(tree, "a-l0", command, 0, 2)!;
-  expect(tree.schema.links).toEqual(expect.arrayContaining([
-    { id: "before", sourceId: "a-l0", start: 0, end: 3, targets: ["b-r"] },
-    { id: "after", sourceId: result.focus!.contentId, start: 0, end: 4, targets: ["b-r"] },
-    { id: "cross", sourceId: "a-l0", start: 3, end: 6, targets: ["b-r"] },
-    expect.objectContaining({ sourceId: result.focus!.contentId, start: 0, end: 2, targets: ["b-r"] }),
-  ]));
+  expect(tree.schema.links).toEqual(
+    expect.arrayContaining([
+      { id: "before", sourceId: "a-l0", start: 0, end: 3, targets: ["b-r"] },
+      { id: "after", sourceId: result.focus!.contentId, start: 0, end: 4, targets: ["b-r"] },
+      { id: "cross", sourceId: "a-l0", start: 3, end: 6, targets: ["b-r"] },
+      expect.objectContaining({
+        sourceId: result.focus!.contentId,
+        start: 0,
+        end: 2,
+        targets: ["b-r"],
+      }),
+    ]),
+  );
 });
 
 it("joins labels and destinations and cleans up references on removal", () => {
-  const tree = new TreeStore({ version: 1, root: [row("a", ["日", "本"]), row("b")], links: [
-    { id: "source", sourceId: "a-l1", start: 0, end: 3, targets: ["b-r"] },
-    { id: "target", sourceId: "b-r", start: 0, end: 1, targets: ["a-l0", "a-l1"] },
-  ] });
+  const tree = new TreeStore({
+    version: 1,
+    root: [row("a", ["日", "本"]), row("b")],
+    links: [
+      { id: "source", sourceId: "a-l1", start: 0, end: 3, targets: ["b-r"] },
+      { id: "target", sourceId: "b-r", start: 0, end: 1, targets: ["a-l0", "a-l1"] },
+    ],
+  });
   action(tree, "a-l1", "join");
   expect(tree.schema.links).toEqual([
     { id: "source", sourceId: "a-l0", start: 4, end: 7, targets: ["b-r"] },
@@ -49,11 +64,15 @@ it("joins labels and destinations and cleans up references on removal", () => {
 });
 
 it("rejects invalid link operations and rolls back invalid compound edits", () => {
-  const tree = new TreeStore({ version: 1, root: [row("a", ["日本"]), row("b")], links: [
-    { id: "label", sourceId: "a-l0", start: 0, end: 6, targets: ["b-r"] },
-  ] });
+  const tree = new TreeStore({
+    version: 1,
+    root: [row("a", ["日本"]), row("b")],
+    links: [{ id: "label", sourceId: "a-l0", start: 0, end: 6, targets: ["b-r"] }],
+  });
   const before = tree.schema;
-  expect(() => tree.apply({ type: "setLinks", links: [{ ...before.links![0], start: 1 }] })).toThrow("byte range");
+  expect(() =>
+    tree.apply({ type: "setLinks", links: [{ ...before.links![0], start: 1 }] }),
+  ).toThrow("byte range");
   expect(() => tree.applyMany([{ type: "setText", id: "a-l0", text: "" }])).toThrow("byte range");
   expect(tree.schema).toBe(before);
   expect(tree.revision).toBe(0);
@@ -73,7 +92,10 @@ function action(
   const revision = tree.revision;
   const inverse = tree.applyMany(result.ops);
   expect(tree.revision).toBe(revision + 1);
-  expect(parseSchema(tree.schema)).toEqual({ ...tree.schema, links: tree.schema.links?.length ? tree.schema.links : undefined });
+  expect(parseSchema(tree.schema)).toEqual({
+    ...tree.schema,
+    links: tree.schema.links?.length ? tree.schema.links : undefined,
+  });
   expect([...tree.index.entries()].sort()).toEqual([...buildIndex(tree.schema).entries()].sort());
   const after = tree.schema;
   tree.applyMany(inverse);
@@ -86,22 +108,32 @@ describe("structure actions", () => {
   it("removes a populated left cell and preserves the last left cell", () => {
     const tree = store();
     const result = action(tree, "a-l0", "removeLeft")!;
-    expect(tree.schema.root[0].left.map(note => note.id)).toEqual(["a-l1"]);
+    expect(tree.schema.root[0].left.map((note) => note.id)).toEqual(["a-l1"]);
     expect(result.focus?.contentId).toBe("a-l1");
     expect(action(tree, "a-l1", "removeLeft")).toBeNull();
   });
   it("removes all child subtrees while keeping the right note and caret", () => {
-    const tree = new TreeStore({ version: 1, root: [row("a", ["left"], "first\nsecond", [row("child", ["child left"], "child right", [row("grandchild")])])] });
+    const tree = new TreeStore({
+      version: 1,
+      root: [
+        row("a", ["left"], "first\nsecond", [
+          row("child", ["child left"], "child right", [row("grandchild")]),
+        ]),
+      ],
+    });
     const result = action(tree, "a-r", "removeChildren", 0, 2)!;
     expect(tree.schema.root[0].right.children).toEqual([]);
     expect(tree.schema.root[0].right.text).toBe("first\nsecond");
-    expect(result.focus).toEqual({ contentId: "a-r", entry: { kind: "caret", line: 0, column: 2 } });
+    expect(result.focus).toEqual({
+      contentId: "a-r",
+      entry: { kind: "caret", line: 0, column: 2 },
+    });
     expect(action(tree, "a-r", "removeChildren")).toBeNull();
   });
-  it.each(["a-l0", "a-r"])("removes a populated row and descendants from %s", id => {
+  it.each(["a-l0", "a-r"])("removes a populated row and descendants from %s", (id) => {
     const tree = store();
     const result = action(tree, id, "removeRow")!;
-    expect(tree.schema.root.map(row => row.id)).toEqual(["b"]);
+    expect(tree.schema.root.map((row) => row.id)).toEqual(["b"]);
     expect(result.focus?.contentId).toBe(id === "a-r" ? "b-r" : "b-l0");
   });
   it("removes the last child and returns focus to its parent", () => {
@@ -128,14 +160,21 @@ describe("structure actions", () => {
     expect(result.focus!.contentId).toBe(tree.schema.root[0].left[1].id);
   });
   it.each([
-    ["a-l0", 0, 0], ["a-r", 0, 0],
-    ["a-l0", 0, 1], ["a-r", 0, 1],
-    ["a-l0", 1, 9], ["a-r", 1, 6],
+    ["a-l0", 0, 0],
+    ["a-r", 0, 0],
+    ["a-l0", 0, 1],
+    ["a-r", 0, 1],
+    ["a-l0", 1, 9],
+    ["a-r", 1, 6],
   ] as const)("keeps text and links in %s when creating a sibling at %i:%i", (id, line, column) => {
-    const tree = new TreeStore({ version: 1, root: [row("a", ["日本\n👩‍🚀tail"], "日本\nsecond", [row("child")]), row("b")], links: [
-      { id: "label", sourceId: id, start: 0, end: 6, targets: ["b-r"] },
-      { id: "incoming", sourceId: "b-r", start: 0, end: 1, targets: [id] },
-    ] });
+    const tree = new TreeStore({
+      version: 1,
+      root: [row("a", ["日本\n👩‍🚀tail"], "日本\nsecond", [row("child")]), row("b")],
+      links: [
+        { id: "label", sourceId: id, start: 0, end: 6, targets: ["b-r"] },
+        { id: "incoming", sourceId: "b-r", start: 0, end: 1, targets: [id] },
+      ],
+    });
     const before = tree.schema;
     const result = action(tree, id, "newSibling", line, column)!;
     expect(tree.schema.root[0]).toEqual(before.root[0]);
@@ -151,7 +190,7 @@ describe("structure actions", () => {
   it("keeps text at the start of a later line", () => {
     const tree = store();
     action(tree, "a-r", "newSibling", 1, 0);
-    expect(tree.schema.root.map(row => row.right.text)).toEqual(["first\nsecond", "", "right"]);
+    expect(tree.schema.root.map((row) => row.right.text)).toEqual(["first\nsecond", "", "right"]);
   });
   it("creates an empty sibling and leaves text and children with the original row", () => {
     const tree = store(),
@@ -161,7 +200,7 @@ describe("structure actions", () => {
     expect(tree.schema.root[1].left[0].text).toBe("");
     expect(result.focus!.contentId).toBe(tree.schema.root[1].right.id);
   });
-  it.each(["a", "child"])("prepends a two-column child from the full-width parent %s", id => {
+  it.each(["a", "child"])("prepends a two-column child from the full-width parent %s", (id) => {
     const tree = store();
     const path = id === "a" ? ["a"] : ["a", "child"];
     const before = tree.index.get(id)!.container;
@@ -177,7 +216,10 @@ describe("structure actions", () => {
     expect(child.right.text).toBe("");
     expect(tree.schema.root).toHaveLength(rootCount);
     expect(result.path).toEqual(path);
-    expect(result.focus).toEqual({ contentId: child.right.id, entry: { kind: "edge", edge: "start" } });
+    expect(result.focus).toEqual({
+      contentId: child.right.id,
+      entry: { kind: "edge", edge: "start" },
+    });
   });
   it("keeps ordinary sibling creation away from the full-width parent's start", () => {
     const tree = store();
@@ -297,13 +339,14 @@ it("preserves a moved caret's side of a wrap boundary", () => {
   expect(result!.focus!.entry).toEqual({ kind: "caret", line: 0, column: 4, affinity: "upstream" });
 });
 
-it.each(["a-l0", "child-l0"])("creates a sibling row from left note %s at the same level", id => {
+it.each(["a-l0", "child-l0"])("creates a sibling row from left note %s at the same level", (id) => {
   const tree = store();
   const parentId = tree.index.get(id)!.parentId;
   const before = tree.index.get(id)!.container;
   const result = action(tree, id, "newSibling", 0, 1)!;
-  const siblings = parentId === null ? tree.schema.root : tree.index.get(parentId)!.container.right.children;
-  const at = siblings.findIndex(row => row.id === before.id);
+  const siblings =
+    parentId === null ? tree.schema.root : tree.index.get(parentId)!.container.right.children;
+  const at = siblings.findIndex((row) => row.id === before.id);
   const sibling = siblings[at + 1];
   expect(siblings[at].left[0].text).toBe(before.left[0].text);
   expect(sibling.left[0].text).toBe("");
@@ -322,28 +365,49 @@ it("does not prepend a child beyond the nesting limit", () => {
   expect(tree.revision).toBe(0);
 });
 
-it.each(["a-l0", "a-r", "child-l0", "child-r"])("inserts a record above %s without changing its text, links, or children", id => {
-  const tree = store();
-  const source = tree.index.get(id)!;
-  const text = source.side === "left" ? source.container.left[source.index].text : source.container.right.text;
-  tree.apply({ type: "setLinks", links: [{ id: "label", sourceId: id, start: 0, end: new TextEncoder().encode([...text][0]).length, targets: ["b-r"] }] });
-  const entry = tree.index.get(id)!;
-  const before = entry.container;
-  const links = tree.schema.links;
-  const path = id.startsWith("child") ? ["a"] : [];
-  const result = action(tree, id, "newSiblingBefore", 0, 1, path)!;
-  const rows = entry.parentId ? tree.index.get(entry.parentId)!.container.right.children : tree.schema.root;
-  const at = rows.findIndex(row => row.id === before.id);
-  const inserted = rows[at - 1];
-  expect(inserted.left).toHaveLength(1);
-  expect(inserted.left[0].text).toBe("");
-  expect(inserted.right.text).toBe("");
-  expect(inserted.right.children).toEqual([]);
-  expect(rows[at]).toEqual(before);
-  expect(tree.schema.links).toEqual(links);
-  expect(result.path).toEqual(path);
-  expect(result.focus!.contentId).toBe(entry.side === "left" ? inserted.left[0].id : inserted.right.id);
-});
+it.each(["a-l0", "a-r", "child-l0", "child-r"])(
+  "inserts a record above %s without changing its text, links, or children",
+  (id) => {
+    const tree = store();
+    const source = tree.index.get(id)!;
+    const text =
+      source.side === "left"
+        ? source.container.left[source.index].text
+        : source.container.right.text;
+    tree.apply({
+      type: "setLinks",
+      links: [
+        {
+          id: "label",
+          sourceId: id,
+          start: 0,
+          end: new TextEncoder().encode([...text][0]).length,
+          targets: ["b-r"],
+        },
+      ],
+    });
+    const entry = tree.index.get(id)!;
+    const before = entry.container;
+    const links = tree.schema.links;
+    const path = id.startsWith("child") ? ["a"] : [];
+    const result = action(tree, id, "newSiblingBefore", 0, 1, path)!;
+    const rows = entry.parentId
+      ? tree.index.get(entry.parentId)!.container.right.children
+      : tree.schema.root;
+    const at = rows.findIndex((row) => row.id === before.id);
+    const inserted = rows[at - 1];
+    expect(inserted.left).toHaveLength(1);
+    expect(inserted.left[0].text).toBe("");
+    expect(inserted.right.text).toBe("");
+    expect(inserted.right.children).toEqual([]);
+    expect(rows[at]).toEqual(before);
+    expect(tree.schema.links).toEqual(links);
+    expect(result.path).toEqual(path);
+    expect(result.focus!.contentId).toBe(
+      entry.side === "left" ? inserted.left[0].id : inserted.right.id,
+    );
+  },
+);
 it("reveals the inserted upper sibling when invoked from the full-width parent", () => {
   const tree = store();
   const result = action(tree, "child-r", "newSiblingBefore", 0, 0, ["a", "child"])!;

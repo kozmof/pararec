@@ -133,20 +133,32 @@ function planStructureAction(
       if (current.side !== "right" || !container.right.children.length) return null;
       return {
         path,
-        ops: container.right.children.map(child => ({ type: "removeContainer", id: child.id, expected: child })),
+        ops: container.right.children.map((child) => ({
+          type: "removeContainer",
+          id: child.id,
+          expected: child,
+        })),
         focus,
       };
     }
     case "removeRow": {
       const neighbour = siblings[containerEntry.index + 1] ?? siblings[containerEntry.index - 1];
       const destination = neighbour
-        ? current.side === "left" ? neighbour.left[0].id : neighbour.right.id
-        : current.parentId !== null ? index.get(current.parentId)!.container.right.id : null;
-      const nextPath = path.includes(container.id) ? path.slice(0, path.indexOf(container.id)) : path;
+        ? current.side === "left"
+          ? neighbour.left[0].id
+          : neighbour.right.id
+        : current.parentId !== null
+          ? index.get(current.parentId)!.container.right.id
+          : null;
+      const nextPath = path.includes(container.id)
+        ? path.slice(0, path.indexOf(container.id))
+        : path;
       return {
         path: nextPath,
         ops: [{ type: "removeContainer", id: container.id, expected: container }],
-        focus: destination ? { contentId: destination, entry: { kind: "edge", edge: "start" } } : null,
+        focus: destination
+          ? { contentId: destination, entry: { kind: "edge", edge: "start" } }
+          : null,
       };
     }
     case "join": {
@@ -229,8 +241,12 @@ function planStructureAction(
 
 /** Transform labels with their text and remove references to deleted cells. */
 export function structureAction(
-  schema: Schema, index: TreeIndex, path: string[], contentId: string,
-  caret: Caret, command: StructureCommand,
+  schema: Schema,
+  index: TreeIndex,
+  path: string[],
+  contentId: string,
+  caret: Caret,
+  command: StructureCommand,
 ): StructureAction | null {
   const action = planStructureAction(schema, index, path, contentId, caret, command);
   if (!action || !schema.links?.length) return action;
@@ -240,27 +256,47 @@ export function structureAction(
   let links = [...schema.links];
   if (command === "split") {
     const source = nextIndex.get(contentId)!;
-    const text = source.side === "left" ? source.container.left[source.index].text : source.container.right.text;
+    const text =
+      source.side === "left"
+        ? source.container.left[source.index].text
+        : source.container.right.text;
     const split = new TextEncoder().encode(text).length;
     const destination = action.focus!.contentId;
-    links = links.flatMap(link => {
+    links = links.flatMap((link) => {
       if (link.sourceId !== contentId || link.end <= split) return [link];
-      if (link.start >= split) return [{ ...link, sourceId: destination, start: link.start - split, end: link.end - split }];
+      if (link.start >= split)
+        return [
+          { ...link, sourceId: destination, start: link.start - split, end: link.end - split },
+        ];
       // A crossing label becomes one label in each cell with the same destinations.
-      return [{ ...link, end: split }, { ...link, id: crypto.randomUUID(), sourceId: destination, start: 0, end: link.end - split }];
+      return [
+        { ...link, end: split },
+        {
+          ...link,
+          id: crypto.randomUUID(),
+          sourceId: destination,
+          start: 0,
+          end: link.end - split,
+        },
+      ];
     });
   } else if (command === "join") {
     const destination = action.focus!.contentId;
     const previous = index.get(destination)!;
-    const shift = new TextEncoder().encode(previous.container.left[previous.index].text + "\n").length;
-    links = links.map(link => ({ ...link,
-      ...(link.sourceId === contentId ? { sourceId: destination, start: link.start + shift, end: link.end + shift } : {}),
-      targets: [...new Set(link.targets.map(id => id === contentId ? destination : id))],
+    const shift = new TextEncoder().encode(
+      previous.container.left[previous.index].text + "\n",
+    ).length;
+    links = links.map((link) => ({
+      ...link,
+      ...(link.sourceId === contentId
+        ? { sourceId: destination, start: link.start + shift, end: link.end + shift }
+        : {}),
+      targets: [...new Set(link.targets.map((id) => (id === contentId ? destination : id)))],
     }));
   }
-  links = links.flatMap(link => {
+  links = links.flatMap((link) => {
     if (!nextIndex.has(link.sourceId)) return [];
-    const targets = link.targets.filter(id => id !== link.sourceId && nextIndex.has(id));
+    const targets = link.targets.filter((id) => id !== link.sourceId && nextIndex.has(id));
     return targets.length ? [{ ...link, targets }] : [];
   });
   action.ops.push({ type: "setLinks", links });

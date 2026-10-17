@@ -37,22 +37,35 @@ export function updateIndex(
       }
     }
   }
-  function install(oldRows: readonly Container[], newRows: readonly Container[], parent: string | null) {
+  function install(
+    oldRows: readonly Container[],
+    newRows: readonly Container[],
+    parent: string | null,
+  ) {
     const previous = new Map(oldRows.map((row) => [row.id, row]));
     newRows.forEach((row, position) => {
       const old = previous.get(row.id),
         entry = index.get(row.id);
       if (old === row && entry?.parentId === parent && entry.index === position) return;
-      index.set(row.id, Object.freeze({ container: row, parentId: parent, index: position, side: "container" }));
-      row.left.forEach((content, contentIndex) =>
-        index.set(content.id, Object.freeze({
-          container: row,
-          parentId: parent,
-          index: contentIndex,
-          side: "left",
-        })),
+      index.set(
+        row.id,
+        Object.freeze({ container: row, parentId: parent, index: position, side: "container" }),
       );
-      index.set(row.right.id, Object.freeze({ container: row, parentId: parent, index: 0, side: "right" }));
+      row.left.forEach((content, contentIndex) =>
+        index.set(
+          content.id,
+          Object.freeze({
+            container: row,
+            parentId: parent,
+            index: contentIndex,
+            side: "left",
+          }),
+        ),
+      );
+      index.set(
+        row.right.id,
+        Object.freeze({ container: row, parentId: parent, index: 0, side: "right" }),
+      );
       install(old?.right.children ?? [], row.right.children, row.id);
     });
   }
@@ -68,7 +81,9 @@ export function buildIndex(schema: Schema): Map<string, IndexEntry> {
 /** Expose live lookups without leaking the mutable map, including through forEach. */
 export function readonlyIndex(index: Map<string, IndexEntry>): TreeIndex {
   const view: TreeIndex = Object.freeze({
-    get size() { return index.size; },
+    get size() {
+      return index.size;
+    },
     get: (id: string) => index.get(id),
     has: (id: string) => index.has(id),
     entries: () => index.entries(),

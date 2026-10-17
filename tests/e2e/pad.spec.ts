@@ -58,25 +58,32 @@ test("invalid ancestor chains are truncated and empty levels accept Enter", asyn
   await expect(page.getByTestId("editor-sink")).toBeFocused();
 });
 
-test("mixed deep jumps return through visited layers after revisiting the deepest view", async ({ page }) => {
+test("mixed deep jumps return through visited layers after revisiting the deepest view", async ({
+  page,
+}) => {
   const deep = JSON.parse(readFileSync("fixtures/seven-levels.json", "utf8"));
-  await page.route("**/api/document", route => route.fulfill({ json: deep, headers: { ETag: '"deep"' } }));
+  await page.route("**/api/document", (route) =>
+    route.fulfill({ json: deep, headers: { ETag: '"deep"' } }),
+  );
   await page.goto("/");
-  const hashAt = (depth: number) => depth < 0 ? "#/" : "#/c/" + Array.from({ length: depth + 1 }, (_, i) => `layer-${i}`).join("/");
+  const hashAt = (depth: number) =>
+    depth < 0 ? "#/" : "#/c/" + Array.from({ length: depth + 1 }, (_, i) => `layer-${i}`).join("/");
   const visit = async (depth: number) => {
     await page.locator(`[data-content-id="layer-${depth}-right"]`).focus();
     await expect(page.getByTestId("editor-sink")).toBeFocused();
     await page.getByRole("button", { name: `Go deeper into Layer ${depth + 1} note` }).click();
-    await expect(page).toHaveURL(url => url.hash === hashAt(depth));
+    await expect(page).toHaveURL((url) => url.hash === hashAt(depth));
   };
   for (const depth of [1, 2, 4]) await visit(depth);
   await page.getByRole("button", { name: "Go back" }).click();
-  await expect(page).toHaveURL(url => url.hash === hashAt(2));
-  await expect(page.locator('[data-content-id="layer-4-right"]').getByTestId("editor-sink")).toBeFocused();
+  await expect(page).toHaveURL((url) => url.hash === hashAt(2));
+  await expect(
+    page.locator('[data-content-id="layer-4-right"]').getByTestId("editor-sink"),
+  ).toBeFocused();
   await visit(4);
   for (const depth of [2, 1, -1]) {
     await page.getByRole("button", { name: "Go back" }).click();
-    await expect(page).toHaveURL(url => url.hash === hashAt(depth));
+    await expect(page).toHaveURL((url) => url.hash === hashAt(depth));
     await expect(page.getByRole("status", { name: "Current layer" })).toHaveText(`${depth + 2}:7`);
     await expect(page.getByTestId("editor-sink")).toBeFocused();
   }

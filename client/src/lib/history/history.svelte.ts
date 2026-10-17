@@ -7,16 +7,38 @@ export type FocusSnapshot = Caret & { contentId: string };
 /** UTF-16 offsets of the affected span in the before and after snapshots. */
 export type TextChange = { contentId: string; from: number; oldEnd: number; newEnd: number };
 export type TextPatch = { removed: string; inserted: string };
-export type AppSnapshot = { schema: Schema; path: string[]; focus: FocusSnapshot | null; textChange?: TextChange };
+export type AppSnapshot = {
+  schema: Schema;
+  path: string[];
+  focus: FocusSnapshot | null;
+  textChange?: TextChange;
+};
 type Navigation = Omit<AppSnapshot, "schema">;
 export type HistoryEntry =
-  | { kind: "structure"; before: Navigation; after: Navigation; changes: SchemaChange[]; textChange?: TextChange }
-  | { kind: "text"; before: Navigation; after: Navigation; textChange: TextChange; removed: string; inserted: string; beforeLinks: Schema["links"]; afterLinks: Schema["links"] };
+  | {
+      kind: "structure";
+      before: Navigation;
+      after: Navigation;
+      changes: SchemaChange[];
+      textChange?: TextChange;
+    }
+  | {
+      kind: "text";
+      before: Navigation;
+      after: Navigation;
+      textChange: TextChange;
+      removed: string;
+      inserted: string;
+      beforeLinks: Schema["links"];
+      afterLinks: Schema["links"];
+    };
 
 function contentText(schema: Schema, id: string): string {
   const entry = buildIndex(schema).get(id);
   if (!entry || entry.side === "container") throw new Error("Unknown history content");
-  return entry.side === "right" ? entry.container.right.text : entry.container.left[entry.index].text;
+  return entry.side === "right"
+    ? entry.container.right.text
+    : entry.container.left[entry.index].text;
 }
 function navigation(snapshot: AppSnapshot): Navigation {
   return { path: [...snapshot.path], focus: snapshot.focus ? { ...snapshot.focus } : null };
@@ -26,19 +48,26 @@ function patchText(text: string): string {
   return JSON.parse(JSON.stringify(text)) as string;
 }
 function restore(entry: HistoryEntry, schema: Schema, undo: boolean): AppSnapshot {
-  if (entry.kind === "structure") return {
-    ...navigation({ schema, ...(undo ? entry.before : entry.after) }),
-    schema: applySchemaChanges(schema, entry.changes, undo),
-  };
+  if (entry.kind === "structure")
+    return {
+      ...navigation({ schema, ...(undo ? entry.before : entry.after) }),
+      schema: applySchemaChanges(schema, entry.changes, undo),
+    };
   const change = entry.textChange;
   const text = contentText(schema, change.contentId);
   const end = undo ? change.newEnd : change.oldEnd;
   const replacement = undo ? entry.removed : entry.inserted;
   return {
     ...navigation({ schema, ...(undo ? entry.before : entry.after) }),
-    schema: { ...applyOp(schema, { type: "setText", id: change.contentId,
-      text: text.slice(0, change.from) + replacement + text.slice(end), normalized: true }).schema,
-      links: undo ? entry.beforeLinks : entry.afterLinks },
+    schema: {
+      ...applyOp(schema, {
+        type: "setText",
+        id: change.contentId,
+        text: text.slice(0, change.from) + replacement + text.slice(end),
+        normalized: true,
+      }).schema,
+      links: undo ? entry.beforeLinks : entry.afterLinks,
+    },
   };
 }
 function mergeChanges(a: TextChange, b: TextChange): TextChange {
@@ -74,7 +103,10 @@ export class AppHistory {
   #group: (TypingGroup & { time: number }) | null = null;
   #current: Schema | null = null;
   #sizes = new WeakMap<HistoryEntry, number>();
-  constructor(private limit = 500, private byteLimit = 16 * 1024 * 1024) {
+  constructor(
+    private limit = 500,
+    private byteLimit = 16 * 1024 * 1024,
+  ) {
     if (!Number.isInteger(limit) || limit < 1)
       throw new RangeError("History limit must be positive");
     if (!Number.isSafeInteger(byteLimit) || byteLimit < 1)
@@ -101,7 +133,13 @@ export class AppHistory {
     this.#current = null;
     this.closeGroup();
   }
-  record(before: AppSnapshot, after: AppSnapshot, typing?: TypingGroup, textChange?: TextChange, patch?: TextPatch) {
+  record(
+    before: AppSnapshot,
+    after: AppSnapshot,
+    typing?: TypingGroup,
+    textChange?: TextChange,
+    patch?: TextPatch,
+  ) {
     if (before.schema === after.schema) return;
     const time = typing?.time ?? Date.now();
     const last = this.#undo.at(-1),
@@ -119,39 +157,65 @@ export class AppHistory {
       last.after.path.length === before.path.length &&
       last.after.path.every((id, index) => id === before.path[index]) &&
       sameFocus(last.after.focus, before.focus);
-    const combined = merge ? last!.textChange && textChange ? mergeChanges(last!.textChange, textChange) : undefined : textChange;
+    const combined = merge
+      ? last!.textChange && textChange
+        ? mergeChanges(last!.textChange, textChange)
+        : undefined
+      : textChange;
     let mergedPatch: TextPatch | undefined;
     if (merge && last!.kind === "text" && patch && textChange && combined) {
       const previous = last as Extract<HistoryEntry, { kind: "text" }>;
-      const a = previous.textChange, b = textChange;
+      const a = previous.textChange,
+        b = textChange;
       if (b.from <= a.newEnd && b.oldEnd >= a.from) {
         const left = b.from < a.from ? patch.removed.slice(0, a.from - b.from) : "";
         const right = b.oldEnd > a.newEnd ? patch.removed.slice(a.newEnd - b.from) : "";
         const current = left + previous.inserted + right;
         mergedPatch = {
           removed: left + previous.removed + right,
-          inserted: current.slice(0, b.from - combined.from) + patch.inserted + current.slice(b.oldEnd - combined.from),
+          inserted:
+            current.slice(0, b.from - combined.from) +
+            patch.inserted +
+            current.slice(b.oldEnd - combined.from),
         };
       }
     }
     const first = merge && !mergedPatch ? restore(last!, before.schema, true) : before;
     const savedPatch = mergedPatch ?? (!merge ? patch : undefined);
-    const entry: HistoryEntry = combined ? {
-      kind: "text",
-      beforeLinks: merge ? last!.kind === "text" ? last!.beforeLinks : first.schema.links : before.schema.links,
-      afterLinks: after.schema.links,
-      before: merge ? navigation({ schema: before.schema, ...last!.before }) : navigation(first),
-      after: navigation(after),
-      textChange: combined,
-      removed: patchText(savedPatch?.removed ?? contentText(first.schema, combined.contentId).slice(combined.from, combined.oldEnd)),
-      inserted: patchText(savedPatch?.inserted ?? contentText(after.schema, combined.contentId).slice(combined.from, combined.newEnd)),
-    } : {
-      kind: "structure",
-      before: navigation(first),
-      after: navigation(after),
-      changes: schemaChanges(first.schema, after.schema),
-      textChange: merge ? last!.textChange && textChange ? mergeChanges(last!.textChange, textChange) : undefined : textChange,
-    };
+    const entry: HistoryEntry = combined
+      ? {
+          kind: "text",
+          beforeLinks: merge
+            ? last!.kind === "text"
+              ? last!.beforeLinks
+              : first.schema.links
+            : before.schema.links,
+          afterLinks: after.schema.links,
+          before: merge
+            ? navigation({ schema: before.schema, ...last!.before })
+            : navigation(first),
+          after: navigation(after),
+          textChange: combined,
+          removed: patchText(
+            savedPatch?.removed ??
+              contentText(first.schema, combined.contentId).slice(combined.from, combined.oldEnd),
+          ),
+          inserted: patchText(
+            savedPatch?.inserted ??
+              contentText(after.schema, combined.contentId).slice(combined.from, combined.newEnd),
+          ),
+        }
+      : {
+          kind: "structure",
+          before: navigation(first),
+          after: navigation(after),
+          changes: schemaChanges(first.schema, after.schema),
+          textChange: merge
+            ? last!.textChange && textChange
+              ? mergeChanges(last!.textChange, textChange)
+              : undefined
+            : textChange,
+        };
     this.#undo = merge
       ? [...this.#undo.slice(0, -1), entry]
       : [...this.#undo, entry].slice(-this.limit);
@@ -177,7 +241,12 @@ export class AppHistory {
     this.#redo = [...this.#redo, entry];
     const result = restore(entry, this.#current!, true);
     this.#current = result.schema;
-    if (entry.textChange) result.textChange = { ...entry.textChange, oldEnd: entry.textChange.newEnd, newEnd: entry.textChange.oldEnd };
+    if (entry.textChange)
+      result.textChange = {
+        ...entry.textChange,
+        oldEnd: entry.textChange.newEnd,
+        newEnd: entry.textChange.oldEnd,
+      };
     return result;
   }
   redo(): AppSnapshot | null {

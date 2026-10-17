@@ -10,7 +10,7 @@ export class LineIdentity {
 
   /** Rebase the mounted window even when the shifted suffix is clipped offscreen. */
   splice(fromLine: number, oldEndLine: number, newEndLine: number): void {
-    this.#previous = this.#previous.flatMap(line => {
+    this.#previous = this.#previous.flatMap((line) => {
       if (line.lineNumber >= oldEndLine)
         return [{ ...line, lineNumber: line.lineNumber + newEndLine - oldEndLine }];
       return line.lineNumber < fromLine || line.lineNumber < newEndLine ? [line] : [];
@@ -20,7 +20,10 @@ export class LineIdentity {
 
   reconcile(lines: VisibleLine[]): RenderedLine[] {
     const previous = this.#previous;
-    if (this.#positioned || (previous.length && lines.length && previous[0].lineNumber !== lines[0].lineNumber)) {
+    if (
+      this.#positioned ||
+      (previous.length && lines.length && previous[0].lineNumber !== lines[0].lineNumber)
+    ) {
       this.#positioned = false;
       const byLine = new Map(previous.map((line) => [line.lineNumber, line]));
       const next = lines.map((line) => {

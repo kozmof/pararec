@@ -75,7 +75,8 @@ test("pad supports text, selection, undo, and redo", async ({ page }) => {
   const sink = page.getByTestId("editor-sink");
   const line = page.getByTestId("editor-surface").locator('[data-line="0"]');
   await sink.focus();
-  for (let column = 0; column < "First note".length; column++) await page.keyboard.press("ArrowRight");
+  for (let column = 0; column < "First note".length; column++)
+    await page.keyboard.press("ArrowRight");
   await page.keyboard.type("!");
   await expect(line).toHaveText("First note!");
   await page.keyboard.press("ControlOrMeta+z");
@@ -100,20 +101,14 @@ test("pad commits composition once and undoes it as one action", async ({ page }
   await composition(sink, "compositionupdate", "にほんご");
   await expect(page.locator("[data-preedit]")).toHaveText("にほんご");
   await sink.dispatchEvent("keydown", { key: "Enter", isComposing: true });
-  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toContainText(
-    "note",
-  );
+  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toContainText("note");
   await composition(sink, "compositionend", "日本語");
   await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText(
     "日本語note",
   );
   await page.keyboard.press("ControlOrMeta+z");
-  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText(
-    "note",
-  );
-  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText(
-    "note",
-  );
+  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText("note");
+  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText("note");
 });
 
 test("click placement and the IME sink follow span measurements", async ({ page }) => {
@@ -204,7 +199,8 @@ test("IME input follows text edges when collapsed caret ranges are empty", async
       return this.collapsed ? new DOMRect() : boundingRect.call(this);
     };
   });
-  for (let column = 0; column < "First note".length; column++) await page.keyboard.press("ArrowRight");
+  for (let column = 0; column < "First note".length; column++)
+    await page.keyboard.press("ArrowRight");
   await expect
     .poll(async () =>
       page

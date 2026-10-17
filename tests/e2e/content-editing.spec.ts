@@ -29,7 +29,9 @@ test("Japanese composition saves, survives reload, and handles an external confl
   await composition(sink, "compositionupdate", "にほんご");
   await expect(page.locator("[data-preedit]")).toHaveText("にほんご");
   await composition(sink, "compositionend", "日本語");
-  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText("日本語note");
+  await expect(page.getByTestId("editor-surface").locator('[data-line="0"]')).toHaveText(
+    "日本語note",
+  );
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   expect(disk.root[0].right.text).toBe("日本語note");
@@ -86,7 +88,9 @@ test("failed edits stay in memory until the page reloads", async ({ page }) => {
   await page.keyboard.type("Unsaved ");
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByText("Save failed", { exact: true })).toBeVisible();
-  await expect(page.locator('[data-content-id="flat-1-right"]')).toContainText("Unsaved First note");
+  await expect(page.locator('[data-content-id="flat-1-right"]')).toContainText(
+    "Unsaved First note",
+  );
   page.on("dialog", (dialog) => dialog.accept());
   await page.reload();
   await expect(page.getByTestId("editor-sink")).toBeFocused();
@@ -99,7 +103,7 @@ for (const side of ["left", "right"] as const) {
     const disk = structuredClone(fixture);
     disk.root[0].left[0].text = side === "left" ? "Short" : "One\nTwo\nThree";
     disk.root[0].right.text = side === "right" ? "Short" : "One\nTwo\nThree";
-    await page.route("**/api/document", route =>
+    await page.route("**/api/document", (route) =>
       route.fulfill({ json: disk, headers: { ETag: '"v1"' } }),
     );
     await page.goto("/");

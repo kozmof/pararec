@@ -41,9 +41,21 @@ export class TreeStore {
     const before = this.schema;
     const result = applyOp(before, op, this.index);
     // Title changes and text in unrelated sources preserve existing link invariants.
-    if (op.type !== "setTitle" && !(op.type === "setText" && !before.links?.some(link => link.sourceId === op.id)))
-      validateLinks(result.schema, op.type === "setText" ? id => id === op.id
-        ? (op.normalized ? op.text : op.text.replace(/\r\n?/g, "\n")) : indexedText(this.index, id) : undefined);
+    if (
+      op.type !== "setTitle" &&
+      !(op.type === "setText" && !before.links?.some((link) => link.sourceId === op.id))
+    )
+      validateLinks(
+        result.schema,
+        op.type === "setText"
+          ? (id) =>
+              id === op.id
+                ? op.normalized
+                  ? op.text
+                  : op.text.replace(/\r\n?/g, "\n")
+                : indexedText(this.index, id)
+          : undefined,
+      );
     updateIndex(this.#index, before.root, result.schema.root);
     freezeSnapshot(result.schema);
     this.#schema = result.schema;
@@ -64,7 +76,7 @@ export class TreeStore {
       staged = result.schema;
       inverses.unshift(result.inverse);
     }
-    validateLinks(staged, id => indexedText(stagedIndex, id));
+    validateLinks(staged, (id) => indexedText(stagedIndex, id));
     updateIndex(this.#index, before.root, staged.root);
     freezeSnapshot(staged);
     this.#schema = staged;
@@ -88,5 +100,7 @@ function freezeSnapshot(value: object): void {
 function indexedText(index: TreeIndex, id: string): string | undefined {
   const entry = index.get(id);
   if (!entry || entry.side === "container") return undefined;
-  return entry.side === "right" ? entry.container.right.text : entry.container.left[entry.index].text;
+  return entry.side === "right"
+    ? entry.container.right.text
+    : entry.container.left[entry.index].text;
 }

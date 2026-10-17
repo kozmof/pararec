@@ -6,7 +6,8 @@ function snapshot(text: string, column = text.length): AppSnapshot {
     version: 1,
     title: "document",
     config: {
-      showTitles: true, maxWidth: 1100,
+      showTitles: true,
+      maxWidth: 1100,
       outerWidthRate: { left: 35, right: 65 },
       innerWidthRate: { left: 35, right: 65 },
     },
@@ -26,13 +27,37 @@ const typing = (time: number, extra: Partial<TypingGroup> = {}): TypingGroup => 
 
 it("groups compact linked-text patches and restores their original and final labels", () => {
   const history = new AppHistory();
-  const a = snapshot("foo"), b = snapshot("fXoo", 2), c = snapshot("fXYoo", 3);
+  const a = snapshot("foo"),
+    b = snapshot("fXoo", 2),
+    c = snapshot("fXYoo", 3);
   a.focus!.column = 1;
-  for (const value of [a, b, c]) value.schema = { ...value.schema, links: [
-    { id: "label", sourceId: "right", start: 0, end: value.schema.root[0].right.text.length, targets: ["left"] },
-  ] };
-  history.record(a, b, typing(0), { contentId: "right", from: 1, oldEnd: 1, newEnd: 2 }, { removed: "", inserted: "X" });
-  history.record(b, c, typing(1), { contentId: "right", from: 2, oldEnd: 2, newEnd: 3 }, { removed: "", inserted: "Y" });
+  for (const value of [a, b, c])
+    value.schema = {
+      ...value.schema,
+      links: [
+        {
+          id: "label",
+          sourceId: "right",
+          start: 0,
+          end: value.schema.root[0].right.text.length,
+          targets: ["left"],
+        },
+      ],
+    };
+  history.record(
+    a,
+    b,
+    typing(0),
+    { contentId: "right", from: 1, oldEnd: 1, newEnd: 2 },
+    { removed: "", inserted: "X" },
+  );
+  history.record(
+    b,
+    c,
+    typing(1),
+    { contentId: "right", from: 2, oldEnd: 2, newEnd: 3 },
+    { removed: "", inserted: "Y" },
+  );
   expect(history.undoCount).toBe(1);
   expect(history.undo()).toMatchObject(a);
   expect(history.redo()).toMatchObject(c);
@@ -40,12 +65,19 @@ it("groups compact linked-text patches and restores their original and final lab
 
 it("keeps an oversized action undoable while retaining later compact edits", () => {
   const history = new AppHistory(500, 2000);
-  const a = snapshot("a".repeat(5000)), b = snapshot("b".repeat(5000));
+  const a = snapshot("a".repeat(5000)),
+    b = snapshot("b".repeat(5000));
   history.record(a, b);
   expect(history.undo()).toMatchObject(a);
   expect(history.redo()).toMatchObject(b);
   const c = snapshot("x" + b.schema.root[0].right.text);
-  history.record(b, c, undefined, { contentId: "right", from: 0, oldEnd: 0, newEnd: 1 }, { removed: "", inserted: "x" });
+  history.record(
+    b,
+    c,
+    undefined,
+    { contentId: "right", from: 0, oldEnd: 0, newEnd: 1 },
+    { removed: "", inserted: "x" },
+  );
   expect(history.undo()).toMatchObject(b);
   expect(history.redo()).toMatchObject(c);
 });
@@ -56,9 +88,13 @@ describe("app snapshot history", () => {
     let before = snapshot(original);
     for (let i = 0; i < 100; i++) {
       const after = snapshot("x".repeat(i + 1) + original);
-      history.record(before, after, undefined,
+      history.record(
+        before,
+        after,
+        undefined,
         { contentId: "right", from: i, oldEnd: i, newEnd: i + 1 },
-        { removed: "", inserted: "x" });
+        { removed: "", inserted: "x" },
+      );
       JSON.stringify(after.schema);
       before = after;
     }
@@ -70,11 +106,23 @@ describe("app snapshot history", () => {
 
   it("merges changed text ranges and reverses their coordinates for undo", () => {
     const history = new AppHistory();
-    const a = snapshot("abc\ndef"), b = snapshot("abcX\ndef"), c = snapshot("abcXY\ndef");
+    const a = snapshot("abc\ndef"),
+      b = snapshot("abcX\ndef"),
+      c = snapshot("abcXY\ndef");
     history.record(a, b, typing(0), { contentId: "right", from: 0, oldEnd: 4, newEnd: 5 });
     history.record(b, c, typing(1), { contentId: "right", from: 0, oldEnd: 5, newEnd: 6 });
-    expect(history.undo()!.textChange).toEqual({ contentId: "right", from: 0, oldEnd: 6, newEnd: 4 });
-    expect(history.redo()!.textChange).toEqual({ contentId: "right", from: 0, oldEnd: 4, newEnd: 6 });
+    expect(history.undo()!.textChange).toEqual({
+      contentId: "right",
+      from: 0,
+      oldEnd: 6,
+      newEnd: 4,
+    });
+    expect(history.redo()!.textChange).toEqual({
+      contentId: "right",
+      from: 0,
+      oldEnd: 4,
+      newEnd: 6,
+    });
   });
   it("groups contiguous typing and restores the first caret and final caret", () => {
     const history = new AppHistory(),
@@ -192,9 +240,13 @@ it("restores and replays 20 mixed text and structure actions", async () => {
     if (i % 2 === 0) {
       const removed = before.schema.root[0].right.text;
       const inserted = after.schema.root[0].right.text;
-      history.record(before, after, undefined,
+      history.record(
+        before,
+        after,
+        undefined,
         { contentId: "right", from: 0, oldEnd: removed.length, newEnd: inserted.length },
-        { removed, inserted });
+        { removed, inserted },
+      );
     } else history.record(before, after);
   }
   const last = tree.schema;

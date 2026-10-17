@@ -10,15 +10,22 @@ function span(state: DocumentState, from: number, to: number): string {
   const lines: string[] = [];
   for (let line = start.lineNumber; line <= end.lineNumber; line++) {
     const text = rendering.getLineContent(state, line) ?? "";
-    lines.push(text.slice(line === start.lineNumber ? start.charOffsetInLine : 0,
-      line === end.lineNumber ? end.charOffsetInLine : undefined));
+    lines.push(
+      text.slice(
+        line === start.lineNumber ? start.charOffsetInLine : 0,
+        line === end.lineNumber ? end.charOffsetInLine : undefined,
+      ),
+    );
   }
   return lines.join("\n");
 }
-export type ContentChange = { contentId: string; before: Schema; after: Schema; textChange: TextChange; textPatch: TextPatch } & Pick<
-  DocumentEdit,
-  "beforeCaret" | "afterCaret" | "kind" | "group" | "intent" | "groupable"
->;
+export type ContentChange = {
+  contentId: string;
+  before: Schema;
+  after: Schema;
+  textChange: TextChange;
+  textPatch: TextPatch;
+} & Pick<DocumentEdit, "beforeCaret" | "afterCaret" | "kind" | "group" | "intent" | "groupable">;
 export class ContentCache {
   #stores = new Map<string, EditorDocument>();
   #owners = new Map<string, Set<object>>();
@@ -36,7 +43,7 @@ export class ContentCache {
     if (!entry || entry.side === "container") throw new Error("Unknown Content");
     if (owner) {
       let owners = this.#owners.get(id);
-      if (!owners) this.#owners.set(id, owners = new Set());
+      if (!owners) this.#owners.set(id, (owners = new Set()));
       owners.add(owner);
     }
     const text =
@@ -54,19 +61,37 @@ export class ContentCache {
         if (this.#restoring || this.#stores.get(id) !== current || !this.tree.index.has(id)) return;
         const before = this.tree.schema;
         const entry = this.tree.index.get(id)!;
-        const beforeText = entry.side === "right" ? entry.container.right.text : entry.container.left[entry.index].text;
+        const beforeText =
+          entry.side === "right"
+            ? entry.container.right.text
+            : entry.container.left[entry.index].text;
         const text = current.text();
         const { fromLine, oldEndLine, newEndLine } = edit.change;
         const textChange: TextChange = {
           contentId: id,
-          from: Math.min(query.getCharStartOffset(edit.before, fromLine), query.getCharStartOffset(edit.after, fromLine)),
-          oldEnd: oldEndLine < query.getLineCount(edit.before) ? query.getCharStartOffset(edit.before, oldEndLine) : beforeText.length,
-          newEnd: newEndLine < query.getLineCount(edit.after) ? query.getCharStartOffset(edit.after, newEndLine) : text.length,
+          from: Math.min(
+            query.getCharStartOffset(edit.before, fromLine),
+            query.getCharStartOffset(edit.after, fromLine),
+          ),
+          oldEnd:
+            oldEndLine < query.getLineCount(edit.before)
+              ? query.getCharStartOffset(edit.before, oldEndLine)
+              : beforeText.length,
+          newEnd:
+            newEndLine < query.getLineCount(edit.after)
+              ? query.getCharStartOffset(edit.after, newEndLine)
+              : text.length,
         };
-        if (before.links?.some(link => link.sourceId === id)) {
+        if (before.links?.some((link) => link.sourceId === id)) {
           this.tree.applyMany([
             { type: "setText", id, text, normalized: true },
-            { type: "setLinks", links: [...before.links.filter(link => link.sourceId !== id), ...current.resolvedLinks()] },
+            {
+              type: "setLinks",
+              links: [
+                ...before.links.filter((link) => link.sourceId !== id),
+                ...current.resolvedLinks(),
+              ],
+            },
           ]);
         } else this.tree.apply({ type: "setText", id, text, normalized: true });
         this.changed({
@@ -74,8 +99,10 @@ export class ContentCache {
           before,
           after: this.tree.schema,
           textChange,
-          textPatch: { removed: span(edit.before, textChange.from, textChange.oldEnd),
-            inserted: span(edit.after, textChange.from, textChange.newEnd) },
+          textPatch: {
+            removed: span(edit.before, textChange.from, textChange.oldEnd),
+            inserted: span(edit.after, textChange.from, textChange.newEnd),
+          },
           beforeCaret: edit.beforeCaret,
           afterCaret: edit.afterCaret,
           kind: edit.kind,
@@ -85,7 +112,7 @@ export class ContentCache {
         });
       });
     }
-    doc.syncLinks((this.tree.schema.links ?? []).filter(link => link.sourceId === id));
+    doc.syncLinks((this.tree.schema.links ?? []).filter((link) => link.sourceId === id));
     this.#stores.delete(id);
     this.#stores.set(id, doc);
     this.#evict();
@@ -113,10 +140,14 @@ export class ContentCache {
     const doc = this.#stores.get(change.contentId);
     const entry = this.tree.index.get(change.contentId);
     if (!doc || !entry || entry.side === "container" || doc.text() !== previousText) return false;
-    const text = entry.side === "right" ? entry.container.right.text : entry.container.left[entry.index].text;
+    const text =
+      entry.side === "right" ? entry.container.right.text : entry.container.left[entry.index].text;
     this.#restoring = true;
-    try { doc.restoreText(text, change.from, change.oldEnd, change.newEnd); }
-    finally { this.#restoring = false; }
+    try {
+      doc.restoreText(text, change.from, change.oldEnd, change.newEnd);
+    } finally {
+      this.#restoring = false;
+    }
     return true;
   }
   prune() {

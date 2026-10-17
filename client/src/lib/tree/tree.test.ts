@@ -19,7 +19,8 @@ function fixture(): Schema {
     version: 1,
     title: "document",
     config: {
-      showTitles: true, maxWidth: 1100,
+      showTitles: true,
+      maxWidth: 1100,
       outerWidthRate: { left: 35, right: 65 },
       innerWidthRate: { left: 35, right: 65 },
     },
@@ -218,7 +219,9 @@ it("normalizes and owns unfamiliar restored snapshots", () => {
   external.title = "mutated";
   expect(store.schema.title).toBe("a\nb");
   const before = store.schema;
-  expect(() => store.restore({ ...external, root: deepRows(MAX_CONTAINER_DEPTH + 1) })).toThrow("depth");
+  expect(() => store.restore({ ...external, root: deepRows(MAX_CONTAINER_DEPTH + 1) })).toThrow(
+    "depth",
+  );
   expect(store.schema).toBe(before);
   check(store);
 });
@@ -231,15 +234,39 @@ it("preserves an explicit empty link list in reconstructed history snapshots", (
 });
 
 it("rejects subtree inserts and moves beyond the nesting limit atomically", () => {
-  const store = new TreeStore({ version: 1, root: [...deepRows(MAX_CONTAINER_DEPTH), row("movable", [row("child")])] });
+  const store = new TreeStore({
+    version: 1,
+    root: [...deepRows(MAX_CONTAINER_DEPTH), row("movable", [row("child")])],
+  });
   const before = store.schema;
   const entries = [...store.index];
-  expect(() => store.apply({ type: "insertContainer", parentId: `depth-${MAX_CONTAINER_DEPTH}`, index: 0, container: row("extra") })).toThrow("depth");
-  expect(() => store.apply({ type: "moveContainer", id: "movable", parentId: `depth-${MAX_CONTAINER_DEPTH - 1}`, index: 0 })).toThrow("depth");
-  expect(() => store.applyMany([
-    { type: "setText", id: "movable-r", text: "staged" },
-    { type: "insertContainer", parentId: `depth-${MAX_CONTAINER_DEPTH}`, index: 0, container: row("extra") },
-  ])).toThrow("depth");
+  expect(() =>
+    store.apply({
+      type: "insertContainer",
+      parentId: `depth-${MAX_CONTAINER_DEPTH}`,
+      index: 0,
+      container: row("extra"),
+    }),
+  ).toThrow("depth");
+  expect(() =>
+    store.apply({
+      type: "moveContainer",
+      id: "movable",
+      parentId: `depth-${MAX_CONTAINER_DEPTH - 1}`,
+      index: 0,
+    }),
+  ).toThrow("depth");
+  expect(() =>
+    store.applyMany([
+      { type: "setText", id: "movable-r", text: "staged" },
+      {
+        type: "insertContainer",
+        parentId: `depth-${MAX_CONTAINER_DEPTH}`,
+        index: 0,
+        container: row("extra"),
+      },
+    ]),
+  ).toThrow("depth");
   expect(store.schema).toBe(before);
   expect(store.revision).toBe(0);
   expect([...store.index]).toEqual(entries);

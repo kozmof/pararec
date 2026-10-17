@@ -11,20 +11,34 @@ test("Reed attention tracks linked Unicode text and fails closed after deletion"
     expect(doc.resolvedLinks()[0]).toMatchObject({ start: 8, end: 17 });
     doc.delete({ line: 0, column: 6 }, { line: 0, column: 9 });
     expect(doc.resolvedLinks()).toEqual([]);
-  } finally { doc.dispose(); }
+  } finally {
+    doc.dispose();
+  }
 });
 
 import { TreeStore } from "../tree/tree-store.svelte.js";
 import { ContentCache } from "./content-cache.js";
 test("saved link offsets follow edits and survive cache eviction", () => {
-  const tree = new TreeStore({ version: 1, root: [{ id: "row", left: [{ id: "left", text: "hello world" }], right: { id: "right", text: "target", children: [] } }], links: [{ id: "link", sourceId: "left", start: 6, end: 11, targets: ["right"] }] });
+  const tree = new TreeStore({
+    version: 1,
+    root: [
+      {
+        id: "row",
+        left: [{ id: "left", text: "hello world" }],
+        right: { id: "right", text: "target", children: [] },
+      },
+    ],
+    links: [{ id: "link", sourceId: "left", start: 6, end: 11, targets: ["right"] }],
+  });
   const cache = new ContentCache(tree, () => {}, 1);
   try {
     cache.get("left").insert({ line: 0, column: 0 }, "日本 ");
     expect(tree.schema.links?.[0]).toMatchObject({ start: 13, end: 18 });
     cache.get("right");
     expect(cache.get("left").resolvedLinks()[0]).toMatchObject({ start: 13, end: 18 });
-  } finally { cache.dispose(); }
+  } finally {
+    cache.dispose();
+  }
 });
 
 for (const text of ["fooabc", "foo"]) {
@@ -37,7 +51,9 @@ for (const text of ["fooabc", "foo"]) {
       expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 3 });
       doc.insert({ line: 0, column: 4 }, "日本");
       expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 3 });
-    } finally { doc.dispose(); }
+    } finally {
+      doc.dispose();
+    }
   });
 }
 
@@ -47,10 +63,15 @@ test("typing inside a label expands it, while an IME commit at its end stays out
     doc.syncLinks([{ id: "link", sourceId: "source", start: 0, end: 3, targets: ["target"] }]);
     doc.insert({ line: 0, column: 1 }, "x");
     expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 4 });
-    doc.transact(current => current.replace({ line: 0, column: 4 }, { line: 0, column: 4 }, "日本"), "composition");
+    doc.transact(
+      (current) => current.replace({ line: 0, column: 4 }, { line: 0, column: 4 }, "日本"),
+      "composition",
+    );
     expect(doc.text()).toBe("fxoo日本abc");
     expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 4 });
-  } finally { doc.dispose(); }
+  } finally {
+    doc.dispose();
+  }
 });
 
 for (const inserted of ["x", "日本"]) {
@@ -61,9 +82,15 @@ for (const inserted of ["x", "日本"]) {
       doc.delete({ line: 0, column: 2 }, { line: 0, column: 3 });
       expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 2 });
       if (inserted === "x") doc.insert({ line: 0, column: 2 }, inserted);
-      else doc.transact(current => current.replace({ line: 0, column: 2 }, { line: 0, column: 2 }, inserted), "composition");
+      else
+        doc.transact(
+          (current) => current.replace({ line: 0, column: 2 }, { line: 0, column: 2 }, inserted),
+          "composition",
+        );
       expect(doc.text()).toBe("fo" + inserted + "text");
       expect(doc.resolvedLinks()[0]).toMatchObject({ start: 0, end: 2 });
-    } finally { doc.dispose(); }
+    } finally {
+      doc.dispose();
+    }
   });
 }

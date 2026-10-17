@@ -6,11 +6,16 @@ export async function composition(
   type: "compositionstart" | "compositionupdate" | "compositionend",
   data = "",
 ): Promise<void> {
-  await sink.evaluate((node, event) => {
-    node.dispatchEvent(new CompositionEvent(event.type, {
-      bubbles: true,
-      cancelable: true,
-      data: event.data,
-    }));
-  }, { type, data });
+  await sink.evaluate(
+    (node, event) => {
+      node.dispatchEvent(
+        new CompositionEvent(event.type, {
+          bubbles: true,
+          cancelable: true,
+          data: event.data,
+        }),
+      );
+    },
+    { type, data },
+  );
 }

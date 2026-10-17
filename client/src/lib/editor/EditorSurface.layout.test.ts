@@ -36,7 +36,13 @@ function mount(text: string, props: Record<string, unknown> = {}) {
   const doc = new EditorDocument(text);
   opened.push(doc);
   const view = render(EditorSurface, { props: { doc, ...props } });
-  return { doc, view, surface: screen.getByTestId(props.readonly ? "editor-preview" : "editor-surface") as HTMLDivElement };
+  return {
+    doc,
+    view,
+    surface: screen.getByTestId(
+      props.readonly ? "editor-preview" : "editor-surface",
+    ) as HTMLDivElement,
+  };
 }
 const line = (at: number) => document.querySelector(`[data-line="${at}"]`) as HTMLElement;
 beforeEach(() => {
@@ -155,7 +161,8 @@ it("starts focused layout from the measured preview heights", async () => {
 
 it("windows a 50,010-line note against page scrolling and keeps keyboard destinations mounted", async () => {
   const { surface, doc, view } = mount(
-    Array.from({ length: 50010 }, (_, at) => `line ${at}`).join("\n"), { autoHeight: true },
+    Array.from({ length: 50010 }, (_, at) => `line ${at}`).join("\n"),
+    { autoHeight: true },
   );
   await settled();
   const count = () => document.querySelectorAll("[data-line]").length;

@@ -2,7 +2,11 @@ import { attention, history, position, query, rendering, scan, store } from "@ko
 import { GraphemeCache, normalizeLineBreaks } from "./graphemes.js";
 import { compareLines, contentLineChange, type LineChange } from "./document-change.js";
 import type { CaretAffinity } from "./line-measurer.js";
-import type { SelectionRange, ContentChangeEvent, DocumentAction as ReedAction } from "@kozmof/reed";
+import type {
+  SelectionRange,
+  ContentChangeEvent,
+  DocumentAction as ReedAction,
+} from "@kozmof/reed";
 
 type DocumentState = ReturnType<ReturnType<typeof store.createDocumentStore>["getSnapshot"]>;
 type ReedStore = ReturnType<typeof store.createDocumentStoreWithEvents>;
@@ -74,29 +78,44 @@ export class EditorDocument {
   #links: readonly import("../../schema.js").TextLink[] = [];
   syncLinks(links: readonly import("../../schema.js").TextLink[]): void {
     if (JSON.stringify(this.resolvedLinks()) === JSON.stringify(links)) return;
-    for (const id of this.#linkAnchors.values()) this.#store.dispatch(store.DocumentActions.deleteAttention(id));
+    for (const id of this.#linkAnchors.values())
+      this.#store.dispatch(store.DocumentActions.deleteAttention(id));
     this.#linkAnchors.clear();
     this.#links = links;
     for (const link of links) {
-      if (link.end > this.state.pieceTable.totalLength || !query.isUtf8Boundary(this.state.pieceTable, position.byteOffset(link.start)) || !query.isUtf8Boundary(this.state.pieceTable, position.byteOffset(link.end))) continue;
+      if (
+        link.end > this.state.pieceTable.totalLength ||
+        !query.isUtf8Boundary(this.state.pieceTable, position.byteOffset(link.start)) ||
+        !query.isUtf8Boundary(this.state.pieceTable, position.byteOffset(link.end))
+      )
+        continue;
       const previous = new Set(this.state.attention.attentions.keys());
-      this.#store.dispatch(store.DocumentActions.createAttention(position.byteOffset(link.start), position.byteOffset(link.end)));
-      const id = [...this.state.attention.attentions.keys()].find(id => !previous.has(id));
+      this.#store.dispatch(
+        store.DocumentActions.createAttention(
+          position.byteOffset(link.start),
+          position.byteOffset(link.end),
+        ),
+      );
+      const id = [...this.state.attention.attentions.keys()].find((id) => !previous.has(id));
       if (id) this.#linkAnchors.set(link.id, id);
     }
   }
   resolvedLinks(): import("../../schema.js").TextLink[] {
-    return this.#links.flatMap(link => {
+    return this.#links.flatMap((link) => {
       const id = this.#linkAnchors.get(link.id);
-      const range = id ? attention.resolveAttention(this.state.pieceTable.root, this.state.attention, id) : null;
-      return range && range.endOffset > range.startOffset ? [{ ...link, start: range.startOffset, end: range.endOffset }] : [];
+      const range = id
+        ? attention.resolveAttention(this.state.pieceTable.root, this.state.attention, id)
+        : null;
+      return range && range.endOffset > range.startOffset
+        ? [{ ...link, start: range.startOffset, end: range.endOffset }]
+        : [];
     });
   }
   /** Deletion may attach an end to the following piece; its next insertion must stay outside. */
   #keepLinkEndsOutside({ action, prevState, nextState }: ContentChangeEvent): void {
     if (action.type !== "INSERT" && action.type !== "REPLACE") return;
     let corrected = false;
-    const links = this.#links.flatMap(link => {
+    const links = this.#links.flatMap((link) => {
       const id = this.#linkAnchors.get(link.id);
       if (!id) return [];
       const before = attention.resolveAttention(prevState.pieceTable.root, prevState.attention, id);
@@ -105,7 +124,9 @@ export class EditorDocument {
         corrected ||= !after || after.endOffset !== before.endOffset;
         return [{ ...link, start: before.startOffset, end: before.endOffset }];
       }
-      return after && after.endOffset > after.startOffset ? [{ ...link, start: after.startOffset, end: after.endOffset }] : [];
+      return after && after.endOffset > after.startOffset
+        ? [{ ...link, start: after.startOffset, end: after.endOffset }]
+        : [];
     });
     if (corrected) this.syncLinks(links);
   }
@@ -291,8 +312,12 @@ export class EditorDocument {
         const after = this.state;
         try {
           if (committed) {
-            const change = before.pieceTable === after.pieceTable ? null
-              : this.#transactionEdits === 1 ? this.#transactionChange : compareLines(before, after);
+            const change =
+              before.pieceTable === after.pieceTable
+                ? null
+                : this.#transactionEdits === 1
+                  ? this.#transactionChange
+                  : compareLines(before, after);
             if (change) this.#publish(before, after, change, kind);
           }
         } finally {
@@ -351,7 +376,8 @@ export class EditorDocument {
   #textEdit: { base: string; from: number; to: number; inserted: string } | undefined;
 
   #updateText({ action, prevState, nextState }: ContentChangeEvent): void {
-    if (action.type === "APPLY_REMOTE" || this.#textState?.pieceTable !== prevState.pieceTable) return;
+    if (action.type === "APPLY_REMOTE" || this.#textState?.pieceTable !== prevState.pieceTable)
+      return;
     const offset = (byte: number): number | undefined => {
       const at = rendering.positionToLineColumn(prevState, position.byteOffset(byte));
       return at ? query.getCharStartOffset(prevState, at.line) + at.column : undefined;
@@ -368,7 +394,8 @@ export class EditorDocument {
     } else {
       const start = Math.min(from, edit.from);
       const end = edit.to + Math.max(0, to - edit.from - edit.inserted.length);
-      const window = edit.base.slice(start, edit.from) + edit.inserted + edit.base.slice(edit.to, end);
+      const window =
+        edit.base.slice(start, edit.from) + edit.inserted + edit.base.slice(edit.to, end);
       edit = {
         base: edit.base,
         from: start,

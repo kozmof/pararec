@@ -1,4 +1,11 @@
-import { MAX_CONTAINER_DEPTH, parseSchema, validateLinks, type Container, type Content, type Schema } from "../../schema.js";
+import {
+  MAX_CONTAINER_DEPTH,
+  parseSchema,
+  validateLinks,
+  type Container,
+  type Content,
+  type Schema,
+} from "../../schema.js";
 import { buildIndex, type TreeIndex } from "./index.js";
 
 function spliced<T>(items: readonly T[], at: number, count: number, ...insert: T[]): T[] {
@@ -53,7 +60,8 @@ export function applyOp(
       const level = pending.pop()!;
       if (level.rows.length && level.depth > MAX_CONTAINER_DEPTH)
         throw new Error("Maximum container depth exceeded");
-      for (const row of level.rows) pending.push({ rows: row.right.children, depth: level.depth + 1 });
+      for (const row of level.rows)
+        pending.push({ rows: row.right.children, depth: level.depth + 1 });
     }
   }
   // Rebuild only the changed row and its ancestors using the existing parent index.

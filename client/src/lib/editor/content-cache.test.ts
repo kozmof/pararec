@@ -34,7 +34,8 @@ it("reuses a store and publishes edits to the authoritative tree synchronously",
 });
 
 it("restores a history range in the same document without publishing another history edit", () => {
-  const store = tree(), changed = vi.fn();
+  const store = tree(),
+    changed = vi.fn();
   cache = new ContentCache(store, changed);
   const doc = cache.get("r");
   const before = store.schema;
@@ -42,7 +43,9 @@ it("restores a history range in the same document without publishing another his
   const after = store.schema;
   const range = changed.mock.calls[0][0].textChange;
   store.restore(before);
-  expect(cache.restoreText({ ...range, oldEnd: range.newEnd, newEnd: range.oldEnd }, "日本right")).toBe(true);
+  expect(
+    cache.restoreText({ ...range, oldEnd: range.newEnd, newEnd: range.oldEnd }, "日本right"),
+  ).toBe(true);
   expect(cache.get("r")).toBe(doc);
   expect(doc.text()).toBe("right");
   store.restore(after);
@@ -57,16 +60,20 @@ it("falls back to rebuilding a stale cached document instead of applying a histo
   cache = new ContentCache(store, () => {});
   const stale = cache.get("r");
   store.apply({ type: "setText", id: "r", text: "external" });
-  expect(cache.restoreText({ contentId: "r", from: 0, oldEnd: 5, newEnd: 8 }, "another snapshot")).toBe(false);
+  expect(
+    cache.restoreText({ contentId: "r", from: 0, oldEnd: 5, newEnd: 8 }, "another snapshot"),
+  ).toBe(false);
   expect(cache.get("r")).not.toBe(stale);
   expect(cache.get("r").text()).toBe("external");
 });
 
 it("restores a transaction that only removes the final newline", () => {
-  const store = tree(), changed = vi.fn();
+  const store = tree(),
+    changed = vi.fn();
   store.apply({ type: "setText", id: "r", text: "one\n" });
   cache = new ContentCache(store, changed);
-  const before = store.schema, doc = cache.get("r");
+  const before = store.schema,
+    doc = cache.get("r");
   doc.transact(() => {
     doc.insert({ line: 0, column: 0 }, "X");
     doc.delete({ line: 0, column: 0 }, { line: 0, column: 1 });
@@ -81,14 +88,19 @@ it("restores a transaction that only removes the final newline", () => {
 });
 
 it("merges backspace history across Unicode and newline boundaries", () => {
-  const store = tree(), history = new AppHistory();
+  const store = tree(),
+    history = new AppHistory();
   store.apply({ type: "setText", id: "r", text: "one\n日本\nthree" });
   const original = store.schema;
-  cache = new ContentCache(store, edit => {
+  cache = new ContentCache(store, (edit) => {
     if (!edit) return;
-    history.record({ schema: edit.before, path: [], focus: { contentId: "r", ...edit.beforeCaret! } },
+    history.record(
+      { schema: edit.before, path: [], focus: { contentId: "r", ...edit.beforeCaret! } },
       { schema: edit.after, path: [], focus: { contentId: "r", ...edit.afterCaret! } },
-      { contentId: "r", intent: "backspace", group: edit.group }, edit.textChange, edit.textPatch);
+      { contentId: "r", intent: "backspace", group: edit.group },
+      edit.textChange,
+      edit.textPatch,
+    );
   });
   const doc = cache.get("r");
   doc.delete({ line: 2, column: 0 }, { line: 2, column: 1 }, { line: 2, column: 1 });
@@ -117,7 +129,8 @@ it("evicts the least recently used store and keeps the newly focused store", () 
   expect(cache.get("l")).toBe(first);
 });
 it("keeps mounted documents live beyond the idle cache limit and evicts them after release", () => {
-  const store = tree(), changed = vi.fn();
+  const store = tree(),
+    changed = vi.fn();
   const dispose = vi.spyOn(EditorDocument.prototype, "dispose");
   cache = new ContentCache(store, changed, 1);
   const owners = [{}, {}, {}];
@@ -138,7 +151,8 @@ it("keeps mounted documents live beyond the idle cache limit and evicts them aft
 it("does not evict a document until its last mounted owner releases it", () => {
   const dispose = vi.spyOn(EditorDocument.prototype, "dispose");
   cache = new ContentCache(tree(), () => {}, 1);
-  const a = {}, b = {};
+  const a = {},
+    b = {};
   cache.get("l", a);
   cache.get("l", b);
   cache.get("l2");

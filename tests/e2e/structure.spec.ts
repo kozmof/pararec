@@ -47,10 +47,13 @@ test("structure shortcuts build and rearrange notes with valid saved snapshots",
 });
 
 for (const active of [false, true]) {
-  test(`clicking the left padding of an ${active ? "active" : "inactive"} parent note prepends a child`, async ({ page }) => {
+  test(`clicking the left padding of an ${active ? "active" : "inactive"} parent note prepends a child`, async ({
+    page,
+  }) => {
     let disk = JSON.parse(readFileSync("fixtures/three-levels.json", "utf8"));
-    await page.route("**/api/document", async route => {
-      if (route.request().method() === "GET") await route.fulfill({ json: disk, headers: { ETag: '"test"' } });
+    await page.route("**/api/document", async (route) => {
+      if (route.request().method() === "GET")
+        await route.fulfill({ json: disk, headers: { ETag: '"test"' } });
       else {
         disk = route.request().postDataJSON();
         await route.fulfill({ status: 204, headers: { ETag: '"test"' } });
@@ -75,7 +78,10 @@ for (const active of [false, true]) {
     expect(disk.root[0].right.children).toHaveLength(1);
     const note = disk.root[0].right.children[0].right;
     expect(note.text).toBe("Child note");
-    expect(note.children.map((row: { right: { text: string } }) => row.right.text)).toEqual(["!", "Grandchild note"]);
+    expect(note.children.map((row: { right: { text: string } }) => row.right.text)).toEqual([
+      "!",
+      "Grandchild note",
+    ]);
     await expect(page).toHaveURL(/#\/c\/root\/child$/);
   });
 }
@@ -83,9 +89,13 @@ for (const active of [false, true]) {
 for (const side of ["left", "right"] as const) {
   test(`Shift Alt Enter inserts above a record from its ${side} cell`, async ({ page }) => {
     let disk = structuredClone(fixture);
-    await page.route("**/api/document", async route => {
-      if (route.request().method() === "GET") await route.fulfill({ json: disk, headers: { ETag: '"upper"' } });
-      else { disk = route.request().postDataJSON(); await route.fulfill({ status: 204, headers: { ETag: '"upper"' } }); }
+    await page.route("**/api/document", async (route) => {
+      if (route.request().method() === "GET")
+        await route.fulfill({ json: disk, headers: { ETag: '"upper"' } });
+      else {
+        disk = route.request().postDataJSON();
+        await route.fulfill({ status: 204, headers: { ETag: '"upper"' } });
+      }
     });
     await page.goto("/");
     await expect(page.getByTestId("editor-sink")).toBeFocused();

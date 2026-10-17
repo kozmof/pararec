@@ -25,7 +25,8 @@ describe("file format", () => {
     expect(result).toEqual({
       title: "document",
       config: {
-        showTitles: true, maxWidth: 1100,
+        showTitles: true,
+        maxWidth: 1100,
         outerWidthRate: { left: 35, right: 65 },
         innerWidthRate: { left: 35, right: 65 },
       },
@@ -55,7 +56,8 @@ it("preserves document settings", () => {
     root: [],
     title: "My notes",
     config: {
-      showTitles: false, maxWidth: 1100,
+      showTitles: false,
+      maxWidth: 1100,
       outerWidthRate: { left: 2, right: 3 },
       innerWidthRate: { left: 1, right: 4 },
     },
@@ -78,7 +80,8 @@ it("populates required title and configuration for legacy files", () => {
     version: 1,
     title: "my.notes",
     config: {
-      showTitles: true, maxWidth: 1100,
+      showTitles: true,
+      maxWidth: 1100,
       outerWidthRate: { left: 35, right: 65 },
       innerWidthRate: { left: 35, right: 65 },
     },
@@ -86,27 +89,43 @@ it("populates required title and configuration for legacy files", () => {
   });
 });
 
-it.each([0, -1, Infinity, NaN, "900px", null])("rejects invalid maxWidth %s", maxWidth => {
+it.each([0, -1, Infinity, NaN, "900px", null])("rejects invalid maxWidth %s", (maxWidth) => {
   expect(() => parseSchema({ version: 1, root: [], config: { maxWidth } })).toThrow();
 });
 
 it("uses the existing width for older configs and preserves a custom width", () => {
   expect(parseSchema({ version: 1, root: [] }).config.maxWidth).toBe(1100);
-  expect(parseSchema({ version: 1, root: [], config: { maxWidth: 900 } }).config.maxWidth).toBe(900);
+  expect(parseSchema({ version: 1, root: [], config: { maxWidth: 900 } }).config.maxWidth).toBe(
+    900,
+  );
 });
 
 it("accepts 64 nested containers and rejects deeper documents", () => {
   let root: import("./schema.js").Container[] = [];
   for (let depth = 0; depth < 64; depth++) {
-    root = [{ id: `r-${depth}`, left: [{ id: `l-${depth}`, text: "" }], right: { id: `n-${depth}`, text: "", children: root } }];
+    root = [
+      {
+        id: `r-${depth}`,
+        left: [{ id: `l-${depth}`, text: "" }],
+        right: { id: `n-${depth}`, text: "", children: root },
+      },
+    ];
   }
   expect(parseSchema({ version: 1, root }).root).toEqual(root);
-  root = [{ id: "extra", left: [{ id: "extra-l", text: "" }], right: { id: "extra-r", text: "", children: root } }];
+  root = [
+    {
+      id: "extra",
+      left: [{ id: "extra-l", text: "" }],
+      right: { id: "extra-r", text: "", children: root },
+    },
+  ];
   expect(() => parseSchema({ version: 1, root })).toThrow("Maximum container depth");
 });
 
 const sharedCases = JSON.parse(readFileSync("fixtures/schema-validation.json", "utf8")) as {
-  name: string; valid: boolean; document: unknown;
+  name: string;
+  valid: boolean;
+  document: unknown;
 }[];
 it.each(sharedCases)("shared validation: $name", ({ valid, document }) => {
   if (valid) expect(() => parseSchema(document)).not.toThrow();
@@ -114,7 +133,11 @@ it.each(sharedCases)("shared validation: $name", ({ valid, document }) => {
 });
 
 it("normalizes linked CRLF text and remaps UTF-8 ranges", () => {
-  const parsed = parseSchema({ version: 1, root: [{ ...row, left: [{ id: "left", text: "a\r\n日本" }] }], links: [{ id: "label", sourceId: "left", start: 3, end: 9, targets: ["right"] }] });
+  const parsed = parseSchema({
+    version: 1,
+    root: [{ ...row, left: [{ id: "left", text: "a\r\n日本" }] }],
+    links: [{ id: "label", sourceId: "left", start: 3, end: 9, targets: ["right"] }],
+  });
   expect(parsed.root[0].left[0].text).toBe("a\n日本");
   expect(parsed.links?.[0]).toMatchObject({ start: 2, end: 8 });
 });

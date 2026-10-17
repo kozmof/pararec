@@ -79,7 +79,8 @@ const content = (id: string) => document.querySelector(`[data-content-id="${id}"
 describe("integrated content editing", () => {
   it("keeps all mounted documents live above the idle cache limit and disposes them on unmount", async () => {
     disk.root = Array.from({ length: 60 }, (_, i) => ({
-      id: `row-${i}`, left: [{ id: `left-${i}`, text: `Left ${i}` }],
+      id: `row-${i}`,
+      left: [{ id: `left-${i}`, text: `Left ${i}` }],
       right: { id: `right-${i}`, text: `Right ${i}`, children: [] },
     }));
     const dispose = vi.spyOn(EditorDocument.prototype, "dispose");
@@ -531,18 +532,29 @@ it("keeps paste separate from adjacent typing", async () => {
   expect(disk).toEqual(original);
 });
 
-it.each([false, true])("arrows follow the same cell routes (Shift: %s)", async shiftKey => {
+it.each([false, true])("arrows follow the same cell routes (Shift: %s)", async (shiftKey) => {
   disk.root[0].left[0].text = "Parent left";
   disk.root[0].right.children = [
-    { id: "child-a", left: [{ id: "child-a-left", text: "Child left" }], right: { id: "child-a-right", text: "Child right", children: [] } },
-    { id: "child-b", left: [{ id: "child-b-left", text: "Bottom left" }], right: { id: "child-b-right", text: "Bottom right", children: [] } },
+    {
+      id: "child-a",
+      left: [{ id: "child-a-left", text: "Child left" }],
+      right: { id: "child-a-right", text: "Child right", children: [] },
+    },
+    {
+      id: "child-b",
+      left: [{ id: "child-b-left", text: "Bottom left" }],
+      right: { id: "child-b-right", text: "Bottom right", children: [] },
+    },
   ];
   await opened();
   const focused = async (id: string) => {
-    await waitFor(() => expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    await waitFor(() =>
+      expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+    );
   };
   const move = async (arrow: string, id: string) => {
-    if (!shiftKey) await placeAtEdge(arrow === "ArrowUp" || arrow === "ArrowLeft" ? "start" : "end");
+    if (!shiftKey)
+      await placeAtEdge(arrow === "ArrowUp" || arrow === "ArrowLeft" ? "start" : "end");
     await key(arrow, { shiftKey });
     await focused(id);
   };
@@ -583,7 +595,7 @@ it.each([false, true])("arrows follow the same cell routes (Shift: %s)", async s
 });
 
 it("Shift Right wraps through three child records and Shift Left reverses the sequence", async () => {
-  disk.root[0].right.children = [1, 2, 3].map(number => ({
+  disk.root[0].right.children = [1, 2, 3].map((number) => ({
     id: `child-${number}`,
     left: [{ id: `child-${number}-left`, text: `Left ${number}` }],
     right: { id: `child-${number}-right`, text: `Right ${number}`, children: [] },
@@ -591,50 +603,73 @@ it("Shift Right wraps through three child records and Shift Left reverses the se
   await opened();
   const sequence = [
     "flat-1-right",
-    "child-1-left", "child-1-right",
-    "child-2-left", "child-2-right",
-    "child-3-left", "child-3-right",
-    "flat-2-left", "flat-2-right",
+    "child-1-left",
+    "child-1-right",
+    "child-2-left",
+    "child-2-right",
+    "child-3-left",
+    "child-3-right",
+    "flat-2-left",
+    "flat-2-right",
   ];
   for (const id of sequence.slice(1)) {
     await key("ArrowRight", { shiftKey: true });
-    await waitFor(() => expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    await waitFor(() =>
+      expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+    );
   }
   await key("ArrowRight", { shiftKey: true });
   expect(content("flat-2-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus();
   for (const id of sequence.slice(0, -1).reverse()) {
     await key("ArrowLeft", { shiftKey: true });
-    await waitFor(() => expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    await waitFor(() =>
+      expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+    );
   }
   await save();
-  expect(disk).toEqual({ ...original, root: [
-    { ...original.root[0], right: { ...original.root[0].right, children: [1, 2, 3].map(number => ({
-      id: `child-${number}`,
-      left: [{ id: `child-${number}-left`, text: `Left ${number}` }],
-      right: { id: `child-${number}-right`, text: `Right ${number}`, children: [] },
-    })) } },
-    original.root[1],
-  ] });
+  expect(disk).toEqual({
+    ...original,
+    root: [
+      {
+        ...original.root[0],
+        right: {
+          ...original.root[0].right,
+          children: [1, 2, 3].map((number) => ({
+            id: `child-${number}`,
+            left: [{ id: `child-${number}-left`, text: `Left ${number}` }],
+            right: { id: `child-${number}-right`, text: `Right ${number}`, children: [] },
+          })),
+        },
+      },
+      original.root[1],
+    ],
+  });
 });
 
 it("edits the parent row in a deeper layer and preserves edits when leaving and reentering", async () => {
   disk = JSON.parse(readFileSync("fixtures/three-levels.json", "utf8"));
   await opened();
   await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Child note" }));
-  await waitFor(() => expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   const parentRow = screen.getByTestId("parent-level");
   expect(parentRow.querySelectorAll("[data-content-id]")).toHaveLength(1);
   expect(parentRow.querySelector('[data-content-id="child-left"]')).not.toBeInTheDocument();
   expect(parentRow.querySelector('[data-content-id="child-right"]')).toBeInTheDocument();
   expect(document.querySelectorAll('[data-content-id="grandchild-right"]')).toHaveLength(1);
   content("child-right").focus();
-  await waitFor(() => expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   await key("!");
   await key("z", { ctrlKey: true });
   await waitFor(() => expect(content("child-right")).toHaveTextContent("Child note"));
   await key("z", { ctrlKey: true, shiftKey: true });
   await waitFor(() => expect(content("child-right")).toHaveTextContent("!Child note"));
-  await waitFor(() => expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   await save();
   expect(disk.root[0].right.children[0].right.text).toBe("!Child note");
   expect(disk.root[0].right.children[0].left[0].text).toBe("");
@@ -647,34 +682,50 @@ it("edits the parent row in a deeper layer and preserves edits when leaving and 
   expect(screen.getByTestId("parent-level")).toHaveTextContent("!Child note");
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
   content("grandchild-right").focus();
-  await waitFor(() => expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   await key("ArrowUp", { shiftKey: true });
-  await waitFor(() => expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   await key("ArrowLeft", { shiftKey: true });
   expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus();
   await key("ArrowRight", { shiftKey: true });
-  await waitFor(() => expect(content("grandchild-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("grandchild-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   await key("ArrowUp", { shiftKey: true });
-  await waitFor(() => expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
 });
 
 it("focuses and types beside navigation arrows before and after the cell is active", async () => {
   disk = JSON.parse(readFileSync("fixtures/three-levels.json", "utf8"));
   await opened();
   content("child-right").focus();
-  await waitFor(() => expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   for (let click = 0; click < 2; click++) {
     await fireEvent.mouseDown(content("root-right"), { button: 0, clientX: 20, clientY: 100 });
-    await waitFor(() => expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    await waitFor(() =>
+      expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+    );
     await key("!");
     expect(content("root-right")).toHaveTextContent("!");
     expect(window.location.hash).toBe("#/");
   }
   await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Child note" }));
-  await waitFor(() => expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   for (let click = 0; click < 2; click++) {
     await fireEvent.mouseDown(content("child-right"), { button: 0, clientX: 20, clientY: 100 });
-    await waitFor(() => expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    await waitFor(() =>
+      expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+    );
     await key("!");
     expect(content("child-right")).toHaveTextContent("!");
     expect(window.location.hash).toBe("#/c/root/child");
@@ -725,58 +776,87 @@ it("autosaves the title while the title field remains focused", async () => {
   expect(title).toHaveFocus();
 });
 
-it.each([[false, false], [false, true], [true, false], [true, true]])("Left selects the first left record (nested: %s, Shift: %s)", async (nested, shiftKey) => {
+it.each([
+  [false, false],
+  [false, true],
+  [true, false],
+  [true, true],
+])("Left selects the first left record (nested: %s, Shift: %s)", async (nested, shiftKey) => {
   const row = {
     id: "multiple-left",
-    left: [1, 2, 3].map(number => ({ id: `multiple-left-${number}`, text: `Left ${number}` })),
+    left: [1, 2, 3].map((number) => ({ id: `multiple-left-${number}`, text: `Left ${number}` })),
     right: { id: "multiple-right", text: "Right note", children: [] },
   };
   if (nested) disk.root[0].right.children = [row];
   else disk.root[0] = row;
   await opened();
   if (nested) content("multiple-right").focus();
-  await waitFor(() => expect(content("multiple-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("multiple-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   if (!shiftKey) await placeAtEdge("start");
   await key("ArrowLeft", { shiftKey });
-  await waitFor(() => expect(content("multiple-left-1").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("multiple-left-1").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   await placeAtEdge("start");
   await key("!");
   await save();
   const saved = nested ? disk.root[0].right.children[0] : disk.root[0];
-  expect(saved.left.map(note => note.text)).toEqual(["!Left 1", "Left 2", "Left 3"]);
+  expect(saved.left.map((note) => note.text)).toEqual(["!Left 1", "Left 2", "Left 3"]);
 });
 
-it.each([[false, false], [false, true], [true, false], [true, true]])("Right from any left record goes to its right cell (nested: %s, Shift: %s)", async (nested, shiftKey) => {
-  const row = {
-    id: "multiple-left",
-    left: [1, 2, 3].map(number => ({ id: `multiple-left-${number}`, text: `Left ${number}` })),
-    right: { id: "multiple-right", text: "Right note", children: [] },
-  };
-  if (nested) disk.root[0].right.children = [row];
-  else disk.root[0] = row;
-  await opened();
-  for (const note of row.left) {
-    content(note.id).focus();
-    await waitFor(() => expect(content(note.id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-    if (!shiftKey) await placeAtEdge("end");
-    await key("ArrowRight", { shiftKey });
-    await waitFor(() => expect(content("multiple-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-  }
-  await key("!");
-  await save();
-  const saved = nested ? disk.root[0].right.children[0] : disk.root[0];
-  expect(saved.left).toEqual(row.left);
-  expect(saved.right.text).toBe("!Right note");
-});
+it.each([
+  [false, false],
+  [false, true],
+  [true, false],
+  [true, true],
+])(
+  "Right from any left record goes to its right cell (nested: %s, Shift: %s)",
+  async (nested, shiftKey) => {
+    const row = {
+      id: "multiple-left",
+      left: [1, 2, 3].map((number) => ({ id: `multiple-left-${number}`, text: `Left ${number}` })),
+      right: { id: "multiple-right", text: "Right note", children: [] },
+    };
+    if (nested) disk.root[0].right.children = [row];
+    else disk.root[0] = row;
+    await opened();
+    for (const note of row.left) {
+      content(note.id).focus();
+      await waitFor(() =>
+        expect(content(note.id).querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+      );
+      if (!shiftKey) await placeAtEdge("end");
+      await key("ArrowRight", { shiftKey });
+      await waitFor(() =>
+        expect(
+          content("multiple-right").querySelector('[data-testid="editor-sink"]'),
+        ).toHaveFocus(),
+      );
+    }
+    await key("!");
+    await save();
+    const saved = nested ? disk.root[0].right.children[0] : disk.root[0];
+    expect(saved.left).toEqual(row.left);
+    expect(saved.right.text).toBe("!Right note");
+  },
+);
 
 it("Shift Enter from a left cell creates a sibling row and can be undone", async () => {
   disk.root[0].left[0].text = "left tail";
   await opened();
   content("flat-1-left").focus();
-  await waitFor(() => expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   for (let column = 0; column < 5; column++) await key("ArrowRight");
   await key("Enter", { shiftKey: true });
-  await waitFor(() => expect(document.querySelector('[data-testid="editor-sink"]')?.closest('[aria-label="Left note"]')).not.toBeNull());
+  await waitFor(() =>
+    expect(
+      document.querySelector('[data-testid="editor-sink"]')?.closest('[aria-label="Left note"]'),
+    ).not.toBeNull(),
+  );
   await key("!");
   await save();
   expect(disk.root).toHaveLength(3);
@@ -795,7 +875,9 @@ it("Ctrl+Enter and Ctrl+Delete do not change left-cell structure", async () => {
   disk.root[0].left[0].text = "left text";
   await opened();
   content("flat-1-left").focus();
-  await waitFor(() => expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("flat-1-left").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   await key("Enter", { ctrlKey: true });
   await key("Delete", { ctrlKey: true });
   await save();
@@ -841,7 +923,9 @@ it("activates a 5000-line preview without replacing or measuring every line", as
   await fireEvent.mouseDown(lines[0]!.firstElementChild!, { button: 0, clientX: 12, clientY: 0 });
   await waitFor(() => expect(note.querySelector('[data-testid="editor-sink"]')).toHaveFocus());
   expect(note.querySelector('[data-testid="editor-surface"]')).toBe(preview);
-  expect([...note.querySelectorAll("[data-line]")].every((line, index) => line === lines[index])).toBe(true);
+  expect(
+    [...note.querySelectorAll("[data-line]")].every((line, index) => line === lines[index]),
+  ).toBe(true);
   expect(geometry.mock.calls.length).toBeLessThan(100);
   geometry.mockRestore();
   // Place the cursor at the text origin without relying on browser geometry.
@@ -853,12 +937,15 @@ it("activates a 5000-line preview without replacing or measuring every line", as
 
 it("activates and edits a preview after its document was evicted from the cache", async () => {
   disk.root = Array.from({ length: 60 }, (_, index) => ({
-    id: `row-${index}`, left: [{ id: `left-${index}`, text: "Left" }],
+    id: `row-${index}`,
+    left: [{ id: `left-${index}`, text: "Left" }],
     right: { id: `right-${index}`, text: "Right", children: [] },
   }));
   await opened();
   content("left-1").focus();
-  await waitFor(() => expect(content("left-1").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("left-1").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   await key("!");
   await save();
   expect(disk.root[1].left[0].text).toBe("!Left");
@@ -866,8 +953,10 @@ it("activates and edits a preview after its document was evicted from the cache"
 
 it("keeps a 50,010-line window bounded through input, newlines, history, and select-all", async () => {
   disk = JSON.parse(readFileSync("fixtures/long.json", "utf8"));
-  disk.root[0].right.text = Array.from({ length: 50_010 }, (_, line) =>
-    `${line + 1}: 日本語の長い文章。こんにちは 👩🏽‍💻 葛󠄀 é`).join("\n");
+  disk.root[0].right.text = Array.from(
+    { length: 50_010 },
+    (_, line) => `${line + 1}: 日本語の長い文章。こんにちは 👩🏽‍💻 葛󠄀 é`,
+  ).join("\n");
   const initialText = disk.root[0].right.text;
   await opened();
   const surface = screen.getByTestId("editor-surface");
@@ -895,8 +984,10 @@ it("keeps a 50,010-line window bounded through input, newlines, history, and sel
 
 it("undoes and redoes 500,000-line typing in place without decoding or rebuilding the document", async () => {
   disk = JSON.parse(readFileSync("fixtures/long.json", "utf8"));
-  disk.root[0].right.text = Array.from({ length: 500_000 }, (_, line) =>
-    `${line + 1}: 日本語の長い文章。こんにちは 👩🏽‍💻 葛󠄀 é`).join("\n");
+  disk.root[0].right.text = Array.from(
+    { length: 500_000 },
+    (_, line) => `${line + 1}: 日本語の長い文章。こんにちは 👩🏽‍💻 葛󠄀 é`,
+  ).join("\n");
   const initialText = disk.root[0].right.text;
   await opened();
   await placeAtEdge("end");
@@ -916,7 +1007,9 @@ it("undoes and redoes 500,000-line typing in place without decoding or rebuildin
     expect(decode).not.toHaveBeenCalled();
     expect(dispose).not.toHaveBeenCalled();
     expect(restore).toHaveBeenCalledTimes(6);
-    expect(restore.mock.calls.every(([, from, oldEnd, newEnd]) => Math.max(oldEnd, newEnd) - from < 200)).toBe(true);
+    expect(
+      restore.mock.calls.every(([, from, oldEnd, newEnd]) => Math.max(oldEnd, newEnd) - from < 200),
+    ).toBe(true);
     expect(surface.querySelectorAll("[data-line]").length).toBeLessThan(100);
   } finally {
     decode.mockRestore();
@@ -943,7 +1036,9 @@ it("keeps the 5000-line editor and unchanged line elements mounted during undo a
   await key("y", { ctrlKey: true });
   expect(screen.getByTestId("editor-sink")).toBe(sink);
   expect(surface.querySelector('[data-line="10"]')).toBe(unchangedLine);
-  expect(surface.querySelector('[data-line="0"]')?.textContent).toBe("!" + initialText.split("\n")[0]);
+  expect(surface.querySelector('[data-line="0"]')?.textContent).toBe(
+    "!" + initialText.split("\n")[0],
+  );
   await key("?");
   await save();
   expect(disk.root[0].right.text).toBe("!?" + initialText);
@@ -988,13 +1083,19 @@ it("deletes left cells with Alt+Delete and restores them with undo", async () =>
   await tick();
   await key("Delete", { altKey: true });
   await save();
-  expect(disk.root[0].left.some(note => note.id === "extra-left")).toBe(false);
+  expect(disk.root[0].left.some((note) => note.id === "extra-left")).toBe(false);
   await key("z", { ctrlKey: true });
   await save();
   expect(disk.root[0].left.at(-1)?.text).toBe("extra");
 });
 it("deletes children with Ctrl+Delete and restores their text with undo", async () => {
-  disk.root[0].right.children = [{ id: "child-delete", left: [{ id: "child-delete-left", text: "child left" }], right: { id: "child-delete-right", text: "child right", children: [] } }];
+  disk.root[0].right.children = [
+    {
+      id: "child-delete",
+      left: [{ id: "child-delete-left", text: "child left" }],
+      right: { id: "child-delete-right", text: "child right", children: [] },
+    },
+  ];
   const before = clone(disk.root[0]);
   await opened();
   await key("Delete", { ctrlKey: true });
@@ -1051,7 +1152,12 @@ it("links selected text with editing disabled and restores link offsets on undo"
   await fireEvent.click(screen.getByRole("button", { name: "Done" }));
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
   await save();
-  expect(disk.links?.[0]).toMatchObject({ sourceId: "flat-1-right", start: 0, end: 10, targets: ["flat-2-right"] });
+  expect(disk.links?.[0]).toMatchObject({
+    sourceId: "flat-1-right",
+    start: 0,
+    end: 10,
+    targets: ["flat-2-right"],
+  });
   await key("!");
   await save();
   expect(content("flat-1-right").querySelector(".link-label")).toHaveTextContent("First note");
@@ -1079,7 +1185,9 @@ it("cancels linking with Escape without changing the document", async () => {
 
 for (const focusedLabel of [true, false]) {
   it(`removes a label from its context menu while keeping text, with undo and redo (focused: ${focusedLabel})`, async () => {
-    disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] }];
+    disk.links = [
+      { id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] },
+    ];
     await opened();
     if (!focusedLabel) {
       content("flat-2-right").focus();
@@ -1097,7 +1205,9 @@ for (const focusedLabel of [true, false]) {
     expect(disk.links).toEqual([]);
     expect(disk.root[0].right.text).toBe(text);
     await key("z", { ctrlKey: true });
-    await waitFor(() => expect(content("flat-1-right").querySelector(".link-label")).not.toBeNull());
+    await waitFor(() =>
+      expect(content("flat-1-right").querySelector(".link-label")).not.toBeNull(),
+    );
     await save();
     expect(disk.links).toHaveLength(1);
     await key("z", { ctrlKey: true, shiftKey: true });
@@ -1110,7 +1220,9 @@ for (const focusedLabel of [true, false]) {
 }
 
 it("dismisses a label context menu with Escape without removing the label", async () => {
-  disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] }];
+  disk.links = [
+    { id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] },
+  ];
   await opened();
   await fireEvent.contextMenu(content("flat-1-right").querySelector(".link-label")!);
   expect(screen.getByRole("menuitem", { name: "Remove label" })).toBeInTheDocument();
@@ -1121,13 +1233,25 @@ it("dismisses a label context menu with Escape without removing the label", asyn
 });
 
 it("lists destinations and removes them individually with undo and redo", async () => {
-  disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-1-left", "flat-2-right"] }];
+  disk.links = [
+    {
+      id: "label",
+      sourceId: "flat-1-right",
+      start: 0,
+      end: 5,
+      targets: ["flat-1-left", "flat-2-right"],
+    },
+  ];
   await opened();
   const text = disk.root[0].right.text;
-  const openMenu = () => fireEvent.contextMenu(content("flat-1-right").querySelector(".link-label")!);
+  const openMenu = () =>
+    fireEvent.contextMenu(content("flat-1-right").querySelector(".link-label")!);
   await openMenu();
   expect(screen.getByRole("menuitem", { name: "Remove 1" })).toHaveAttribute("title", "Empty cell");
-  expect(screen.getByRole("menuitem", { name: "Remove 2" })).toHaveAttribute("title", disk.root[1].right.text);
+  expect(screen.getByRole("menuitem", { name: "Remove 2" })).toHaveAttribute(
+    "title",
+    disk.root[1].right.text,
+  );
   await fireEvent.click(screen.getByRole("menuitem", { name: "Remove 1" }));
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
   await save();
@@ -1164,7 +1288,9 @@ it("dismisses the selected-text menu outside, keeps it open inside, and has no C
 });
 
 it("dismisses a label menu when another cell is clicked without stealing its focus", async () => {
-  disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] }];
+  disk.links = [
+    { id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] },
+  ];
   await opened();
   await fireEvent.contextMenu(content("flat-1-right").querySelector(".link-label")!);
   expect(screen.queryByRole("menuitem", { name: "Cancel" })).not.toBeInTheDocument();
@@ -1181,7 +1307,9 @@ it("dismisses a label menu when another cell is clicked without stealing its foc
 for (const ime of [false, true]) {
   it(`keeps inserted text outside a label after deleting its last character (IME: ${ime})`, async () => {
     disk.root[0].right.text = "footext";
-    disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 3, targets: ["flat-2-right"] }];
+    disk.links = [
+      { id: "label", sourceId: "flat-1-right", start: 0, end: 3, targets: ["flat-2-right"] },
+    ];
     await opened();
     for (let i = 0; i < 3; i++) await key("ArrowRight");
     await key("Backspace");
@@ -1209,7 +1337,11 @@ for (const ime of [false, true]) {
 
 it("suppresses the native context menu throughout cells and linking mode", async () => {
   await opened();
-  for (const target of [content("flat-1-right"), screen.getByTestId("editor-sink"), content("flat-2-right")]) {
+  for (const target of [
+    content("flat-1-right"),
+    screen.getByTestId("editor-sink"),
+    content("flat-2-right"),
+  ]) {
     expect(await fireEvent.contextMenu(target)).toBe(false);
   }
   expect(screen.queryByRole("menu")).not.toBeInTheDocument();
@@ -1221,9 +1353,13 @@ it("suppresses the native context menu throughout cells and linking mode", async
 });
 
 it("opens the label menu from destination numbers and suppresses native menus within it", async () => {
-  disk.links = [{ id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] }];
+  disk.links = [
+    { id: "label", sourceId: "flat-1-right", start: 0, end: 5, targets: ["flat-2-right"] },
+  ];
   await opened();
-  expect(await fireEvent.contextMenu(screen.getByRole("button", { name: /Linked cell 1:/ }))).toBe(false);
+  expect(await fireEvent.contextMenu(screen.getByRole("button", { name: /Linked cell 1:/ }))).toBe(
+    false,
+  );
   const remove = screen.getByRole("menuitem", { name: "Remove label" });
   expect(await fireEvent.contextMenu(remove)).toBe(false);
   expect(screen.getByRole("menuitem", { name: "Remove 1" })).toBeInTheDocument();
@@ -1233,13 +1369,19 @@ it("opens the label menu from destination numbers and suppresses native menus wi
 
 it("releases offscreen editor stores and recreates them when a cell receives focus", async () => {
   const observers = new Map<Element, IntersectionObserverCallback>();
-  vi.stubGlobal("IntersectionObserver", class {
-    constructor(private callback: IntersectionObserverCallback) {}
-    observe(node: Element) { observers.set(node, this.callback); }
-    disconnect() {}
-  });
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(private callback: IntersectionObserverCallback) {}
+      observe(node: Element) {
+        observers.set(node, this.callback);
+      }
+      disconnect() {}
+    },
+  );
   disk.root = Array.from({ length: 60 }, (_, i) => ({
-    id: "row-" + i, left: [{ id: "left-" + i, text: "Left " + i }],
+    id: "row-" + i,
+    left: [{ id: "left-" + i, text: "Left " + i }],
     right: { id: "right-" + i, text: "Right " + i, children: [] },
   }));
   const dispose = vi.spyOn(EditorDocument.prototype, "dispose");
@@ -1252,7 +1394,9 @@ it("releases offscreen editor stores and recreates them when a cell receives foc
   expect(content("right-59").querySelector('[data-testid="editor-preview"]')).toBeNull();
   expect(dispose).toHaveBeenCalled();
   content("right-59").focus();
-  await waitFor(() => expect(content("right-59").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("right-59").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   await key("!");
   await save();
   expect(disk.root[59].right.text).toContain("!");
@@ -1263,9 +1407,13 @@ it("Shift Enter at the full-width parent start prepends a child and supports und
   const before = clone(disk);
   await opened();
   await fireEvent.click(screen.getByRole("button", { name: "Go deeper into Child note" }));
-  await waitFor(() => expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   content("child-right").focus();
-  await waitFor(() => expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("child-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   await placeAtEdge("start");
   await key("Enter", { shiftKey: true });
   await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
@@ -1284,34 +1432,49 @@ it("Shift Enter at the full-width parent start prepends a child and supports und
   await save();
   expect(disk).toEqual(before);
   await key("z", { ctrlKey: true, shiftKey: true });
-  await waitFor(() => expect(content(children[0].right.id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(
+      content(children[0].right.id).querySelector('[data-testid="editor-sink"]'),
+    ).toHaveFocus(),
+  );
   await save();
   expect(disk.root[0].right.children[0].right.children[0].right.text).toBe("");
   expect(window.location.hash).toBe("#/c/root/child");
 });
 
-it.each(["left", "right"])("Shift Alt Enter inserts above the record from its %s cell and supports history", async side => {
-  await opened();
-  const id = `flat-1-${side}`;
-  content(id).focus();
-  await waitFor(() => expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-  if (side === "right") await key("ArrowRight");
-  await key("Enter", { shiftKey: true, altKey: true });
-  await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
-  await key("!");
-  await save();
-  expect(disk.root).toHaveLength(3);
-  expect(disk.root.slice(1)).toEqual(original.root);
-  expect(side === "left" ? disk.root[0].left[0].text : disk.root[0].right.text).toBe("!");
-  expect(side === "left" ? disk.root[0].right.text : disk.root[0].left[0].text).toBe("");
-  const inserted = disk.root[0];
-  await key("z", { ctrlKey: true });
-  await key("z", { ctrlKey: true });
-  await save();
-  expect(disk).toEqual(original);
-  await key("z", { ctrlKey: true, shiftKey: true });
-  await waitFor(() => expect(content(side === "left" ? inserted.left[0].id : inserted.right.id).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-  await save();
-  expect(disk.root).toHaveLength(3);
-  expect(disk.root.slice(1)).toEqual(original.root);
-});
+it.each(["left", "right"])(
+  "Shift Alt Enter inserts above the record from its %s cell and supports history",
+  async (side) => {
+    await opened();
+    const id = `flat-1-${side}`;
+    content(id).focus();
+    await waitFor(() =>
+      expect(content(id).querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+    );
+    if (side === "right") await key("ArrowRight");
+    await key("Enter", { shiftKey: true, altKey: true });
+    await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+    await key("!");
+    await save();
+    expect(disk.root).toHaveLength(3);
+    expect(disk.root.slice(1)).toEqual(original.root);
+    expect(side === "left" ? disk.root[0].left[0].text : disk.root[0].right.text).toBe("!");
+    expect(side === "left" ? disk.root[0].right.text : disk.root[0].left[0].text).toBe("");
+    const inserted = disk.root[0];
+    await key("z", { ctrlKey: true });
+    await key("z", { ctrlKey: true });
+    await save();
+    expect(disk).toEqual(original);
+    await key("z", { ctrlKey: true, shiftKey: true });
+    await waitFor(() =>
+      expect(
+        content(side === "left" ? inserted.left[0].id : inserted.right.id).querySelector(
+          '[data-testid="editor-sink"]',
+        ),
+      ).toHaveFocus(),
+    );
+    await save();
+    expect(disk.root).toHaveLength(3);
+    expect(disk.root.slice(1)).toEqual(original.root);
+  },
+);

@@ -49,13 +49,13 @@ This example shows an empty document with the default layout settings.
 }
 ```
 
-| Field | Default | Effect |
-| --- | --- | --- |
-| `title` | File name without its extension | Document title. |
-| `config.showTitles` | `true` | Switch to show the document title. |
-| `config.maxWidth` | `1100` | Maximum width of the notes area in pixels. |
-| `config.outerWidthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for rows in the current layer. |
-| `config.innerWidthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for child rows shown inside a right cell. |
+| Field                   | Default                         | Effect                                                           |
+| ----------------------- | ------------------------------- | ---------------------------------------------------------------- |
+| `title`                 | File name without its extension | Document title.                                                  |
+| `config.showTitles`     | `true`                          | Switch to show the document title.                               |
+| `config.maxWidth`       | `1100`                          | Maximum width of the notes area in pixels.                       |
+| `config.outerWidthRate` | `{ "left": 35, "right": 65 }`   | Relative column widths for rows in the current layer.            |
+| `config.innerWidthRate` | `{ "left": 35, "right": 65 }`   | Relative column widths for child rows shown inside a right cell. |
 
 Omitted fields use their defaults. Width values must be positive, finite numbers. Column rates are proportions and do not need to total 100. For example, `{ "left": 1, "right": 2 }` makes the right column twice as wide as the left. Use the exact key `innerWidthRate` as shown.
 
@@ -94,25 +94,25 @@ pnpm test:release
 
 While editing a note, use the following shortcuts. On macOS, use Cmd in place of Ctrl.
 
-| Shortcut | Action |
-| --- | --- |
-| Arrow keys | Move the cursor within text. At a note boundary, move to the next cell in that direction. |
-| Shift+Left / Shift+Right | Move between cells and columns from any cursor position. |
-| Shift+Up / Shift+Down | Move to the cell above or below from any cursor position. |
-| Enter | Insert a line break. |
-| Shift+Enter | Create an empty sibling row with left and right cells and focus the same column in the new row. Keep all text in the original cell. At the start of the full-width parent note in a child layer, insert the empty row before its children instead. |
-| Shift+Alt+Enter | Insert an empty two-column row above the current record and focus the same column. Keep all existing text in place. |
-| Alt+Enter in a left cell | Split at the cursor into a new left cell in the same row. |
-| Ctrl+Enter in a right cell | Add an empty child row and focus its right cell. |
-| Shift+Delete | Remove the current row, including its children. |
-| Alt+Delete in a left cell | Remove the current left cell, unless it is the last one in the row. |
-| Ctrl+Delete in a right cell | Remove all child rows of the current note. |
-| Alt+Up / Alt+Down | Move the current left cell or row up or down. |
-| Ctrl+A | Select all text in the current note. |
-| Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, or paste text. |
-| Ctrl+S | Save immediately. |
-| Ctrl+Z | Undo text, structure, or link changes. |
-| Ctrl+Shift+Z / Ctrl+Y | Redo an action. |
+| Shortcut                    | Action                                                                                                                                                                                                                                             |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arrow keys                  | Move the cursor within text. At a note boundary, move to the next cell in that direction.                                                                                                                                                          |
+| Shift+Left / Shift+Right    | Move between cells and columns from any cursor position.                                                                                                                                                                                           |
+| Shift+Up / Shift+Down       | Move to the cell above or below from any cursor position.                                                                                                                                                                                          |
+| Enter                       | Insert a line break.                                                                                                                                                                                                                               |
+| Shift+Enter                 | Create an empty sibling row with left and right cells and focus the same column in the new row. Keep all text in the original cell. At the start of the full-width parent note in a child layer, insert the empty row before its children instead. |
+| Shift+Alt+Enter             | Insert an empty two-column row above the current record and focus the same column. Keep all existing text in place.                                                                                                                                |
+| Alt+Enter in a left cell    | Split at the cursor into a new left cell in the same row.                                                                                                                                                                                          |
+| Ctrl+Enter in a right cell  | Add an empty child row and focus its right cell.                                                                                                                                                                                                   |
+| Shift+Delete                | Remove the current row, including its children.                                                                                                                                                                                                    |
+| Alt+Delete in a left cell   | Remove the current left cell, unless it is the last one in the row.                                                                                                                                                                                |
+| Ctrl+Delete in a right cell | Remove all child rows of the current note.                                                                                                                                                                                                         |
+| Alt+Up / Alt+Down           | Move the current left cell or row up or down.                                                                                                                                                                                                      |
+| Ctrl+A                      | Select all text in the current note.                                                                                                                                                                                                               |
+| Ctrl+C / Ctrl+X / Ctrl+V    | Copy, cut, or paste text.                                                                                                                                                                                                                          |
+| Ctrl+S                      | Save immediately.                                                                                                                                                                                                                                  |
+| Ctrl+Z                      | Undo text, structure, or link changes.                                                                                                                                                                                                             |
+| Ctrl+Shift+Z / Ctrl+Y       | Redo an action.                                                                                                                                                                                                                                    |
 
 ## Linking text to cells
 
@@ -146,9 +146,9 @@ CI runs automated checks on every push and pull request. Tag pushes and manual w
 
 The server is intended for local use and listens only on `127.0.0.1`. It accepts at most 16 connections and closes each connection after 30 seconds, including incomplete requests. Excess connections are closed immediately. Document requests wait for one shared permit before reading or parsing data.
 
-Documents support up to 64 nested container levels. 
+Documents support up to 64 nested container levels.
 
-Uploads are limited to 32 MiB. Files read from disk and formatted saves are limited to 128 MiB. 
+Uploads are limited to 32 MiB. Files read from disk and formatted saves are limited to 128 MiB.
 
 ## Document API
 

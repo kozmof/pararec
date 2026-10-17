@@ -83,30 +83,50 @@ describe("pad navigation", () => {
     [1, 2, 4],
     [1, 3, 4],
     [0, 2, 4],
-  ])("returns through mixed layer jumps %i, %i, %i and can revisit a deeper view", async (...depths) => {
-    const deep = JSON.parse(readFileSync("fixtures/seven-levels.json", "utf8"));
-    vi.mocked(fetch).mockImplementation(() => Promise.resolve(response(deep)));
-    await opened();
-    const hashAt = (depth: number) => depth < 0 ? "#/" : "#/c/" + Array.from({ length: depth + 1 }, (_, i) => `layer-${i}`).join("/");
-    const visit = async (depth: number) => {
-      content(`layer-${depth}-right`).focus();
-      await waitFor(() => expect(content(`layer-${depth}-right`).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-      await fireEvent.click(screen.getByRole("button", { name: `Go deeper into Layer ${depth + 1} note` }));
-      await waitFor(() => expect(window.location.hash).toBe(hashAt(depth)));
-    };
-    for (const depth of depths) await visit(depth);
-    const previous = depths[depths.length - 2];
-    await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
-    await waitFor(() => expect(window.location.hash).toBe(hashAt(previous)));
-    await waitFor(() => expect(content(`layer-${depths.at(-1)}-right`).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
-    await visit(depths.at(-1)!);
-    for (const depth of [...depths.slice(0, -1).reverse(), -1]) {
+  ])(
+    "returns through mixed layer jumps %i, %i, %i and can revisit a deeper view",
+    async (...depths) => {
+      const deep = JSON.parse(readFileSync("fixtures/seven-levels.json", "utf8"));
+      vi.mocked(fetch).mockImplementation(() => Promise.resolve(response(deep)));
+      await opened();
+      const hashAt = (depth: number) =>
+        depth < 0
+          ? "#/"
+          : "#/c/" + Array.from({ length: depth + 1 }, (_, i) => `layer-${i}`).join("/");
+      const visit = async (depth: number) => {
+        content(`layer-${depth}-right`).focus();
+        await waitFor(() =>
+          expect(
+            content(`layer-${depth}-right`).querySelector('[data-testid="editor-sink"]'),
+          ).toHaveFocus(),
+        );
+        await fireEvent.click(
+          screen.getByRole("button", { name: `Go deeper into Layer ${depth + 1} note` }),
+        );
+        await waitFor(() => expect(window.location.hash).toBe(hashAt(depth)));
+      };
+      for (const depth of depths) await visit(depth);
+      const previous = depths[depths.length - 2];
       await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
-      await waitFor(() => expect(window.location.hash).toBe(hashAt(depth)));
-      await waitFor(() => expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent(`${depth + 2}:7`));
-    }
-    expect(screen.queryByRole("button", { name: "Go back" })).not.toBeInTheDocument();
-  });
+      await waitFor(() => expect(window.location.hash).toBe(hashAt(previous)));
+      await waitFor(() =>
+        expect(
+          content(`layer-${depths.at(-1)}-right`).querySelector('[data-testid="editor-sink"]'),
+        ).toHaveFocus(),
+      );
+      await visit(depths.at(-1)!);
+      for (const depth of [...depths.slice(0, -1).reverse(), -1]) {
+        await fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+        await waitFor(() => expect(window.location.hash).toBe(hashAt(depth)));
+        await waitFor(() =>
+          expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent(
+            `${depth + 2}:7`,
+          ),
+        );
+      }
+      expect(screen.queryByRole("button", { name: "Go back" })).not.toBeInTheDocument();
+    },
+  );
   it("falls back to the parent when a deep layer is opened directly", async () => {
     window.history.replaceState(null, "", "#/c/root/child");
     await opened();
@@ -226,7 +246,8 @@ it("shows the filename title and applies configured width rates", async () => {
         ...fixture,
         title: undefined,
         config: {
-          showTitles: true, maxWidth: 1100,
+          showTitles: true,
+          maxWidth: 1100,
           outerWidthRate: { left: 2, right: 3 },
           innerWidthRate: { left: 1, right: 4 },
         },
@@ -266,14 +287,18 @@ it("shows the current layer and whole-document depth while navigating", async ()
 });
 
 it("shows layer status on an empty document with the title hidden", async () => {
-  vi.mocked(fetch).mockResolvedValue(response({ ...fixture, root: [], config: { ...fixture.config, showTitles: false } }));
+  vi.mocked(fetch).mockResolvedValue(
+    response({ ...fixture, root: [], config: { ...fixture.config, showTitles: false } }),
+  );
   await opened();
   expect(screen.queryByRole("textbox", { name: "Document title" })).not.toBeInTheDocument();
   expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent("1:1");
 });
 
 it("applies the configured maximum width to the whole records layout", async () => {
-  vi.mocked(fetch).mockResolvedValue(response({ ...fixture, config: { ...fixture.config, maxWidth: 900 } }));
+  vi.mocked(fetch).mockResolvedValue(
+    response({ ...fixture, config: { ...fixture.config, maxWidth: 900 } }),
+  );
   await opened();
   expect(document.querySelector("main")).toHaveStyle({ maxWidth: "900px" });
 });
@@ -281,12 +306,16 @@ it("applies the configured maximum width to the whole records layout", async () 
 for (const destination of ["child-right", "child-left"]) {
   it(`follows a link to visible ${destination} without changing layers`, async () => {
     const document = structuredClone(fixture);
-    document.links = [{ id: "link", sourceId: "root-right", start: 0, end: 4, targets: [destination] }];
+    document.links = [
+      { id: "link", sourceId: "root-right", start: 0, end: 4, targets: [destination] },
+    ];
     vi.mocked(fetch).mockResolvedValue(response(document));
     await opened();
     const hash = window.location.hash;
     await fireEvent.click(screen.getByRole("button", { name: /Linked cell 1:/ }));
-    await waitFor(() => expect(content(destination).querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+    await waitFor(() =>
+      expect(content(destination).querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+    );
     expect(window.location.hash).toBe(hash);
     expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent("1:3");
   });
@@ -294,24 +323,32 @@ for (const destination of ["child-right", "child-left"]) {
 
 it("follows a link to the visible parent without leaving the current layer", async () => {
   const document = structuredClone(fixture);
-  document.links = [{ id: "link", sourceId: "child-right", start: 0, end: 5, targets: ["root-right"] }];
+  document.links = [
+    { id: "link", sourceId: "child-right", start: 0, end: 5, targets: ["root-right"] },
+  ];
   vi.mocked(fetch).mockResolvedValue(response(document));
   window.history.replaceState(null, "", "/#/c/root");
   await opened();
   await fireEvent.click(screen.getByRole("button", { name: /Linked cell 1:/ }));
-  await waitFor(() => expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   expect(window.location.hash).toBe("#/c/root");
   expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent("2:3");
 });
 
 it("changes layers when a linked destination is not currently shown", async () => {
   const document = structuredClone(fixture);
-  document.links = [{ id: "link", sourceId: "root-right", start: 0, end: 4, targets: ["grandchild-right"] }];
+  document.links = [
+    { id: "link", sourceId: "root-right", start: 0, end: 4, targets: ["grandchild-right"] },
+  ];
   vi.mocked(fetch).mockResolvedValue(response(document));
   await opened();
   expect(content("grandchild-right")).toBeNull();
   await fireEvent.click(screen.getByRole("button", { name: /Linked cell 1:/ }));
-  await waitFor(() => expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("grandchild-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   expect(window.location.hash).toBe("#/c/root/child");
   expect(screen.getByRole("status", { name: "Current layer" })).toHaveTextContent("3:3");
 });
@@ -344,9 +381,18 @@ it("navigates with arrows while linking without selecting their cells", async ()
   expect(content("grandchild-right")).toBeNull();
   expect(toolbar).toHaveTextContent("Select cells to link (2)");
   await fireEvent.click(screen.getByRole("button", { name: "Done" }));
-  await waitFor(() => expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await waitFor(() =>
+    expect(content("root-right").querySelector('[data-testid="editor-sink"]')).toHaveFocus(),
+  );
   await key("s");
-  await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([, options]) => options?.method === "PUT")).toBe(true));
-  const save = [...vi.mocked(fetch).mock.calls].reverse().find(([, options]) => options?.method === "PUT")!;
-  expect(JSON.parse(save[1]!.body as string).links[0].targets).toEqual(["child-left", "grandchild-right"]);
+  await waitFor(() =>
+    expect(vi.mocked(fetch).mock.calls.some(([, options]) => options?.method === "PUT")).toBe(true),
+  );
+  const save = [...vi.mocked(fetch).mock.calls]
+    .reverse()
+    .find(([, options]) => options?.method === "PUT")!;
+  expect(JSON.parse(save[1]!.body as string).links[0].targets).toEqual([
+    "child-left",
+    "grandchild-right",
+  ]);
 });

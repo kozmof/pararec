@@ -121,9 +121,15 @@ it("gives the native IME a full line box at the caret across wrapping", async ()
 it("limits activation geometry and preserves shifted line elements when editing a large note", async () => {
   const createMeasure = vi.mocked(measurement.domLineMeasurer).getMockImplementation()!;
   let measuredRows = 0;
-  vi.mocked(measurement.domLineMeasurer).mockImplementation(element => {
+  vi.mocked(measurement.domLineMeasurer).mockImplementation((element) => {
     const measure = createMeasure(element);
-    return { ...measure, visualRows(line) { measuredRows++; return measure.visualRows(line); } };
+    return {
+      ...measure,
+      visualRows(line) {
+        measuredRows++;
+        return measure.visualRows(line);
+      },
+    };
   });
   doc = new EditorDocument(Array.from({ length: 1000 }, (_, line) => `line${line}`).join("\n"));
   render(EditorSurface, { props: { doc, autoHeight: true, caret: { line: 0, column: 2 } } });

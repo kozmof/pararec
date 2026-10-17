@@ -36,7 +36,10 @@ async function sendDocument(
         : null;
     if (code === "SaveOutcomeUncertain") {
       const loaded = await loadDocument(signal);
-      if (loaded.etag !== null && JSON.stringify(loaded.schema) === JSON.stringify(parseSchema(schema)))
+      if (
+        loaded.etag !== null &&
+        JSON.stringify(loaded.schema) === JSON.stringify(parseSchema(schema))
+      )
         return loaded.etag;
       throw new SaveConflict();
     }

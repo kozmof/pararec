@@ -30,7 +30,9 @@ for (const row of rows) {
   assert.match(row[4], /^\d{4}-\d{2}-\d{2}$/, environment + ": date is missing");
   assert.match(row[5], /^[a-f0-9]{40}$/, environment + ": record the full tested commit hash");
   execFileSync("git", ["merge-base", "--is-ancestor", row[5], commit]);
-  const changes = execFileSync("git", ["diff", row[5], "--", ".", ":(exclude)docs/ime-checks.md"], { encoding: "utf8" });
+  const changes = execFileSync("git", ["diff", row[5], "--", ".", ":(exclude)docs/ime-checks.md"], {
+    encoding: "utf8",
+  });
   assert.equal(changes, "", environment + ": project changed since native IME validation");
   assert.equal(row[6], "Pass", environment + ": all six checks must pass");
 }
