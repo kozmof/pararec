@@ -34,7 +34,8 @@
   "dependencies": {
     "@kozmof/reed": "^4.0.1",
     "@lezer/common": "^1.5.3",
-    "@lezer/markdown": "^1.8.0"
+    "@lezer/markdown": "^1.8.0",
+    "katex": "^0.19.0"
   },
   "devDependencies": {
     "@pandacss/dev": "2.0.0",
