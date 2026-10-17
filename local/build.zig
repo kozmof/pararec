@@ -12,6 +12,12 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    const embed = b.addSystemCommand(&.{ "node", b.pathFromRoot("../scripts/embed-client.mjs") });
+    embed.addDirectoryArg(b.path("../dist"));
+    const assets = embed.addOutputDirectoryArg("embedded-client");
+    exe.root_module.addImport("client_assets", b.createModule(.{
+        .root_source_file = assets.path(b, "assets.zig"),
+    }));
     b.installArtifact(exe);
 
     const run_step = b.step("run", "Run the local server");

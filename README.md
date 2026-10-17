@@ -27,17 +27,40 @@ pnpm start
 ```
 
 Open `http://127.0.0.1:4545`. This command opens `document.json` and serves the
-client from `dist/`. A missing document starts empty and is created on the first
+client embedded in the executable. A missing document starts empty and is created on the first
 save. Its parent directory must already exist.
 
-Open another document or choose a different port and static directory with the CLI.
+Copy `local/zig-out/bin/pararec` to another directory or computer with the same
+OS and architecture. Node.js, pnpm, Zig, and `dist/` are only needed to build it.
+Keep your document JSON file outside the executable.
+
+Open another document or choose a different port with the CLI.
 
 ```sh
-./local/zig-out/bin/pararec open notes.json --port 4546 --static ./dist
+./pararec open notes.json --port 4546
 ```
 
 On Windows, use `local/zig-out/bin/pararec.exe`. Use `pnpm preview` to build and
 start the default document in one command.
+
+Use `--static ./dist` to serve client files from a directory during development.
+Without this option, the executable always serves its embedded client.
+
+## Release packages
+
+Build an archive containing the executable for your current OS and architecture.
+
+```sh
+pnpm package:release
+```
+
+The archive and its SHA-256 checksum are written to `release/`. Extract the
+archive, run `./pararec open notes.json`, and open `http://127.0.0.1:4545`.
+On Windows, run `pararec.exe open notes.json`.
+
+CI packages binaries on Linux, macOS, and Windows. Tag builds create a draft
+GitHub release after the tests and native IME evidence check pass. Review the
+draft before publishing it.
 
 ## Working with notes
 

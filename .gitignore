@@ -23,3 +23,5 @@ styled-system
 /.playwright-cache/
 /.playwright/
 /.pnpm-data/
+
+/release/

@@ -8,8 +8,8 @@ const document = path.join(directory, "notes.json");
 await copyFile("fixtures/flat.json", document);
 const server = spawn(
   path.resolve(`local/zig-out/bin/pararec${process.platform === "win32" ? ".exe" : ""}`),
-  ["open", document, "--port", "4547", "--static", path.resolve("dist")],
-  { stdio: "inherit" },
+  ["open", document, "--port", "4547"],
+  { cwd: directory, stdio: "inherit" },
 );
 for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => server.kill());
 server.on("error", async (error) => {

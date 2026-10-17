@@ -5,7 +5,7 @@ const Io = std.Io;
 const http = std.http;
 
 pub const Config = struct {
-    static_dir: Io.Dir,
+    static_dir: ?Io.Dir,
     store: *store_module.Store,
     port: u16,
     document_request: *Io.Mutex,
@@ -144,7 +144,41 @@ fn handleRequest(io: Io, gpa: std.mem.Allocator, config: Config, request: *http.
         }
     }
     if (request.head.method != .GET and request.head.method != .HEAD) return jsonError(request, .method_not_allowed, "MethodNotAllowed");
-    return serveStatic(io, config.static_dir, request, path);
+    if (config.static_dir) |dir| return serveStatic(io, dir, request, path);
+    return serveEmbedded(request, path);
+}
+
+fn serveEmbedded(request: *http.Server.Request, url_path: []const u8) !void {
+    const assets = @import("client_assets");
+    const rel = std.mem.trimStart(u8, url_path, "/");
+    const requested = if (rel.len == 0) "index.html" else rel;
+    if (!isSafePath(requested)) return request.respond("bad request\n", .{ .status = .bad_request });
+    var found: ?assets.Asset = null;
+    for (assets.files) |asset| {
+        if (std.mem.eql(u8, requested, asset.path)) {
+            found = asset;
+            break;
+        }
+    }
+    if (found == null and std.fs.path.extension(requested).len == 0) {
+        for (assets.files) |asset| {
+            if (std.mem.eql(u8, asset.path, "index.html")) {
+                found = asset;
+                break;
+            }
+        }
+    }
+    const asset = found orelse return request.respond("not found\n", .{ .status = .not_found });
+    var length_buffer: [20]u8 = undefined;
+    const length = try std.fmt.bufPrint(&length_buffer, "{d}", .{asset.bytes.len});
+    return request.respond(if (request.head.method == .HEAD) "" else asset.bytes, .{
+        .transfer_encoding = .none,
+        .extra_headers = &.{
+            .{ .name = "content-length", .value = length },
+            .{ .name = "content-type", .value = mimeType(asset.path) },
+            .{ .name = "cache-control", .value = if (std.mem.startsWith(u8, asset.path, "assets/")) "public, max-age=31536000, immutable" else "no-cache" },
+        },
+    });
 }
 
 fn serveStatic(

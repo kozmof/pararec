@@ -8,7 +8,7 @@ const usage = "Usage: pararec open <document.json> [--port 4545] [--static ./dis
 const Options = struct {
     document_path: []const u8,
     port: u16 = 4545,
-    static_path: []const u8 = "dist",
+    static_path: ?[]const u8 = null,
 };
 
 fn parseArgs(args: []const []const u8) !Options {
@@ -28,7 +28,7 @@ fn parseArgs(args: []const []const u8) !Options {
             seen_static = true;
         } else return error.InvalidArguments;
     }
-    if (options.document_path.len == 0 or options.static_path.len == 0) return error.InvalidArguments;
+    if (options.document_path.len == 0 or (options.static_path != null and options.static_path.?.len == 0)) return error.InvalidArguments;
     return options;
 }
 
@@ -69,11 +69,11 @@ pub fn main(init: std.process.Init) !void {
     }
     defer document_lock.unlock(io);
     // Keep the lock file in place. Unlinking it would let another process lock a new inode.
-    const static_dir = Io.Dir.cwd().openDir(io, options.static_path, .{}) catch |err| {
-        std.log.err("cannot open static directory '{s}': {t} (run pnpm build:client first)", .{ options.static_path, err });
-        return err;
-    };
-    defer static_dir.close(io);
+    const static_dir = if (options.static_path) |static_path|
+        try Io.Dir.cwd().openDir(io, static_path, .{})
+    else
+        null;
+    defer if (static_dir) |dir| dir.close(io);
     var store: store_module.Store = .{ .dir = document_dir, .basename = basename };
     var document_request: Io.Mutex = .init;
     var connections = std.atomic.Value(usize).init(0);
@@ -81,7 +81,7 @@ pub fn main(init: std.process.Init) !void {
     const address = try Io.net.IpAddress.parseIp4("127.0.0.1", options.port);
     var listener = try address.listen(io, .{ .reuse_address = true });
     defer listener.deinit(io);
-    std.log.info("listening on http://127.0.0.1:{d} (document: {s}, static: {s})", .{ options.port, options.document_path, options.static_path });
+    std.log.info("listening on http://127.0.0.1:{d} (document: {s}, static: {s})", .{ options.port, options.document_path, options.static_path orelse "embedded" });
     var group: Io.Group = .init;
     defer group.cancel(io);
     while (true) {
@@ -119,10 +119,10 @@ fn handleBoundedConnection(io: Io, gpa: std.mem.Allocator, config: http.Config, 
 test "CLI defaults and explicit options" {
     const options = try parseArgs(&.{ "open", "notes.json" });
     try std.testing.expectEqual(@as(u16, 4545), options.port);
-    try std.testing.expectEqualStrings("dist", options.static_path);
+    try std.testing.expect(options.static_path == null);
     const explicit = try parseArgs(&.{ "open", "notes.json", "--port", "9000", "--static", "client/public" });
     try std.testing.expectEqual(@as(u16, 9000), explicit.port);
-    try std.testing.expectEqualStrings("client/public", explicit.static_path);
+    try std.testing.expectEqualStrings("client/public", explicit.static_path.?);
 }
 
 test "CLI rejects missing and invalid arguments" {
