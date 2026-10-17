@@ -1,11 +1,13 @@
 import { parseSchema, validateLinks, type Schema, type Container } from "../../schema.js";
 import { buildIndex, updateIndex, readonlyIndex, type TreeIndex } from "./index.js";
 import { applyOp, type Op } from "./ops.js";
+import { LinkIndex } from "./link-index.js";
 
 export class TreeStore {
   #schema = $state.raw<Schema>();
   #revision = $state(0);
   #validated = new WeakSet<Schema>();
+  readonly #links = new LinkIndex();
   readonly #index;
   readonly index;
   constructor(value: unknown) {
@@ -14,9 +16,13 @@ export class TreeStore {
     this.#index = buildIndex(this.#schema);
     this.index = readonlyIndex(this.#index);
     freezeSnapshot(this.#schema);
+    this.#links.update(this.#schema.links);
   }
   get schema(): Schema {
     return this.#schema!;
+  }
+  linksFor(id: string) {
+    return this.#links.forSource(id);
   }
   get revision(): number {
     return this.#revision;
@@ -33,6 +39,7 @@ export class TreeStore {
       this.#validated.add(schema);
     }
     updateIndex(this.#index, this.schema.root, schema.root);
+    this.#links.update(schema.links);
     this.#schema = schema;
     this.#revision++;
   }
@@ -57,6 +64,7 @@ export class TreeStore {
       );
     updateIndex(this.#index, before.root, result.schema.root);
     freezeSnapshot(result.schema);
+    this.#links.update(result.schema.links);
     this.#schema = result.schema;
     this.#validated.add(result.schema);
     this.#revision++;
@@ -77,6 +85,7 @@ export class TreeStore {
     );
     freezeSnapshot(next);
     updateIndex(this.#index, before.root, next.root);
+    this.#links.update(next.links);
     this.#schema = next;
     this.#validated.add(next);
     this.#revision++;
@@ -97,6 +106,7 @@ export class TreeStore {
     validateLinks(staged, (id) => indexedText(stagedIndex, id));
     updateIndex(this.#index, before.root, staged.root);
     freezeSnapshot(staged);
+    this.#links.update(staged.links);
     this.#schema = staged;
     this.#validated.add(staged);
     this.#revision++;

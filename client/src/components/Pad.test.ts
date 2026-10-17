@@ -600,3 +600,40 @@ it.each(["markdown", "katex"])(
     expect(cell.querySelector("[data-render-type]")).not.toBeNull();
   },
 );
+
+it("does not rerender unrelated previews when one source's link range changes", async () => {
+  const { registerRenderer, escapeHTML } = await import("../lib/render/renderers.js");
+  const renderer = vi.fn((text: string) => escapeHTML(text));
+  const dispose = registerRenderer("link-probe", renderer);
+  try {
+    const value = {
+      version: 1,
+      config: { renderType: "link-probe", renderTypes: ["none", "link-probe"] },
+      root: Array.from({ length: 100 }, (_, i) => ({
+        id: `row-${i}`,
+        left: [{ id: `left-${i}`, text: `Left ${i}` }],
+        right: { id: `right-${i}`, text: "hello world", children: [] },
+      })),
+      links: [
+        { id: "edited", sourceId: "right-0", start: 0, end: 5, targets: ["right-99"] },
+        { id: "untouched", sourceId: "right-1", start: 0, end: 5, targets: ["right-99"] },
+      ],
+    };
+    vi.mocked(fetch).mockResolvedValue(response(value));
+    await opened();
+    await waitFor(() => expect(screen.getByTestId("editor-sink")).toHaveFocus());
+    const calls = renderer.mock.calls.length;
+    expect(calls).toBeGreaterThan(0);
+    await fireEvent.input(screen.getByTestId("editor-sink"), {
+      target: { value: "x" },
+      inputType: "insertText",
+      data: "x",
+    });
+    await tick();
+    expect(content("right-0")).toHaveTextContent("xhello");
+    expect(content("right-0")).toHaveTextContent("world");
+    expect(renderer).toHaveBeenCalledTimes(calls);
+  } finally {
+    dispose();
+  }
+});

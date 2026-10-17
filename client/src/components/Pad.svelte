@@ -24,6 +24,7 @@
     return (item.side === "right" ? item.container.right : item.container.left[item.index]).renderType;
   });
   const renderTypes = $derived.by(() => tree?.schema.config.renderTypes ?? []);
+  const defaultRenderType = $derived.by(() => tree?.schema.config.renderType ?? "none");
   function closeMenus() { menus.close(); }
   function changeRenderType(renderType?: string) {
     if (!tree || !menus.render || disabled || menus.linking) return;
@@ -91,9 +92,9 @@
       menus.openRender(sourceId, event);
       void tick().then(() => { if (menus.render?.sourceId === sourceId) menus.element?.querySelector<HTMLButtonElement>("button")?.focus(); });
     },
-    get renderType() { return tree?.schema.config.renderType ?? "none"; },
+    get renderType() { return defaultRenderType; },
     get focused() { return focused; }, get cache() { return cache!; }, get entry() { return entry; }, get disabled() { return disabled; },
-    get linking() { return !!menus.linking; }, get links() { return tree?.schema.links?.filter(link => tree!.index.has(link.sourceId)).map(link => ({ ...link, targets: link.targets.filter(id => tree!.index.has(id)) })); },
+    get linking() { return !!menus.linking; }, linksFor: id => tree!.linksFor(id),
     selectedCell: id => menus.linking?.targets.includes(id) ?? false,
     selectCell: id => menus.selectCell(id),
     linkMenu: (sourceId, range, event) => { menus.link = { sourceId, ...range, x: Math.min(event.clientX, window.innerWidth - 180), y: Math.min(event.clientY, window.innerHeight - 50) }; },

@@ -15,7 +15,7 @@
   const text = $derived(content.text);
   const renderType = $derived(content.renderType ?? host.renderType ?? "none");
   const renderer = $derived(getRenderer(renderType));
-  const links = $derived((host.links ?? []).filter(link => link.sourceId === content.id));
+  const links = $derived(host.linksFor(content.id));
   const rendered = $derived(!editing && !host.linking && renderType !== "none" && renderer ? renderer(text, { links, disabled: host.disabled }) : null);
   let nearby = $state(typeof IntersectionObserver === "undefined");
   let measuredHeight = $state(0);

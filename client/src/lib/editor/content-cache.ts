@@ -153,7 +153,7 @@ export class ContentCache {
         });
       });
     }
-    doc.syncLinks((this.tree.schema.links ?? []).filter((link) => link.sourceId === id));
+    doc.syncLinks(this.tree.linksFor(id));
     this.#stores.delete(id);
     this.#stores.set(id, doc);
     this.#evict();

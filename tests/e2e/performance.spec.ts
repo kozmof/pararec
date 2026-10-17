@@ -151,7 +151,8 @@ for (const scenario of [
     });
     console.log(JSON.stringify(report));
     expect(report.navigationToReadyMs, "navigation-to-ready budget").toBeLessThan(10_000);
-    if (report.inputMs) expect(report.inputMs.p95, "p95 input-to-DOM budget").toBeLessThan(8);
+    if (report.inputMs)
+      expect(report.inputMs.p95, "p95 input-to-DOM budget").toBeLessThan(8);
   });
 }
 

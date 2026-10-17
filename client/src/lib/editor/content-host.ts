@@ -19,7 +19,7 @@ export interface ContentHost {
   readonly renderType?: string;
   renderMenu?(id: string, event: MouseEvent): void;
   readonly linking?: boolean;
-  readonly links?: readonly import("../../schema.js").TextLink[];
+  linksFor(id: string): readonly import("../../schema.js").TextLink[];
   selectedCell?(id: string): boolean;
   selectCell?(id: string): void;
   linkMenu?(id: string, range: { start: number; end: number }, event: MouseEvent): void;
