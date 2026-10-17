@@ -1496,15 +1496,23 @@ it("preserves unaffected editor stores across a row move", async () => {
   await key("z", { ctrlKey: true });
   await key("z", { ctrlKey: true });
   await save();
-  expect(disk.root.map(row => row.right.text)).toEqual(original.root.map((row: Schema["root"][number]) => row.right.text));
+  expect(disk.root.map((row) => row.right.text)).toEqual(
+    original.root.map((row: Schema["root"][number]) => row.right.text),
+  );
 });
 
 it("routes input history intents through notebook history", async () => {
   await opened();
   const input = async (inputType: string, data: string | null = null) => {
-    await fireEvent(screen.getByTestId("editor-sink"), new InputEvent("beforeinput", {
-      bubbles: true, cancelable: true, inputType, data,
-    }));
+    await fireEvent(
+      screen.getByTestId("editor-sink"),
+      new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        inputType,
+        data,
+      }),
+    );
     await tick();
   };
   await input("deleteContentForward");

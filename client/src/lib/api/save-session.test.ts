@@ -263,7 +263,8 @@ it("acknowledges uncertain writes after the last link is removed", async () => {
 });
 
 it("acknowledges a committed write after its response is lost", async () => {
-  fetchMock.mockRejectedValueOnce(new TypeError("Connection lost"))
+  fetchMock
+    .mockRejectedValueOnce(new TypeError("Connection lost"))
     .mockResolvedValueOnce(new Response(JSON.stringify(next), { headers: { ETag: '"written"' } }));
   session.changed(next);
   await session.flush();
@@ -272,7 +273,8 @@ it("acknowledges a committed write after its response is lost", async () => {
   expect(session.dirty).toBe(false);
 });
 it("recovers an earlier committed snapshot when a retry gets 412", async () => {
-  fetchMock.mockResolvedValueOnce(new Response(null, { status: 412 }))
+  fetchMock
+    .mockResolvedValueOnce(new Response(null, { status: 412 }))
     .mockResolvedValueOnce(new Response(JSON.stringify(next), { headers: { ETag: '"written"' } }));
   session.changed(next);
   await session.flush();
@@ -282,7 +284,8 @@ it("recovers an earlier committed snapshot when a retry gets 412", async () => {
 
 it("verifies the sent snapshot before saving edits queued after a lost response", async () => {
   const readback = deferred<Response>();
-  fetchMock.mockRejectedValueOnce(new TypeError("Connection lost"))
+  fetchMock
+    .mockRejectedValueOnce(new TypeError("Connection lost"))
     .mockReturnValueOnce(readback.promise);
   session.changed(next);
   const flush = session.flush();
@@ -296,7 +299,8 @@ it("verifies the sent snapshot before saving edits queued after a lost response"
   expect(session.dirty).toBe(false);
 });
 it("keeps a failed transport save dirty when disk content differs", async () => {
-  fetchMock.mockRejectedValueOnce(new TypeError("Connection lost"))
+  fetchMock
+    .mockRejectedValueOnce(new TypeError("Connection lost"))
     .mockResolvedValueOnce(new Response(JSON.stringify(schema), { headers: { ETag: '"disk"' } }));
   session.changed(next);
   await session.flush();
@@ -311,7 +315,8 @@ it("recovers a committed save after its response times out", async () => {
   await vi.advanceTimersByTimeAsync(15_000);
   await flush;
   expect(session.status).toBe("failed");
-  fetchMock.mockResolvedValueOnce(new Response(null, { status: 412 }))
+  fetchMock
+    .mockResolvedValueOnce(new Response(null, { status: 412 }))
     .mockResolvedValueOnce(new Response(JSON.stringify(next), { headers: { ETag: '"written"' } }));
   await session.flush();
   expect(session.status).toBe("saved");

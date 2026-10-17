@@ -43,9 +43,7 @@ Register its renderer from application code. Adjust the import path for the call
 ```ts
 import { escapeHTML, registerRenderer } from "../lib/render/renderers.js";
 
-const unregister = registerRenderer("notice", source =>
-  `<aside>${escapeHTML(source)}</aside>`
-);
+const unregister = registerRenderer("notice", (source) => `<aside>${escapeHTML(source)}</aside>`);
 
 // Remove the registration when the extension is unloaded.
 unregister();

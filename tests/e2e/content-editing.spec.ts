@@ -153,7 +153,7 @@ for (const side of ["left", "right"] as const) {
 
 test("input intents edit and undo through application history", async ({ page }) => {
   let disk = structuredClone(fixture);
-  await page.route("**/api/document", async route => {
+  await page.route("**/api/document", async (route) => {
     if (route.request().method() === "PUT") {
       disk = route.request().postDataJSON();
       await route.fulfill({ status: 204, headers: { ETag: '"saved"' } });
@@ -163,9 +163,17 @@ test("input intents edit and undo through application history", async ({ page })
   const sink = page.getByTestId("editor-sink");
   await expect(sink).toBeFocused();
   const input = async (inputType: string, data: string | null = null) => {
-    await sink.evaluate((node, detail) => node.dispatchEvent(new InputEvent("beforeinput", {
-      bubbles: true, cancelable: true, ...detail,
-    })), { inputType, data });
+    await sink.evaluate(
+      (node, detail) =>
+        node.dispatchEvent(
+          new InputEvent("beforeinput", {
+            bubbles: true,
+            cancelable: true,
+            ...detail,
+          }),
+        ),
+      { inputType, data },
+    );
   };
   await input("deleteContentForward");
   await input("insertText", "日本");
@@ -183,8 +191,9 @@ test("input intents edit and undo through application history", async ({ page })
 });
 
 test("verifies a committed save when the response is lost", async ({ page }) => {
-  let disk = structuredClone(fixture), etag = '"v1"';
-  await page.route("**/api/document", async route => {
+  let disk = structuredClone(fixture),
+    etag = '"v1"';
+  await page.route("**/api/document", async (route) => {
     if (route.request().method() === "PUT") {
       disk = route.request().postDataJSON();
       etag = '"written"';

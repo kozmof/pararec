@@ -500,9 +500,15 @@ it("removes window drag listeners when destroyed during selection", async () => 
 });
 
 function beforeInput(sink: HTMLTextAreaElement, inputType: string, data: string | null = null) {
-  return fireEvent(sink, new InputEvent("beforeinput", {
-    bubbles: true, cancelable: true, inputType, data,
-  }));
+  return fireEvent(
+    sink,
+    new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      inputType,
+      data,
+    }),
+  );
 }
 it("deletes graphemes and joins lines without keyboard events", async () => {
   const { doc, sink } = mount("a👩‍💻\nb", { caret: { line: 0, column: 6 } });
@@ -515,7 +521,8 @@ it("deletes graphemes and joins lines without keyboard events", async () => {
 });
 it("replaces selections and handles line breaks and history from input intents", async () => {
   const { doc, sink } = mount("abc", {
-    caret: { line: 0, column: 2 }, anchor: { line: 0, column: 1 },
+    caret: { line: 0, column: 2 },
+    anchor: { line: 0, column: 1 },
   });
   sink.focus();
   await beforeInput(sink, "insertReplacementText", "日本");

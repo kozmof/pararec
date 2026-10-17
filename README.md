@@ -114,25 +114,25 @@ safely, the preview labels the whole formula instead.
 
 These shortcuts apply while editing a note. On macOS, use Cmd in place of Ctrl.
 
-| Shortcut | Action |
-| --- | --- |
-| Arrow keys | Move the cursor. At a note boundary, move to the next cell in that direction. |
-| Shift+Left / Shift+Right | Move between cells and columns from any cursor position. |
-| Shift+Up / Shift+Down | Move to the cell above or below from any cursor position. |
-| Enter | Insert a line break. |
-| Shift+Enter | Insert an empty sibling row below and focus the same column. At the start of a full-width parent note, prepend a child row instead. |
-| Shift+Alt+Enter | Insert an empty row above the current record and focus the same column. |
-| Alt+Enter in a left cell | Split at the cursor into a new left cell in the same row. |
-| Ctrl+Enter in a right cell | Add an empty child row and focus its right cell. |
-| Shift+Delete | Remove the current row, including its children. |
-| Alt+Delete in a left cell | Remove that left cell, unless it is the last one in the row. |
-| Ctrl+Delete in a right cell | Remove all child rows of that note. |
-| Alt+Up / Alt+Down | Move the current left cell or row up or down. |
-| Ctrl+A | Select all text in the current note. |
-| Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, or paste text. |
-| Ctrl+S | Save immediately. |
-| Ctrl+Z | Undo an action. |
-| Ctrl+Shift+Z / Ctrl+Y | Redo an action. |
+| Shortcut                    | Action                                                                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Arrow keys                  | Move the cursor. At a note boundary, move to the next cell in that direction.                                                       |
+| Shift+Left / Shift+Right    | Move between cells and columns from any cursor position.                                                                            |
+| Shift+Up / Shift+Down       | Move to the cell above or below from any cursor position.                                                                           |
+| Enter                       | Insert a line break.                                                                                                                |
+| Shift+Enter                 | Insert an empty sibling row below and focus the same column. At the start of a full-width parent note, prepend a child row instead. |
+| Shift+Alt+Enter             | Insert an empty row above the current record and focus the same column.                                                             |
+| Alt+Enter in a left cell    | Split at the cursor into a new left cell in the same row.                                                                           |
+| Ctrl+Enter in a right cell  | Add an empty child row and focus its right cell.                                                                                    |
+| Shift+Delete                | Remove the current row, including its children.                                                                                     |
+| Alt+Delete in a left cell   | Remove that left cell, unless it is the last one in the row.                                                                        |
+| Ctrl+Delete in a right cell | Remove all child rows of that note.                                                                                                 |
+| Alt+Up / Alt+Down           | Move the current left cell or row up or down.                                                                                       |
+| Ctrl+A                      | Select all text in the current note.                                                                                                |
+| Ctrl+C / Ctrl+X / Ctrl+V    | Copy, cut, or paste text.                                                                                                           |
+| Ctrl+S                      | Save immediately.                                                                                                                   |
+| Ctrl+Z                      | Undo an action.                                                                                                                     |
+| Ctrl+Shift+Z / Ctrl+Y       | Redo an action.                                                                                                                     |
 
 ## Document format and configuration
 
@@ -155,15 +155,15 @@ with the default settings and a custom title.
 }
 ```
 
-| Field | Default | Effect |
-| --- | --- | --- |
-| `title` | File name without its extension | Editable document title. |
-| `config.renderType` | `"none"` | Default renderer for cells without an override. |
-| `config.renderTypes` | `["none", "markdown", "katex"]` | Allowed render types, in context-menu order. |
-| `config.showTitles` | `true` | Show the document title. |
-| `config.maxWidth` | `1100` | Maximum width of the notes area in pixels. |
-| `config.outerWidthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for rows in the current layer. |
-| `config.innerWidthRate` | `{ "left": 35, "right": 65 }` | Relative column widths for child rows shown inside a right cell. |
+| Field                   | Default                         | Effect                                                           |
+| ----------------------- | ------------------------------- | ---------------------------------------------------------------- |
+| `title`                 | File name without its extension | Editable document title.                                         |
+| `config.renderType`     | `"none"`                        | Default renderer for cells without an override.                  |
+| `config.renderTypes`    | `["none", "markdown", "katex"]` | Allowed render types, in context-menu order.                     |
+| `config.showTitles`     | `true`                          | Show the document title.                                         |
+| `config.maxWidth`       | `1100`                          | Maximum width of the notes area in pixels.                       |
+| `config.outerWidthRate` | `{ "left": 35, "right": 65 }`   | Relative column widths for rows in the current layer.            |
+| `config.innerWidthRate` | `{ "left": 35, "right": 65 }`   | Relative column widths for child rows shown inside a right cell. |
 
 Omitted settings receive their defaults on load. Render-type names must be
 nonempty strings. The allowed list must be nonempty and contain no duplicates.
@@ -195,16 +195,16 @@ Open `http://127.0.0.1:5173`. Vite forwards `/api` requests to the local server 
 port 4545. The development server uses `document.json` in the repository root.
 The production client build is written to `dist/`.
 
-| Location | Purpose |
-| --- | --- |
-| `client/src/components/` | Notebook layout, menus, and cell editing. |
-| `client/src/lib/editor/` | Reed text stores, editor layout, selection, and input. |
-| `client/src/lib/tree/` | Recursive document structure and operations. |
-| `client/src/lib/history/` | Undo and redo. |
-| `client/src/lib/render/` | Markdown parsing, KaTeX rendering, and rendered link annotations. |
-| `client/src/lib/api/` | Document requests and autosave. |
-| `local/src/` | Zig HTTP server, schema validation, file storage, and locking. |
-| `tests/` | API, browser, production, performance, and native-input checks. |
+| Location                  | Purpose                                                           |
+| ------------------------- | ----------------------------------------------------------------- |
+| `client/src/components/`  | Notebook layout, menus, and cell editing.                         |
+| `client/src/lib/editor/`  | Reed text stores, editor layout, selection, and input.            |
+| `client/src/lib/tree/`    | Recursive document structure and operations.                      |
+| `client/src/lib/history/` | Undo and redo.                                                    |
+| `client/src/lib/render/`  | Markdown parsing, KaTeX rendering, and rendered link annotations. |
+| `client/src/lib/api/`     | Document requests and autosave.                                   |
+| `local/src/`              | Zig HTTP server, schema validation, file storage, and locking.    |
+| `tests/`                  | API, browser, production, performance, and native-input checks.   |
 
 ## Testing
 
