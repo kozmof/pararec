@@ -7,60 +7,57 @@ Notes support plain text, Markdown, KaTeX formulas, and links to other cells.
 Pararec runs on your own computer. Public hosting and shared remote access are
 outside its supported scope.
 
-## Setup
+## Install
 
-Use Zig 0.16.0, Node.js 26, and pnpm 10.17.1.
+Download the beta for Linux on Intel or AMD 64-bit computers (x86-64).
 
-Install dependencies and build the client and local server.
-
-```sh
-pnpm install
-pnpm build
-```
-
-## Run
-
-Start the built application from the repository root.
+1. Open the [releases page](https://github.com/kozmof/pararec/releases).
+2. Download `pararec-linux-x64.tar.gz` from the beta release assets.
+3. Extract the archive into a folder where you want to keep Pararec.
 
 ```sh
-pnpm start
+tar -xzf pararec-linux-x64.tar.gz
 ```
 
-Open `http://127.0.0.1:4545`. This command opens `document.json` and serves the
-client embedded in the executable. A missing document starts empty and is created on the first
-save. Its parent directory must already exist.
+## Open a notebook
 
-Copy `local/zig-out/bin/pararec` to another directory or computer with the same
-OS and architecture. Node.js, pnpm, Zig, and `dist/` are only needed to build it.
-Keep your document JSON file outside the executable.
+Open a terminal in the folder containing the extracted executable and run it.
 
-Open another document or choose a different port with the CLI.
+```sh
+./pararec open notes.json
+```
+
+Open [http://127.0.0.1:4545](http://127.0.0.1:4545) in your browser. Keep the
+terminal open while using Pararec.
+
+The command opens `notes.json` in the terminal's current folder. If the file
+does not exist, Pararec starts with an empty notebook and creates it on the
+first save. Its parent folder must already exist. To open a notebook elsewhere,
+replace `notes.json` with its path. Put paths containing spaces in quotes.
+
+Choose another port if 4545 is already in use.
 
 ```sh
 ./pararec open notes.json --port 4546
 ```
 
-On Windows, use `local/zig-out/bin/pararec.exe`. Use `pnpm preview` to build and
-start the default document in one command.
+Then open `http://127.0.0.1:4546`.
 
-Use `--static ./dist` to serve client files from a directory during development.
-Without this option, the executable always serves its embedded client.
+To stop Pararec, save your changes, wait for the save status to confirm them,
+and press Ctrl+C in the terminal. Restart it with the same command to reopen
+your notebook.
 
-## Release packages
+## Your files
 
-Build an archive containing the executable for your current OS and architecture.
+Your notes stay in the JSON file you opened. Copy that file to back it up or
+move it to another computer. Pararec keeps the previous saved version beside it
+as `notes.json.bak`.
 
-```sh
-pnpm package:release
-```
+Pararec also creates `notes.json.lock`. Leave this file in place. Its presence
+does not mean Pararec is still running. Only one Pararec process can open the
+same notebook at a time.
 
-The archive and its SHA-256 checksum are written to `release/`. Extract the
-archive, run `./pararec open notes.json`, and open `http://127.0.0.1:4545`.
-On Windows, run `pararec.exe open notes.json`.
-
-CI packages binaries on Linux, macOS, and Windows. Tag builds create a draft
-GitHub release after the tests and native IME evidence check pass. Review the
-draft before publishing it.
+Documents support up to 64 nested levels and a maximum size of 128 MiB.
 
 ## Working with notes
 
@@ -70,7 +67,7 @@ An empty layer offers an Add row button.
 
 Changes save automatically after one second without edits. Leaving a cell also
 requests a save. Use Ctrl+S to save immediately and check the save status above
-the notes. On macOS, use Cmd in place of Ctrl.
+the notes.
 
 If the file changes outside Pararec, saving stops and a conflict dialog offers
 Reload and Overwrite. Reload replaces the current notes with the disk version.
@@ -82,8 +79,8 @@ History belongs to the current session and is cleared when a document is loaded.
 ## Rendering
 
 By default, the cell context menu offers None, Markdown, KaTeX, and Default.
-Right-click a cell to choose a render type. Default inherits `config.renderType`
-from the document. Documents without a render setting use `"none"` for plain text.
+Right-click a cell to choose a render type. Default uses the notebook's default
+render setting. New notebooks use plain text.
 
 Click a rendered cell to edit its source. Opening its context menu keeps the
 source visible. Escape returns focus to the editor. Leaving the cell restores
@@ -109,11 +106,6 @@ $$
 KaTeX mode treats the whole cell as a display formula, without dollar delimiters.
 Wide display formulas can scroll horizontally.
 
-Custom render types must be listed in `config.renderTypes` and registered in
-application code. A configured type without a registered renderer uses the
-plain text view. See the [rendering guide](docs/rendering.md) for registration
-and render-setting operations.
-
 ## Linking text to cells
 
 Link a source-text selection to one or more destination cells.
@@ -135,7 +127,7 @@ safely, the preview labels the whole formula instead.
 
 ## Keyboard shortcuts
 
-These shortcuts apply while editing a note. On macOS, use Cmd in place of Ctrl.
+These shortcuts apply while editing a note.
 
 | Shortcut                    | Action                                                                                                                              |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -157,154 +149,8 @@ These shortcuts apply while editing a note. On macOS, use Cmd in place of Ctrl.
 | Ctrl+Z                      | Undo an action.                                                                                                                     |
 | Ctrl+Shift+Z / Ctrl+Y       | Redo an action.                                                                                                                     |
 
-## Document format and configuration
+## More information
 
-Documents use version 1 of the JSON schema. This example shows an empty document
-with the default settings and a custom title.
-
-```json
-{
-  "version": 1,
-  "title": "My notes",
-  "config": {
-    "renderType": "none",
-    "renderTypes": ["none", "markdown", "katex"],
-    "showTitles": true,
-    "maxWidth": 1100,
-    "outerWidthRate": { "left": 35, "right": 65 },
-    "innerWidthRate": { "left": 35, "right": 65 }
-  },
-  "root": []
-}
-```
-
-| Field                   | Default                         | Effect                                                           |
-| ----------------------- | ------------------------------- | ---------------------------------------------------------------- |
-| `title`                 | File name without its extension | Editable document title.                                         |
-| `config.renderType`     | `"none"`                        | Default renderer for cells without an override.                  |
-| `config.renderTypes`    | `["none", "markdown", "katex"]` | Allowed render types, in context-menu order.                     |
-| `config.showTitles`     | `true`                          | Show the document title.                                         |
-| `config.maxWidth`       | `1100`                          | Maximum width of the notes area in pixels.                       |
-| `config.outerWidthRate` | `{ "left": 35, "right": 65 }`   | Relative column widths for rows in the current layer.            |
-| `config.innerWidthRate` | `{ "left": 35, "right": 65 }`   | Relative column widths for child rows shown inside a right cell. |
-
-Omitted settings receive their defaults on load. Render-type names must be
-nonempty strings. The allowed list must be nonempty and contain no duplicates.
-The default renderer and every explicit cell renderer must belong to that list.
-
-Width values must be positive, finite numbers. Column rates are proportions and
-do not need to total 100. For example, `{ "left": 1, "right": 2 }` makes the right
-column twice as wide as the left.
-
-Each row has an `id`, a nonempty `left` array, and a `right` object. A content
-object has an `id`, `text`, and an optional `renderType` override. The right
-content object also has a `children` array of rows. Omit a cell's `renderType` to
-inherit the document default. Set it to `"none"` to keep that cell as plain text.
-IDs must be unique across the document's rows and cells.
-
-An optional top-level `links` array stores text ranges and destination cell IDs.
-Ranges use UTF-8 byte offsets into normalized source text. See
-[the client schema](client/src/schema.ts) and [sample documents](fixtures/flat.json).
-
-## Development
-
-Start Vite, the CSS watcher, and the local server together.
-
-```sh
-pnpm dev
-```
-
-Open `http://127.0.0.1:5173`. Vite forwards `/api` requests to the local server on
-port 4545. The development server uses `document.json` in the repository root.
-The production client build is written to `dist/`.
-
-| Location                  | Purpose                                                           |
-| ------------------------- | ----------------------------------------------------------------- |
-| `client/src/components/`  | Notebook layout, menus, and cell editing.                         |
-| `client/src/lib/editor/`  | Reed text stores, editor layout, selection, and input.            |
-| `client/src/lib/tree/`    | Recursive document structure and operations.                      |
-| `client/src/lib/history/` | Undo and redo.                                                    |
-| `client/src/lib/render/`  | Markdown parsing, KaTeX rendering, and rendered link annotations. |
-| `client/src/lib/api/`     | Document requests and autosave.                                   |
-| `local/src/`              | Zig HTTP server, schema validation, file storage, and locking.    |
-| `tests/`                  | API, browser, production, performance, and native-input checks.   |
-
-## Testing
-
-Run type checks, lint, unit tests, native server tests, and API tests.
-
-```sh
-pnpm check
-pnpm lint
-pnpm test:unit
-pnpm test:local
-pnpm test:api
-```
-
-Install Chromium and WebKit before running browser tests. Release tests build
-the application and exercise the production server.
-
-```sh
-pnpm exec playwright install --with-deps chromium webkit
-pnpm test:e2e
-pnpm test:release
-```
-
-Run performance scenarios separately when collecting measurements.
-
-```sh
-pnpm test:performance
-```
-
-Run all readiness checks with `pnpm test:readiness`. Its native IME check requires
-manual evidence recorded in [the native input checklist](docs/ime-checks.md).
-Use `pnpm test:native-ime` to check that evidence on its own.
-
-CI runs automated checks on Linux, macOS, and Windows for pushes and pull
-requests. Tag pushes and manual workflow runs also require the
-`release-readiness` job after all three operating systems pass. That job checks
-native IME evidence with full Git history.
-
-## Server limits
-
-The server listens only on `127.0.0.1`. It accepts at most 16 connections and
-closes each connection after 30 seconds, including incomplete requests.
-Excess connections close immediately. Document requests wait for one shared
-permit before reading or parsing data.
-
-Documents support up to 64 nested container levels. Uploads, files read from disk, and formatted saves are limited to 128 MiB.
-
-## Document API
-
-Read the document and its quoted ETag.
-
-```sh
-curl -i http://127.0.0.1:4545/api/document
-```
-
-Create a missing document using an explicit creation precondition.
-
-```sh
-curl -i -X PUT http://127.0.0.1:4545/api/document \
-  -H 'Origin: http://127.0.0.1:4545' \
-  -H 'Content-Type: application/json' \
-  -H 'If-None-Match: *' \
-  --data-binary @fixtures/empty.json
-```
-
-To update a document, replace the creation header with `If-Match` containing the
-ETag from GET. A stale ETag returns `412`. PUT requires the matching Origin
-header, including for command-line clients.
-
-The server validates the schema, writes formatted JSON through an atomic
-replacement, and keeps the previous bytes in `<document>.bak`. It holds an
-operating system lock on `<document>.lock` for its lifetime. Another Pararec
-process cannot open the same canonical document path, including a symbolic link
-to that path. The lock releases when the process exits or crashes. Leave the
-lock file in place. Its presence alone does not mean the document is locked.
-
-The server checks the file immediately before replacement and rejects changes
-detected while preparing the save. Programs that ignore Pararec's lock can still
-change the file between that final check and replacement. Avoid editing the
-file from another program during a save. Open documents through one canonical
-path and avoid hard-link aliases.
+See [document settings and file format](docs/document-format.md) for notebook
+configuration, or the [development guide](docs/development.md) to build, test,
+and package Pararec.

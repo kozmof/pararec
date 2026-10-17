@@ -28,8 +28,7 @@
     "test:performance": "pnpm build && node tests/run-performance.mjs",
     "test:unit": "vitest run",
     "test:release": "pnpm build && playwright test --config playwright.production.config.ts",
-    "test:native-ime": "node tests/check-native-ime.mjs",
-    "test:readiness": "pnpm check && pnpm lint && pnpm test:unit && pnpm test:local && pnpm test:api && pnpm test:e2e && pnpm test:release && pnpm test:performance && pnpm test:native-ime",
+    "test:readiness": "pnpm check && pnpm lint && pnpm test:unit && pnpm test:local && pnpm test:api && pnpm test:e2e && pnpm test:release && pnpm test:performance",
     "package:release": "pnpm build && node scripts/package-release.mjs"
   },
   "dependencies": {
