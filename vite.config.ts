@@ -27,6 +27,16 @@ export default defineConfig({
     // Output to the repo root, where the Zig server serves it from.
     outDir: "../dist",
     emptyOutDir: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            // Cache the math engine separately from the application.
+            { name: "katex", test: /[/\\]node_modules[/\\]katex[/\\]/ },
+          ],
+        },
+      },
+    },
   },
   plugins: [
     svelte({
