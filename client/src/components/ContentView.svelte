@@ -51,6 +51,8 @@
     return { destroy() { observer.disconnect(); } };
   }
   function blur(event: FocusEvent) {
+    // The cell and its context menu share the current editing session.
+    if (event.relatedTarget instanceof Element && event.relatedTarget.closest<HTMLElement>("[data-menu-source-id]")?.dataset.menuSourceId === content.id) return;
     if (!(event.relatedTarget instanceof Node) || !(event.currentTarget as HTMLElement).contains(event.relatedTarget)) host.blur(content.id);
   }
   function mousedown(event: MouseEvent) {

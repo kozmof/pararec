@@ -37,7 +37,12 @@
   }
   function menuKeydown(event: KeyboardEvent) {
     if (!["ArrowDown", "ArrowUp", "Home", "End", "Tab"].includes(event.key)) return;
-    if (event.key === "Tab") { closeMenus(); return; }
+    if (event.key === "Tab") {
+      const source = (renderMenu ?? linkMenu)?.sourceId;
+      if (source) blur(source);
+      closeMenus();
+      return;
+    }
     event.preventDefault();
     const buttons = [...(menuElement?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
@@ -46,8 +51,20 @@
   }
   let linkMenu = $state<{ sourceId: string; start: number; end: number; x: number; y: number; labelIds?: readonly string[] } | null>(null);
   let menuElement: HTMLDivElement | undefined = $state();
+  function menuBlur(event: FocusEvent) {
+    const menu = event.currentTarget as HTMLElement;
+    if (event.relatedTarget instanceof Node && menu.contains(event.relatedTarget)) return;
+    const source = menu.dataset.menuSourceId;
+    if (event.relatedTarget instanceof Element && event.relatedTarget.closest<HTMLElement>("[data-content-id]")?.dataset.contentId === source) return;
+    if (source) blur(source);
+    closeMenus();
+  }
   function dismissMenuOutside(event: MouseEvent) {
-    if ((linkMenu || renderMenu) && event.target instanceof Node && !menuElement?.contains(event.target)) closeMenus();
+    if (!(linkMenu || renderMenu) || !(event.target instanceof Node) || menuElement?.contains(event.target)) return;
+    const source = (renderMenu ?? linkMenu)?.sourceId;
+    const cell = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-content-id]") : null;
+    if (source && cell?.dataset.contentId !== source) blur(source);
+    closeMenus();
   }
   let linking = $state<{ sourceId: string; start: number; end: number; targets: string[] } | null>(null);
   function finishLink() {
@@ -113,6 +130,7 @@
   const parent = $derived(ancestors.at(-1));
   setContext<ContentHost>(CONTENT_HOST, {
     renderMenu: (sourceId, event) => {
+      if (focused && focused !== sourceId) blur(focused);
       closeMenus();
       renderMenu = { sourceId, x: Math.max(8, Math.min(event.clientX, window.innerWidth - 280)), y: Math.max(8, Math.min(event.clientY, window.innerHeight - 320)) };
       void tick().then(() => { if (renderMenu?.sourceId === sourceId) menuElement?.querySelector<HTMLButtonElement>("button")?.focus(); });
@@ -420,7 +438,7 @@
   {:else if error}<p role="alert">{error}</p><button onclick={load}>Retry</button>
   {:else if tree && session}
     {#if linkMenu || renderMenu}
-      <div bind:this={menuElement} class="link-menu" role="menu" aria-label="Cell options" tabindex="-1" onkeydown={menuKeydown} oncontextmenu={event => event.preventDefault()} style:left={(renderMenu ?? linkMenu)!.x + "px"} style:top={(renderMenu ?? linkMenu)!.y + "px"}>
+      <div bind:this={menuElement} class="link-menu" role="menu" aria-label="Cell options" tabindex="-1" data-menu-source-id={(renderMenu ?? linkMenu)!.sourceId} onfocusout={menuBlur} onkeydown={menuKeydown} oncontextmenu={event => event.preventDefault()} style:left={(renderMenu ?? linkMenu)!.x + "px"} style:top={(renderMenu ?? linkMenu)!.y + "px"}>
         {#if renderMenu}
           <div class="menu-heading">Render type</div>
           <button role="menuitemradio" aria-checked={cellRenderType === undefined} disabled={disabled} onclick={() => changeRenderType()}>Default ({tree.schema.config.renderType})</button>

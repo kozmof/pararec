@@ -491,3 +491,47 @@ it("limits the context menu to config.renderTypes", async () => {
     "true",
   );
 });
+
+it("keeps Markdown source mounted while its context menu has focus", async () => {
+  const value = structuredClone(fixture);
+  value.config.renderType = "markdown";
+  value.root[0].left[0].text = "**bold** and $x^2$";
+  vi.mocked(fetch).mockResolvedValue(response(value));
+  await opened();
+  const cell = content(value.root[0].left[0].id);
+  await fireEvent.mouseDown(cell.querySelector("strong")!);
+  await waitFor(() => expect(cell.querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  const sink = cell.querySelector('[data-testid="editor-sink"]');
+  await fireEvent.contextMenu(cell);
+  const menu = screen.getByRole("menu", { name: "Cell options" });
+  await waitFor(() => expect(menu.querySelector("button")).toHaveFocus());
+  expect(cell.querySelector('[data-testid="editor-sink"]')).toBe(sink);
+  expect(cell.querySelector("[data-render-type]")).toBeNull();
+  expect(cell).toHaveTextContent("**bold** and $x^2$");
+  await fireEvent.keyDown(menu, { key: "ArrowDown" });
+  expect(cell.querySelector("[data-render-type]")).toBeNull();
+  await fireEvent.keyDown(window, { key: "Escape" });
+  await waitFor(() => expect(sink).toHaveFocus());
+  expect(cell.querySelector("[data-render-type]")).toBeNull();
+  await fireEvent.contextMenu(cell);
+  await fireEvent.click(document.body);
+  expect(screen.queryByRole("menu")).toBeNull();
+  expect(cell.querySelector("strong")).toHaveTextContent("bold");
+});
+
+it("returns to the rendered preview when focus leaves the context menu", async () => {
+  const value = structuredClone(fixture);
+  value.config.renderType = "markdown";
+  value.root[0].left[0].text = "**bold**";
+  vi.mocked(fetch).mockResolvedValue(response(value));
+  await opened();
+  const cell = content(value.root[0].left[0].id);
+  await fireEvent.mouseDown(cell.querySelector("strong")!);
+  await waitFor(() => expect(cell.querySelector('[data-testid="editor-sink"]')).toHaveFocus());
+  await fireEvent.contextMenu(cell);
+  await waitFor(() => expect(screen.getByRole("menu").querySelector("button")).toHaveFocus());
+  screen.getByRole("textbox", { name: "Document title" }).focus();
+  await tick();
+  expect(screen.queryByRole("menu")).toBeNull();
+  expect(cell.querySelector("strong")).toHaveTextContent("bold");
+});
