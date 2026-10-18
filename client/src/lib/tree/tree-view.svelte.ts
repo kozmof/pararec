@@ -81,6 +81,14 @@ export class TreeView {
         if (index.get(id)?.side !== "container") this.#rows.delete(id);
     }
   }
+  /** Text edits preserve row order and child view lists. */
+  updateText(rows: readonly Container[], changed: readonly Container[]): void {
+    for (const row of changed) {
+      const view = this.#rows.get(row.id)!;
+      view.update(row, view.right.children);
+    }
+    this.#snapshot = rows;
+  }
   #project(
     rows: readonly Container[],
     before: readonly Container[],

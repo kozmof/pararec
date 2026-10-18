@@ -1,5 +1,11 @@
 import { parseSchema, validateLinks, type Schema, type Container } from "../../schema.js";
-import { buildIndex, updateIndex, readonlyIndex, type TreeIndex } from "./index.js";
+import {
+  buildIndex,
+  updateIndex,
+  updateTextIndex,
+  readonlyIndex,
+  type TreeIndex,
+} from "./index.js";
 import { applyOp, type Op } from "./ops.js";
 import { LinkIndex } from "./link-index.js";
 import { TreeView } from "./tree-view.svelte.js";
@@ -73,9 +79,14 @@ export class TreeStore {
                 : indexedText(this.index, id)
           : undefined,
       );
-    updateIndex(this.#index, before.root, result.schema.root);
     freezeSnapshot(result.schema);
-    this.#view.update(result.schema.root, this.index);
+    if (op.type === "setText") {
+      const changed = updateTextIndex(this.#index, result.schema.root, op.id);
+      this.#view.updateText(result.schema.root, changed);
+    } else {
+      updateIndex(this.#index, before.root, result.schema.root);
+      this.#view.update(result.schema.root, this.index);
+    }
     this.#links.update(result.schema.links);
     this.#schema = result.schema;
     this.#validated.add(result.schema);
@@ -96,8 +107,8 @@ export class TreeStore {
       contentId === id ? text : indexedText(this.index, contentId),
     );
     freezeSnapshot(next);
-    updateIndex(this.#index, before.root, next.root);
-    this.#view.update(next.root, this.index);
+    const changed = updateTextIndex(this.#index, next.root, id);
+    this.#view.updateText(next.root, changed);
     this.#links.update(next.links);
     this.#schema = next;
     this.#validated.add(next);

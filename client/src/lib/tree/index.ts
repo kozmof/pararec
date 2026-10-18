@@ -75,6 +75,36 @@ export function updateIndex(
   prune(before, after);
   install(before, after, parentId);
 }
+/** Update only the edited row and its ancestors when structure is unchanged. */
+export function updateTextIndex(
+  index: Map<string, IndexEntry>,
+  root: readonly Container[],
+  contentId: string,
+): readonly Container[] {
+  const content = index.get(contentId);
+  if (!content || content.side === "container") throw new Error("Unknown Content");
+  const path: IndexEntry[] = [];
+  let entry = index.get(content.container.id)!;
+  for (;;) {
+    path.push(entry);
+    if (entry.parentId === null) break;
+    entry = index.get(entry.parentId)!;
+  }
+  let rows = root;
+  const changed: Container[] = [];
+  for (const previous of path.reverse()) {
+    const row = rows[previous.index];
+    index.set(row.id, Object.freeze({ ...previous, container: row }));
+    for (const cell of [...row.left, row.right]) {
+      const old = index.get(cell.id)!;
+      index.set(cell.id, Object.freeze({ ...old, container: row }));
+    }
+    changed.push(row);
+    rows = row.right.children;
+  }
+  return changed;
+}
+
 export function buildIndex(schema: Schema): Map<string, IndexEntry> {
   const index = new Map<string, IndexEntry>();
   updateIndex(index, [], schema.root);

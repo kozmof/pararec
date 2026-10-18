@@ -76,3 +76,33 @@ it("drops deleted row views when an ID is reused by a cell", () => {
   expect(tree.rowsAt([]).map((row) => row.id)).toEqual(["b"]);
   expect(parseSchema({ ...tree.schema, root: tree.rowsAt([]) })).toEqual(tree.schema);
 });
+
+it("keeps text-edit indexes equivalent to a rebuild across nested edits and structure changes", async () => {
+  const { buildIndex } = await import("./index.js");
+  const tree = new TreeStore({
+    version: 1,
+    root: [row("a", [row("b"), row("c", [row("d")])]), row("e")],
+    links: [{ id: "link", sourceId: "d-r", start: 0, end: 5, targets: ["e-r"] }],
+  });
+  const before = tree.schema;
+  const unchanged = tree.index.get("e");
+  const check = () => {
+    expect(new Map(tree.index)).toEqual(buildIndex(tree.schema));
+    for (const [id, entry] of buildIndex(tree.schema))
+      expect(tree.index.get(id)!.container).toBe(entry.container);
+    expect(parseSchema({ ...tree.schema, root: tree.rowsAt([]) })).toEqual(tree.schema);
+  };
+  tree.apply({ type: "setText", id: "c-l", text: "edited left" });
+  check();
+  tree.setTextAndLinks("d-r", "xhello", [{ ...tree.schema.links![0], start: 1, end: 6 }]);
+  check();
+  expect(tree.index.get("e")).toBe(unchanged);
+  tree.apply({ type: "moveContainer", id: "c", parentId: null, index: 1 });
+  check();
+  tree.apply({ type: "setText", id: "d-l", text: "after move" });
+  check();
+  tree.restore(before);
+  check();
+  tree.apply({ type: "setText", id: "b-r", text: "after restore" });
+  check();
+});
