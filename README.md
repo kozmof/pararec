@@ -3,8 +3,7 @@
 Pararec is a recursive two-column notebook.
 Notes support plain text, Markdown, KaTeX formulas, and links to other cells.
 
-Pararec runs on your own computer. Public hosting and shared remote access are
-outside its supported scope.
+Pararec is designed for use on your own computer.
 
 ## Install
 
@@ -61,25 +60,24 @@ Link a source-text selection to one or more destination cells.
 
 These shortcuts apply while editing a note.
 
-| Shortcut                    | Action                                                                                                                              |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Arrow keys                  | Move the cursor. At a note boundary, move to the next cell in that direction.                                                       |
-| Shift+Left / Shift+Right    | Move between cells and columns from any cursor position.                                                                            |
-| Shift+Up / Shift+Down       | Move to the cell above or below from any cursor position.                                                                           |
-| Enter                       | Insert a line break.                                                                                                                |
-| Shift+Enter                 | Insert an empty sibling row below and focus the same column. At the start of a full-width parent note, prepend a child row instead. |
-| Shift+Alt+Enter             | Insert an empty row above the current record and focus the same column.                                                             |
-| Alt+Enter in a left cell    | Split at the cursor into a new left cell in the same row.                                                                           |
-| Ctrl+Enter in a right cell  | Add an empty child row and focus its right cell.                                                                                    |
-| Shift+Delete                | Remove the current row, including its children.                                                                                     |
-| Alt+Delete in a left cell   | Remove that left cell, unless it is the last one in the row.                                                                        |
-| Ctrl+Delete in a right cell | Remove all child rows of that note.                                                                                                 |
-| Alt+Up / Alt+Down           | Move the current left cell or row up or down.                                                                                       |
-| Ctrl+A                      | Select all text in the current note.                                                                                                |
-| Ctrl+C / Ctrl+X / Ctrl+V    | Copy, cut, or paste text.                                                                                                           |
-| Ctrl+S                      | Save immediately.                                                                                                                   |
-| Ctrl+Z                      | Undo an action.                                                                                                                     |
-| Ctrl+Shift+Z / Ctrl+Y       | Redo an action.                                                                                                                     |
+| Category   | Shortcut                    | Action                                                                                                                              |
+| ---------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Navigate   | Arrow keys                  | Move the cursor. At a note boundary, move to the next cell in that direction.                                                       |
+| Navigate   | Shift+Left / Shift+Right    | Move between cells and columns from any cursor position.                                                                            |
+| Navigate   | Shift+Up / Shift+Down       | Move to the cell above or below from any cursor position.                                                                           |
+| Insert     | Shift+Enter                 | Insert an empty sibling row below and focus the same column. At the start of a full-width parent note, prepend a child row instead. |
+| Insert     | Shift+Alt+Enter             | Insert an empty row above the current record and focus the same column.                                                             |
+| Insert     | Alt+Enter in a left cell    | Split at the cursor into a new left cell in the same row.                                                                           |
+| Insert     | Ctrl+Enter in a right cell  | Add an empty child row and focus its right cell.                                                                                    |
+| Delete     | Shift+Delete                | Remove the current row, including its children.                                                                                     |
+| Delete     | Alt+Delete in a left cell   | Remove that left cell, unless it is the last one in the row.                                                                        |
+| Delete     | Ctrl+Delete in a right cell | Remove all child rows of that note.                                                                                                 |
+| Reorder    | Alt+Up / Alt+Down           | Move the current left cell or row up or down.                                                                                       |
+| Edit       | Ctrl+A                      | Select all text in the current note.                                                                                                |
+| Edit       | Ctrl+C / Ctrl+X / Ctrl+V    | Copy, cut, or paste text.                                                                                                           |
+| Edit       | Ctrl+S                      | Save immediately.                                                                                                                   |
+| Edit       | Ctrl+Z                      | Undo an action.                                                                                                                     |
+| Edit       | Ctrl+Shift+Z / Ctrl+Y       | Redo an action.                                                                                                                     |
 
 ## More information
 
