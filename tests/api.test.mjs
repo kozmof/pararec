@@ -74,10 +74,16 @@ after(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 
-function request(method = "GET", endpoint = "/api/document", headers = {}, body) {
+function request(
+  method = "GET",
+  endpoint = "/api/document",
+  headers = {},
+  body,
+  serverPort = port,
+) {
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { hostname: "127.0.0.1", port, method, path: endpoint, headers, agent: false },
+      { hostname: "127.0.0.1", port: serverPort, method, path: endpoint, headers, agent: false },
       (res) => {
         const chunks = [];
         res.on("data", (chunk) => chunks.push(chunk));
@@ -577,5 +583,57 @@ test("nesting boundary survives saving and deeper requests preserve disk", async
   ];
   const rejected = await put({ ...empty, root }, { "if-match": saved.headers.etag });
   assert.equal(rejected.status, 400);
+  assert.equal(await readFile(documentPath, "utf8"), disk);
+});
+
+test("development proxy saves on a non-default port and rejects foreign origins", async (t) => {
+  await writeFile(documentPath, JSON.stringify(empty));
+  const { createServer } = await import("vite");
+  const vite = await createServer({
+    configFile: path.resolve("vite.config.ts"),
+    logLevel: "silent",
+    server: {
+      host: "127.0.0.1",
+      port: 0,
+      hmr: false,
+      proxy: { "/api": { target: origin() } },
+    },
+    optimizeDeps: { noDiscovery: true, include: [] },
+  });
+  t.after(() => vite.close());
+  await vite.listen();
+  const devPort = vite.httpServer.address().port;
+  assert.notEqual(devPort, 5173);
+  const save = (host, source) =>
+    request(
+      "PUT",
+      "/api/document",
+      {
+        host,
+        ...(source === undefined ? {} : { origin: source }),
+        "content-type": "application/json",
+        "if-match": "*",
+      },
+      JSON.stringify(empty),
+      devPort,
+    );
+  for (const hostname of ["127.0.0.1", "localhost"]) {
+    const host = hostname + ":" + devPort;
+    const response = await save(host, "http://" + host);
+    assert.equal(response.status, 200, response.body);
+    assert.deepEqual(JSON.parse(await readFile(documentPath, "utf8")), empty);
+  }
+  const disk = await readFile(documentPath, "utf8");
+  for (const source of [
+    undefined,
+    "null",
+    "http://evil.example",
+    "http://127.0.0.1:5173",
+    "http://localhost:" + devPort,
+    "https://127.0.0.1:" + devPort,
+  ]) {
+    const response = await save("127.0.0.1:" + devPort, source);
+    assert.equal(response.status, 403, source);
+  }
   assert.equal(await readFile(documentPath, "utf8"), disk);
 });

@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     // IPv4 so WSL / devcontainer port forwarding reaches it.
     host: "127.0.0.1",
-    // Forward API calls to the Zig server (`pnpm dev:local`).
+    // Forward API calls to the Zig server (`pnpm dev:api`).
     proxy: {
       "/api": {
         target: "http://127.0.0.1:4545",
@@ -14,9 +14,16 @@ export default defineConfig({
         configure(proxy) {
           proxy.on("proxyReq", (request, incoming) => {
             const origin = incoming.headers.origin;
-            // Preserve foreign or missing origins so the local server can reject them.
-            if (origin === "http://127.0.0.1:5173" || origin === "http://localhost:5173") {
-              request.setHeader("origin", "http://127.0.0.1:4545");
+            const host = incoming.headers.host;
+            // Vite can select another port when 5173 is occupied. Only rewrite
+            // same-origin requests to a loopback host, preserving foreign or missing origins.
+            if (
+              host &&
+              /^(?:127\.0\.0\.1|localhost|\[::1\]):[0-9]+$/.test(host) &&
+              origin === `http://${host}`
+            ) {
+              // changeOrigin has already set Host to the HTTP API target.
+              request.setHeader("origin", `http://${request.getHeader("host")}`);
             }
           });
         },
