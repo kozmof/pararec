@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { cx } from "../../../../styled-system/css";
+  import { styles } from "./InlineContent.styles.js";
   import { inlinePresentation, type InlineDecoration } from "./inline-rendering.js";
   let { text, line, decorations = [], preedit = "", column = 0, onDestination, disabled = false }: {
     preedit?: string;
@@ -14,21 +16,12 @@
 
 <!-- Source offsets move while typing; keep the span slots and destination controls mounted. -->
 {#each presentation.runs as run, runIndex (runIndex)}<span
-  class:link-label={run.decorations.length > 0}
+  class={run.decorations.length > 0 ? cx("link-label", styles["link-label"]) : undefined}
   data-link-ids={run.decorations.length ? run.decorations.map(item => item.id).join(" ") : undefined}
->{#each run.parts as part, partIndex (partIndex)}<span data-from={part.from} class:preedit={part.preedit} data-preedit={part.preedit ? "" : undefined}>{presentation.text.slice(part.from, part.to)}</span>{/each}</span>{#each run.endings as decoration (decoration.id)}<span class="destinations" data-link-ids={decoration.id} data-editor-annotation aria-label="Linked cells">{#each decoration.destinations as destination, index (destination.id)}{#if index > 0}<span aria-hidden="true">,</span>{/if}<button
+>{#each run.parts as part, partIndex (partIndex)}<span data-from={part.from} class={part.preedit ? cx("preedit", styles.preedit) : undefined} data-preedit={part.preedit ? "" : undefined}>{presentation.text.slice(part.from, part.to)}</span>{/each}</span>{#each run.endings as decoration (decoration.id)}<span class={cx("destinations", styles["destinations"])} data-link-ids={decoration.id} data-editor-annotation aria-label="Linked cells">{#each decoration.destinations as destination, index (destination.id)}{#if index > 0}<span aria-hidden="true">,</span>{/if}<button class={styles.button}
   type="button" {disabled}
   aria-label={`Linked cell ${index + 1}: ${destination.label}`}
   title={destination.label}
   onmousedown={event => { event.preventDefault(); event.stopPropagation(); }}
   onclick={event => { event.stopPropagation(); onDestination?.(destination.id); }}
 >{index + 1}</button>{/each}</span>{/each}{/each}
-
-<style>
-  .preedit { text-decoration: underline; text-underline-offset: 2px; }
-  .link-label { background: #eff6ff; outline: 1px solid #93b4de; outline-offset: 1px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
-  .destinations { display: inline; position: relative; top: 3px; font-size: 11px; line-height: 0; white-space: nowrap; color: #2563eb; user-select: none; }
-  button { display: inline-block; box-sizing: border-box; min-width: 18px; padding: 2px 4px; border: 0; background: transparent; color: inherit; font: inherit; line-height: 14px; cursor: pointer; }
-  button:not(:disabled):hover { text-decoration: underline; }
-  button:focus-visible { outline: 1px solid #2563eb; outline-offset: 2px; }
-</style>

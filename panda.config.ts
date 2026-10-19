@@ -3,6 +3,12 @@ import { defineConfig } from "@pandacss/dev";
 export default defineConfig({
   presets: ["@pandacss/preset-base", "@pandacss/preset-panda"],
   preflight: true,
+  globalCss: {
+    button: {
+      transition: "background-color 120ms ease, color 120ms ease, box-shadow 120ms ease",
+      "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+    },
+  },
   include: ["./client/src/**/*.{js,jsx,ts,tsx,svelte}"],
   exclude: [],
   theme: {

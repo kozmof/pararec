@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { cx } from "../../../styled-system/css";
+  import { styles } from "./Pad.styles.js";
   import { onMount, setContext, tick } from "svelte";
   import type { Schema } from "../schema.js";
   import { TreeStore } from "../lib/tree/tree-store.svelte.js";
@@ -364,41 +366,41 @@
   });
 </script>
 <svelte:window onkeydown={keydown} />
-<main bind:this={pad}
+<main class={styles.main} bind:this={pad}
   style:max-width={`${tree?.schema.config.maxWidth ?? 1100}px`}
   style:--outer-left={(tree?.schema.config.outerWidthRate?.left ?? 35) + "fr"}
   style:--outer-right={(tree?.schema.config.outerWidthRate?.right ?? 65) + "fr"}
   style:--inner-left={(tree?.schema.config.innerWidthRate?.left ?? 35) + "fr"}
   style:--inner-right={(tree?.schema.config.innerWidthRate?.right ?? 65) + "fr"}>
   {#if loading}<p role="status">Loading document…</p>
-  {:else if error}<p role="alert">{error}</p><button onclick={load}>Retry</button>
+  {:else if error}<p role="alert">{error}</p><button class={styles.button} onclick={load}>Retry</button>
   {:else if tree && session}
     {#if menus.link || menus.render}
-      <div bind:this={menus.element} class="link-menu" role="menu" aria-label="Cell options" tabindex="-1" data-menu-source-id={(menus.render ?? menus.link)!.sourceId} onfocusout={menus.blur} onkeydown={menus.keydown} oncontextmenu={event => event.preventDefault()} style:left={(menus.render ?? menus.link)!.x + "px"} style:top={(menus.render ?? menus.link)!.y + "px"}>
+      <div bind:this={menus.element} class={cx("link-menu", styles["link-menu"])} role="menu" aria-label="Cell options" tabindex="-1" data-menu-source-id={(menus.render ?? menus.link)!.sourceId} onfocusout={menus.blur} onkeydown={menus.keydown} oncontextmenu={event => event.preventDefault()} style:left={(menus.render ?? menus.link)!.x + "px"} style:top={(menus.render ?? menus.link)!.y + "px"}>
         {#if menus.render}
-          <div class="menu-heading">Render type</div>
-          <button role="menuitemradio" aria-checked={cellRenderType === undefined} disabled={disabled} onclick={() => changeRenderType()}>Default ({tree.schema.config.renderType})</button>
+          <div class={cx("menu-heading", styles["menu-heading"])}>Render type</div>
+          <button class={styles.button} role="menuitemradio" aria-checked={cellRenderType === undefined} disabled={disabled} onclick={() => changeRenderType()}>Default ({tree.schema.config.renderType})</button>
           {#each renderTypes as type (type)}
-            <button role="menuitemradio" aria-checked={cellRenderType === type} disabled={disabled} onclick={() => changeRenderType(type)}>{type === "none" ? "None" : type === "markdown" ? "Markdown" : type === "katex" ? "KaTeX" : type}</button>
+            <button class={styles.button} role="menuitemradio" aria-checked={cellRenderType === type} disabled={disabled} onclick={() => changeRenderType(type)}>{type === "none" ? "None" : type === "markdown" ? "Markdown" : type === "katex" ? "KaTeX" : type}</button>
           {/each}
         {/if}
         {#if menus.link}
         {#if menus.link.labelIds}
           {#each menus.link.labelIds as id, index (id)}
-            <button role="menuitem" disabled={disabled} onclick={() => removeLabel(id)}>{menus.link.labelIds.length === 1 ? "Remove label" : `Remove label ${index + 1}`}</button>
+            <button class={styles.button} role="menuitem" disabled={disabled} onclick={() => removeLabel(id)}>{menus.link.labelIds.length === 1 ? "Remove label" : `Remove label ${index + 1}`}</button>
             {#each tree.schema.links?.find(link => link.id === id)?.targets ?? [] as target, destinationIndex (target)}
-              <button class="remove-destination" title={destinationName(target)} role="menuitem" disabled={disabled} onclick={() => removeLabel(id, target)}>Remove {destinationIndex + 1}</button>
+              <button class={cx(styles.button, "remove-destination", styles["remove-destination"])} title={destinationName(target)} role="menuitem" disabled={disabled} onclick={() => removeLabel(id, target)}>Remove {destinationIndex + 1}</button>
             {/each}
           {/each}
         {:else}
-        <button role="menuitem" onclick={() => menus.startLink()}>Start linking</button>
+        <button class={styles.button} role="menuitem" onclick={() => menus.startLink()}>Start linking</button>
         {/if}
         {/if}
       </div>
     {/if}
-    {#if menus.linking}<div class="link-toolbar" role="region" aria-label="Link selected text"><span>Select cells to link ({menus.linking.targets.length})</span><button disabled={!menus.linking.targets.length || disabled} onclick={finishLink}>Done</button><button onclick={() => menus.cancel()}>Cancel</button></div>{/if}
+    {#if menus.linking}<div class={cx("link-toolbar", styles["link-toolbar"])} role="region" aria-label="Link selected text"><span>Select cells to link ({menus.linking.targets.length})</span><button class={styles.button} disabled={!menus.linking.targets.length || disabled} onclick={finishLink}>Done</button><button class={styles.button} onclick={() => menus.cancel()}>Cancel</button></div>{/if}
     {#if tree.schema.config.showTitles}
-      <div class="document-title"><input bind:this={titleInput} class="title-input" aria-label="Document title" value={tree.schema.title} disabled={disabled || !!menus.linking}
+      <div class={cx("document-title", styles["document-title"])}><input bind:this={titleInput} class={cx("title-input", styles["title-input"])} aria-label="Document title" value={tree.schema.title} disabled={disabled || !!menus.linking}
         onfocus={() => { if (focused) blur(focused); history.closeGroup(); }}
         oncompositionstart={() => { titleComposing = true; }}
         oninput={event => { if (!titleComposing) editTitle(event.currentTarget.value); }}
@@ -406,44 +408,18 @@
         onblur={() => { history.closeGroup(); void session?.flush(); }}
         onkeydown={event => { if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); event.currentTarget.blur(); } }} /></div>
     {/if}
-    <div class="status-row">
-    <div class="save-status" role="status">{session.status === "saved" ? "Saved" : session.status === "saving" ? "Saving…" : session.status === "dirty" ? "Unsaved changes" : session.status === "conflict" ? "File changed on disk" : "Save failed"}</div>
-      <span class="layer-status" role="status" aria-label="Current layer" title={`Layer ${currentLayer} of ${totalLayers}`}>{currentLayer}:{totalLayers}</span>
+    <div class={cx("status-row", styles["status-row"])}>
+    <div class={cx("save-status", styles["save-status"])} role="status">{session.status === "saved" ? "Saved" : session.status === "saving" ? "Saving…" : session.status === "dirty" ? "Unsaved changes" : session.status === "conflict" ? "File changed on disk" : "Save failed"}</div>
+      <span class={cx("layer-status", styles["layer-status"])} role="status" aria-label="Current layer" title={`Layer ${currentLayer} of ${totalLayers}`}>{currentLayer}:{totalLayers}</span>
     </div>
-    {#if session.status === "failed"}<p role="alert">{session.error}</p><button onclick={() => session?.flush()}>Retry save</button>{/if}
-    {#if session.status === "conflict"}<dialog use:modal oncancel={event => event.preventDefault()} aria-label="File changed on disk" aria-modal="true"><p>The file changed on disk. Reload the disk version or overwrite it with your notes.</p>{#if session.error}<p>{session.error}</p>{/if}<button disabled={busy} onclick={reload}>Reload</button><button disabled={busy} onclick={overwrite}>Overwrite</button></dialog>{/if}
+    {#if session.status === "failed"}<p role="alert">{session.error}</p><button class={styles.button} onclick={() => session?.flush()}>Retry save</button>{/if}
+    {#if session.status === "conflict"}<dialog class={styles.dialog} use:modal oncancel={event => event.preventDefault()} aria-label="File changed on disk" aria-modal="true"><p>The file changed on disk. Reload the disk version or overwrite it with your notes.</p>{#if session.error}<p>{session.error}</p>{/if}<button class={styles.button} disabled={busy} onclick={reload}>Reload</button><button class={styles.button} disabled={busy} onclick={overwrite}>Overwrite</button></dialog>{/if}
     <div inert={disabled}>
-      {#if parent}<div class="level parent-row" data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right">{#snippet navigation()}<button class="go-back" title="Go back" aria-label="Go back" onclick={goBack}><ArrowIcon direction="up" /></button>{/snippet}</ContentView></div>{/if}
-      <div class="level" class:empty={rows.length === 0} data-testid="pad-level" data-etag={session.etag ?? ""}>
+      {#if parent}<div class={cx("level parent-row", styles["level"], styles["parent-row"])} data-testid="parent-level" data-container-id={parent.id} data-depth="0"><ContentView content={parent.right} label="Right note" side="right">{#snippet navigation()}<button class={cx(styles.button, "go-back", styles["go-back"])} title="Go back" aria-label="Go back" onclick={goBack}><ArrowIcon direction="up" /></button>{/snippet}</ContentView></div>{/if}
+      <div class={cx("level", styles["level"])} class:empty={rows.length === 0} data-testid="pad-level" data-etag={session.etag ?? ""}>
         {#each rows as container (container.id)}<ContainerRow {container} onenter={enter} />
-        {:else}<button bind:this={addButton} class="add-row" aria-label="Add row" title="Add row" onclick={addRow}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" /></svg></button>{/each}
+        {:else}<button class={cx(styles.button, "add-row", styles["add-row"])} bind:this={addButton} aria-label="Add row" title="Add row" onclick={addRow}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" /></svg></button>{/each}
       </div>
     </div>
   {/if}
 </main>
-<style>
-  .menu-heading { padding: 4px 8px; color: #666; font-size: 12px; }
-  .link-menu button { text-align: left; padding: 6px 10px; border: 0; background: transparent; font: inherit; }
-  .link-menu button:hover, .link-menu button:focus-visible { background: #eff6ff; outline: none; }
-  .link-menu button[aria-checked="true"] { background: #dbeafe; }
-  .link-menu { max-width: min(300px, calc(100vw - 16px)); max-height: min(400px, 70vh); overflow: auto; position: fixed; z-index: 100; background: white; border: 1px solid #ddd; padding: 6px; box-shadow: 0 3px 12px #0002; display: flex; flex-direction: column; }
-  .remove-destination { text-align: left; overflow-wrap: anywhere; }
-  .link-toolbar { position: sticky; top: 0; z-index: 10; background: #eff6ff; padding: 10px; display: flex; gap: 12px; align-items: center; }
-  main { max-width: 1100px; margin: 0 auto; padding: 24px; font-family: system-ui, sans-serif; }
-  .status-row { display: flex; align-items: baseline; gap: 16px; margin-bottom: 12px; }
-  .document-title { min-width: 0; font-size: 1em; font-weight: normal; margin: 0.67em 0; }
-  .layer-status { margin-left: auto; flex-shrink: 0; color: #666; font-size: 13px; font-variant-numeric: tabular-nums; }
-  .title-input { width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 4px; }
-  .title-input:hover { border-color: #ddd; }
-  .title-input:focus { outline: none; }
-  .level { border: 1px solid #ddd; }
-  .level.empty { border: 0; display: flex; justify-content: center; }
-  .parent-row { border-bottom: 0; display: flex; flex-direction: column; }
-  .go-back { align-self: flex-end; margin: 0 8px 8px auto; padding: 4px; width: 24px; height: 24px; color: #9ca3af; box-sizing: border-box; border: 1px solid currentColor; border-radius: 50%; background: transparent; display: inline-flex; align-items: center; justify-content: center; }
-  .go-back:hover { color: #6b7280; }
-  .save-status { color: #666; font-size: 13px; }
-  .add-row { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; box-sizing: border-box; margin: 8px; padding: 0; color: #6b7280; background: transparent; border: 1px solid #ddd; border-radius: 50%; cursor: pointer; }
-  .add-row:focus { outline: none; }
-  dialog { border: 1px solid #b78b40; padding: 16px; margin-bottom: 16px; }
-  button { cursor: pointer; }
-</style>

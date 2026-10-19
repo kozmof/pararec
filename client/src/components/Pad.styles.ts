@@ -1,0 +1,158 @@
+import { buttonFeedback } from "../styles/button.js";
+import { css } from "../../../styled-system/css";
+
+export const styles = {
+  "menu-heading": css({
+    padding: "4px 8px",
+    color: "#666",
+    fontSize: "12px",
+  }),
+  "link-menu": css({
+    "& button": {
+      textAlign: "left",
+      padding: "6px 10px",
+      border: "0",
+      background: "transparent",
+      font: "inherit",
+    },
+    '& button:hover:not([aria-checked="true"])': {
+      background: "#eff6ff",
+      outline: "none",
+    },
+    "& button:focus-visible": {
+      background: "#eff6ff",
+      outline: "none",
+    },
+    '& button[aria-checked="true"]': {
+      background: "#dbeafe",
+    },
+    maxWidth: "min(300px, calc(100vw - 16px))",
+    maxHeight: "min(400px, 70vh)",
+    overflow: "auto",
+    position: "fixed",
+    zIndex: "100",
+    background: "white",
+    border: "1px solid #ddd",
+    padding: "6px",
+    boxShadow: "0 3px 12px #0002",
+    display: "flex",
+    flexDirection: "column",
+  }),
+  "remove-destination": css({
+    textAlign: "left",
+    overflowWrap: "anywhere",
+  }),
+  "link-toolbar": css({
+    position: "sticky",
+    top: "0",
+    zIndex: "10",
+    background: "#eff6ff",
+    padding: "10px",
+    display: "flex",
+    gap: "12px",
+    alignItems: "center",
+  }),
+  main: css({
+    maxWidth: "1100px",
+    margin: "0 auto",
+    padding: "24px",
+    fontFamily: "system-ui, sans-serif",
+  }),
+  "status-row": css({
+    display: "flex",
+    alignItems: "baseline",
+    gap: "16px",
+    marginBottom: "12px",
+  }),
+  "document-title": css({
+    minWidth: "0",
+    fontSize: "1em",
+    fontWeight: "normal",
+    margin: "0.67em 0",
+  }),
+  "layer-status": css({
+    marginLeft: "auto",
+    flexShrink: "0",
+    color: "#666",
+    fontSize: "13px",
+    fontVariantNumeric: "tabular-nums",
+  }),
+  "title-input": css({
+    width: "100%",
+    boxSizing: "border-box",
+    font: "inherit",
+    color: "inherit",
+    background: "transparent",
+    border: "1px solid transparent",
+    borderRadius: "4px",
+    padding: "4px",
+    "&:hover": {
+      borderColor: "#ddd",
+    },
+    "&:focus": {
+      outline: "none",
+    },
+  }),
+  level: css({
+    border: "1px solid #ddd",
+    "&.empty": {
+      border: "0",
+      display: "flex",
+      justifyContent: "center",
+    },
+  }),
+  "parent-row": css({
+    borderBottom: "0",
+    display: "flex",
+    flexDirection: "column",
+  }),
+  "go-back": css({
+    alignSelf: "flex-end",
+    margin: "0 8px 8px auto",
+    padding: "4px",
+    width: "24px",
+    height: "24px",
+    color: "#9ca3af",
+    boxSizing: "border-box",
+    border: "1px solid currentColor",
+    borderRadius: "50%",
+    background: "transparent",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    "&:hover": {
+      color: "#6b7280",
+    },
+  }),
+  "save-status": css({
+    color: "#666",
+    fontSize: "13px",
+  }),
+  "add-row": css({
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "36px",
+    height: "36px",
+    boxSizing: "border-box",
+    margin: "8px",
+    padding: "0",
+    color: "#6b7280",
+    background: "transparent",
+    border: "1px solid #ddd",
+    borderRadius: "50%",
+    cursor: "pointer",
+    "&:focus": {
+      outline: "none",
+    },
+  }),
+  dialog: css({
+    border: "1px solid #b78b40",
+    padding: "16px",
+    marginBottom: "16px",
+  }),
+  button: css({
+    ...buttonFeedback,
+    cursor: "pointer",
+  }),
+};

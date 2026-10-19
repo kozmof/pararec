@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { cx } from "../../../styled-system/css";
+  import { styles } from "./ContentView.styles.js";
   import { getContext, untrack, type Snippet } from "svelte";
   import type { Content } from "../schema.js";
   import { CONTENT_HOST, type ContentHost } from "../lib/editor/content-host.js";
@@ -102,9 +104,9 @@
   }
 </script>
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-<div use:viewport class="content" class:linking={host.linking} class:chosen={host.selectedCell?.(content.id)} onkeydown={event => { if (host.linking && !(event.target instanceof Element && event.target.closest("button")) && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.stopPropagation(); host.selectCell?.(content.id); } }} onclick={event => { const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button[data-render-target]") : null; if (target && !host.disabled && !host.linking) { event.preventDefault(); event.stopPropagation(); host.followLink?.(target.dataset.renderTarget!); } }} oncontextmenu={event => { event.preventDefault(); if (host.disabled || host.linking) return; host.renderMenu?.(content.id, event); const label = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-link-ids]") : null; if (label?.dataset.linkIds) { event.preventDefault(); host.labelMenu?.(content.id, label.dataset.linkIds.split(" "), event); return; } const range = editor?.selected(); if (range && range.end > range.start) { event.preventDefault(); host.linkMenu?.(content.id, range, event); } }} data-content-id={content.id} tabindex="0" role="group" aria-label={label} onfocus={event => { if (event.target instanceof Element && event.target.closest("[data-editor-annotation], a")) return; host.focus(content.id); if (event.target === event.currentTarget && editing) editor?.focus(); }} onfocusout={blur} onmousedown={mousedown}>
+<div use:viewport class={cx("content", styles["content"])} class:linking={host.linking} class:chosen={host.selectedCell?.(content.id)} onkeydown={event => { if (host.linking && !(event.target instanceof Element && event.target.closest("button")) && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.stopPropagation(); host.selectCell?.(content.id); } }} onclick={event => { const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button[data-render-target]") : null; if (target && !host.disabled && !host.linking) { event.preventDefault(); event.stopPropagation(); host.followLink?.(target.dataset.renderTarget!); } }} oncontextmenu={event => { event.preventDefault(); if (host.disabled || host.linking) return; host.renderMenu?.(content.id, event); const label = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-link-ids]") : null; if (label?.dataset.linkIds) { event.preventDefault(); host.labelMenu?.(content.id, label.dataset.linkIds.split(" "), event); return; } const range = editor?.selected(); if (range && range.end > range.start) { event.preventDefault(); host.linkMenu?.(content.id, range, event); } }} data-content-id={content.id} tabindex="0" role="group" aria-label={label} onfocus={event => { if (event.target instanceof Element && event.target.closest("[data-editor-annotation], a")) return; host.focus(content.id); if (event.target === event.currentTarget && editing) editor?.focus(); }} onfocusout={blur} onmousedown={mousedown}>
   {#if doc && rendered !== null}
-    <div use:previewHeight class="rendered" data-render-type={renderType}>{@html rendered}</div>
+    <div use:previewHeight class={cx("rendered", styles["rendered"])} data-render-type={renderType}>{@html rendered}</div>
   {:else if doc}
   <ContentEditor onHeight={height => { measuredHeight = height; }} {links} onDestination={host.followLink} annotationsDisabled={host.linking || host.disabled} bind:this={editor} {doc} active={editing} entry={host.entry} {side} onBoundary={host.boundary} onCommand={host.command} onCaret={caret => { if (editing) host.caret(content.id, caret); }} />
   {:else}
@@ -112,56 +114,3 @@
   {/if}
   {@render navigation?.()}
 </div>
-<style>
-  .rendered { padding: 8px 12px; overflow-wrap: anywhere; min-height: 36px; }
-  .rendered :global(pre) { overflow-x: auto; }
-  /* Horizontal scrolling otherwise makes vertical overflow auto as well. */
-  .rendered :global(.katex-display) { overflow-x: auto; overflow-y: hidden; padding-block: 0.25em; }
-  .rendered :global(.linked-formula) { display: flex; align-items: center; justify-content: center; gap: 4px; }
-  .rendered :global(.linked-formula > .katex-display) { min-width: 0; }
-  .rendered :global(.link-label) { background: #eff6ff; outline: 1px solid #93b4de; outline-offset: 1px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
-  .rendered :global(.destinations) { display: inline; vertical-align: sub; font-size: 11px; line-height: 0; white-space: nowrap; color: #2563eb; user-select: none; }
-  .rendered :global(.destinations button) { display: inline-block; min-width: 18px; padding: 2px 4px; border: 0; background: transparent; color: inherit; font: inherit; line-height: 14px; cursor: pointer; }
-  .rendered :global(.katex .destinations) { vertical-align: baseline; font: inherit; line-height: inherit; }
-  /* Radical SVGs and layout struts must not intercept destination clicks. */
-  .rendered :global(.katex svg), .rendered :global(.katex .hide-tail),
-  .rendered :global(.katex .katex-strut), .rendered :global(.katex .pstrut) { pointer-events: none; }
-  .rendered :global(.katex .destinations button) { position: relative; z-index: 1; pointer-events: auto; min-width: 0; padding: 0; font: inherit; line-height: inherit; }
-  .rendered :global(.destinations button:hover) { text-decoration: underline; }
-  .rendered :global(.destinations button:focus-visible) { outline: 1px solid #2563eb; outline-offset: 2px; }
-  .rendered :global(img) { max-width: 100%; }
-  .rendered[data-render-type="markdown"] { line-height: 1.6; }
-  .rendered[data-render-type="markdown"] :global(p) { margin: 0.75em 0; }
-  .rendered[data-render-type="markdown"] :global(h1),
-  .rendered[data-render-type="markdown"] :global(h2),
-  .rendered[data-render-type="markdown"] :global(h3),
-  .rendered[data-render-type="markdown"] :global(h4),
-  .rendered[data-render-type="markdown"] :global(h5),
-  .rendered[data-render-type="markdown"] :global(h6) { font-weight: 600; line-height: 1.25; margin: 1em 0 0.5em; }
-  .rendered[data-render-type="markdown"] :global(h1) { font-size: 2em; }
-  .rendered[data-render-type="markdown"] :global(h2) { font-size: 1.5em; }
-  .rendered[data-render-type="markdown"] :global(h3) { font-size: 1.25em; }
-  .rendered[data-render-type="markdown"] :global(h4) { font-size: 1.125em; }
-  .rendered[data-render-type="markdown"] :global(h5),
-  .rendered[data-render-type="markdown"] :global(h6) { font-size: 1em; }
-  .rendered[data-render-type="markdown"] :global(ul),
-  .rendered[data-render-type="markdown"] :global(ol) { margin: 0.75em 0; padding-inline-start: 1.75em; }
-  .rendered[data-render-type="markdown"] :global(ul) { list-style: disc outside; }
-  .rendered[data-render-type="markdown"] :global(ol) { list-style: decimal outside; }
-  .rendered[data-render-type="markdown"] :global(li > p),
-  .rendered[data-render-type="markdown"] :global(li > ul),
-  .rendered[data-render-type="markdown"] :global(li > ol) { margin: 0.25em 0; }
-  .rendered[data-render-type="markdown"] :global(blockquote) { margin: 0.75em 0; padding-inline-start: 1em; border-inline-start: 3px solid #cbd5e1; color: #475569; }
-  .rendered[data-render-type="markdown"] :global(pre) { margin: 0.75em 0; padding: 0.75em; border-radius: 4px; background: #f1f5f9; }
-  .rendered[data-render-type="markdown"] :global(code) { font-family: monospace; background: #f1f5f9; border-radius: 3px; padding: 0.1em 0.25em; }
-  .rendered[data-render-type="markdown"] :global(pre code) { padding: 0; background: transparent; }
-  .rendered[data-render-type="markdown"] :global(a) { color: #2563eb; text-decoration: underline; }
-  .rendered[data-render-type="markdown"] :global(hr) { margin: 1em 0; border: 0; border-top: 1px solid #cbd5e1; }
-  .rendered[data-render-type="markdown"] :global(> :first-child) { margin-top: 0; }
-  .rendered[data-render-type="markdown"] :global(> :last-child) { margin-bottom: 0; }
-  .content { position: relative; min-width: 0; display: flex; flex-direction: column; outline: none; }
-  .linking { cursor: pointer; --editor-background: transparent; }
-  .linking:hover { background: #eff6ff; }
-  .linking.chosen { box-shadow: inset 0 0 0 2px #2563eb; background: #dbeafe; }
-  .content:last-child { flex: 1; }
-</style>
