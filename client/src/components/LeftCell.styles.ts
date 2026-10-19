@@ -6,7 +6,7 @@ export const styles = {
     display: "flex",
     flexDirection: "column",
     "& [data-content-id] + [data-content-id]": {
-      borderTop: "1px solid #ddd",
+      borderTop: "ui.divider",
     },
   }),
 };

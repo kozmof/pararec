@@ -845,11 +845,11 @@
     flex: "1",
     overflow: "auto",
     fontFamily: "mono",
-    fontSize: "12.5px",
+    fontSize: "ui.editor",
     color: "ink.black",
+    background: "var(--editor-background, {colors.ui.surface})",
     outline: "none",
   })}
-  style:background="var(--editor-background, #fff)"
   style:flex={autoHeight ? "1 0 auto" : "1"}
   style:height={autoHeight ? `${contentHeight + PAD_Y * 2}px` : undefined}
   style:overflow={autoHeight ? "visible" : "auto"}
@@ -927,7 +927,7 @@
         opacity: "0",
         zIndex: "3",
         fontFamily: "mono",
-        fontSize: "12.5px",
+        fontSize: "ui.editor",
       })}
       style:top={`${caretXY.y + PAD_Y}px`}
       style:left={`clamp(0px, ${caretXY.x + PAD_X}px, calc(100% - 2px))`}

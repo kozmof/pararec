@@ -4,9 +4,9 @@ import { css } from "../../../styled-system/css";
 export const buttonFeedback = css.raw({
   "@media (hover: hover)": {
     '&:hover:where(:not(:disabled):not([aria-checked="true"]))': {
-      backgroundColor: "#eff6ff",
-      color: "#1d4ed8",
-      boxShadow: "inset 0 0 0 1px #bfdbfe",
+      backgroundColor: "ui.hover",
+      color: "ui.accentHover",
+      boxShadow: "ui.hover",
     },
   },
 });

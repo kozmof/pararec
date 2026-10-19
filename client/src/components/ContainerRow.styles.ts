@@ -7,7 +7,7 @@ export const styles = {
     '&[data-depth="1"]': {
       gridTemplateColumns: "minmax(0, var(--inner-left, 35fr)) minmax(0, var(--inner-right, 65fr))",
     },
-    borderBottom: "1px solid #ddd",
+    borderBottom: "ui.divider",
     "&:last-child": {
       borderBottom: "0",
     },
