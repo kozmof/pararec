@@ -1,6 +1,7 @@
 const std = @import("std");
 const http = @import("http.zig");
 const store_module = @import("store.zig");
+const schema = @import("schema.zig");
 const Io = std.Io;
 
 const usage = "Usage: pararec open <document.json> [--port 4545] [--static ./dist]";
@@ -75,6 +76,15 @@ pub fn main(init: std.process.Init) !void {
         null;
     defer if (static_dir) |dir| dir.close(io);
     var store: store_module.Store = .{ .dir = document_dir, .basename = basename };
+    // Create the requested document before serving, preserving any existing file.
+    _ = store.put(io, allocator, .{
+        .version = 1,
+        .title = schema.defaultTitle(basename),
+        .root = &.{},
+    }, .create) catch |err| switch (err) {
+        error.PreconditionFailed => {},
+        else => return err,
+    };
     var document_request: Io.Mutex = .init;
     var connections = std.atomic.Value(usize).init(0);
     const config: http.Config = .{ .static_dir = static_dir, .store = &store, .port = options.port, .document_request = &document_request };

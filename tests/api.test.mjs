@@ -114,6 +114,8 @@ const put = (document, headers = {}) =>
 // Keep cases sequential because they share one document.
 test("document API over real sockets", async (t) => {
   await t.test("missing files return 404 and creation requires a precondition", async () => {
+    assert.equal((await request()).status, 200);
+    await rm(documentPath);
     assert.equal((await request()).status, 404);
     assert.equal((await put(empty)).status, 428);
     assert.equal((await put(empty, { "if-match": "*" })).status, 412);

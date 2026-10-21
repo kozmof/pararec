@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, mkdir, rm, writeFile, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile, symlink } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -18,15 +18,12 @@ async function freePort() {
   await new Promise((resolve) => socket.close(resolve));
   return port;
 }
-function launch(document, port) {
-  const child = spawn(binary, [
-    "open",
-    document,
-    "--port",
-    String(port),
-    "--static",
-    path.dirname(document),
-  ]);
+function launch(document, port, cwd) {
+  const child = spawn(
+    binary,
+    ["open", document, "--port", String(port), "--static", path.dirname(document)],
+    { cwd },
+  );
   let output = "";
   const ready = new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -69,12 +66,13 @@ test("document locks survive replacement, reject aliases, and release after proc
     children.push(first.child);
     assert.equal((await first.ready).listening, true);
     const url = `http://127.0.0.1:${port}`;
+    const initial = await fetch(`${url}/api/document`);
     const saved = await fetch(`${url}/api/document`, {
       method: "PUT",
       headers: {
         Origin: url,
         "Content-Type": "application/json",
-        "If-None-Match": "*",
+        "If-Match": initial.headers.get("etag"),
       },
       body: JSON.stringify({ version: 1, root: [] }),
     });
@@ -115,6 +113,40 @@ test("document locks survive replacement, reject aliases, and release after proc
     assert.equal((await other.ready).listening, true);
   } finally {
     await Promise.all(children.map(stop));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("open creates a missing document at the requested relative path", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "pararec-create-"));
+  let server;
+  try {
+    await mkdir(path.join(directory, "foo"));
+    const port = await freePort();
+    server = launch("foo/bar.json", port, directory);
+    assert.equal((await server.ready).listening, true);
+    const document = path.join(directory, "foo/bar.json");
+    const bytes = await readFile(document, "utf8");
+    const parsed = JSON.parse(bytes);
+    assert.equal(parsed.version, 1);
+    assert.equal(parsed.title, "bar");
+    assert.deepEqual(parsed.root, []);
+    assert.deepEqual(await readdir(directory), ["foo"]);
+    assert.deepEqual((await readdir(path.join(directory, "foo"))).sort(), [
+      "bar.json",
+      "bar.json.lock",
+    ]);
+    const response = await fetch("http://127.0.0.1:" + port + "/api/document");
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), bytes);
+    await stop(server.child);
+    const existing = JSON.stringify({ version: 1, title: "Keep me", root: [] });
+    await writeFile(document, existing);
+    server = launch("foo/bar.json", port, directory);
+    assert.equal((await server.ready).listening, true);
+    assert.equal(await readFile(document, "utf8"), existing);
+  } finally {
+    if (server) await stop(server.child);
     await rm(directory, { recursive: true, force: true });
   }
 });
