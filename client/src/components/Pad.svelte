@@ -365,6 +365,10 @@
     return () => { active = false; controller?.abort(); cache?.dispose(); session?.dispose(); window.removeEventListener("hashchange", update); window.removeEventListener("beforeunload", unload); document.removeEventListener("visibilitychange", visibility); document.removeEventListener("click", menus.dismissOutside, true); };
   });
 </script>
+
+<svelte:head>
+  <title>{tree?.schema.title.trim() || "Pararec"}</title>
+</svelte:head>
 <svelte:window onkeydown={keydown} />
 <main class={styles.main} bind:this={pad}
   style:max-width={`${tree?.schema.config.maxWidth ?? 1100}px`}

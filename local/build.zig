@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     // Release archives must run on CPUs older than the CI runner.
     const target = b.standardTargetOptions(.{
         .default_target = .{ .cpu_model = .baseline },
@@ -15,8 +15,19 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
-    const embed = b.addSystemCommand(&.{ "node", b.pathFromRoot("../scripts/embed-client.mjs") });
+    const embed = b.addSystemCommand(&.{"node"});
+    embed.addFileArg(b.path("../scripts/embed-client.mjs"));
     embed.addDirectoryArg(b.path("../dist"));
+    // Directory arguments track the path, not file contents. Track every asset
+    // so rebuilding the client also refreshes the embedded production client.
+    const io = b.graph.io;
+    const dist = try b.build_root.handle.openDir(io, "../dist", .{ .iterate = true });
+    defer dist.close(io);
+    var walker = try dist.walk(b.allocator);
+    defer walker.deinit();
+    while (try walker.next(io)) |entry| {
+        if (entry.kind == .file) embed.addFileInput(b.path(b.fmt("../dist/{s}", .{entry.path})));
+    }
     const assets = embed.addOutputDirectoryArg("embedded-client");
     exe.root_module.addImport("client_assets", b.createModule(.{
         .root_source_file = assets.path(b, "assets.zig"),
