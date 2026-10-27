@@ -250,6 +250,23 @@ test("document API over real sockets", async (t) => {
       undefined,
     );
   });
+  await t.test("forwarded loopback ports support loading and same-origin saves", async () => {
+    const forwardedPort = port === 53129 ? 53130 : 53129;
+    for (const hostname of ["localhost", "127.0.0.1"]) {
+      const host = hostname + ":" + forwardedPort;
+      assert.equal((await request("GET", "/", { host })).status, 200);
+      assert.equal((await request("GET", "/api/document", { host })).status, 200);
+      assert.equal(
+        (await put(empty, { "if-match": "*", host, origin: "http://" + host })).status,
+        200,
+      );
+      assert.equal(
+        (await put(empty, { "if-match": "*", host, origin: "http://" + hostname + ":" + port }))
+          .status,
+        403,
+      );
+    }
+  });
   await t.test(
     "rejects bodies above 128 MiB and saves edits to loaded documents above 32 MiB",
     async () => {

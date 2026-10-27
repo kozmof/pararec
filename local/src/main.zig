@@ -87,7 +87,7 @@ pub fn main(init: std.process.Init) !void {
     };
     var document_request: Io.Mutex = .init;
     var connections = std.atomic.Value(usize).init(0);
-    const config: http.Config = .{ .static_dir = static_dir, .store = &store, .port = options.port, .document_request = &document_request };
+    const config: http.Config = .{ .static_dir = static_dir, .store = &store, .document_request = &document_request };
     const address = try Io.net.IpAddress.parseIp4("127.0.0.1", options.port);
     var listener = try address.listen(io, .{ .reuse_address = true });
     defer listener.deinit(io);

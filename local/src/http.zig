@@ -7,7 +7,6 @@ const http = std.http;
 pub const Config = struct {
     static_dir: ?Io.Dir,
     store: *store_module.Store,
-    port: u16,
     document_request: *Io.Mutex,
 };
 
@@ -50,12 +49,18 @@ fn headers(request: *const http.Server.Request) !Headers {
     return result;
 }
 
-fn allowedHost(host: []const u8, port: u16) bool {
-    var buffer: [64]u8 = undefined;
-    const ip = std.fmt.bufPrint(&buffer, "127.0.0.1:{d}", .{port}) catch unreachable;
-    if (std.mem.eql(u8, host, ip)) return true;
-    const localhost = std.fmt.bufPrint(&buffer, "localhost:{d}", .{port}) catch unreachable;
-    return std.mem.eql(u8, host, localhost);
+fn allowedHost(host: []const u8) bool {
+    // Port forwarding can change the browser's port without rewriting Host.
+    // Restrict the hostname to loopback and validate writes against this origin.
+    const separator = std.mem.lastIndexOfScalar(u8, host, ':') orelse return false;
+    const name = host[0..separator];
+    if (!std.mem.eql(u8, name, "127.0.0.1") and !std.mem.eql(u8, name, "localhost")) return false;
+    const port = host[separator + 1 ..];
+    if (port.len == 0) return false;
+    for (port) |char| {
+        if (char < '0' or char > '9') return false;
+    }
+    return (std.fmt.parseInt(u16, port, 10) catch return false) != 0;
 }
 
 fn allowedOrigin(host: []const u8, origin: []const u8) bool {
@@ -89,7 +94,7 @@ fn jsonError(request: *http.Server.Request, status: http.Status, code: []const u
 fn handleRequest(io: Io, gpa: std.mem.Allocator, config: Config, request: *http.Server.Request) !void {
     const h = headers(request) catch return jsonError(request, .bad_request, "DuplicateHeader");
     const host = h.host orelse return jsonError(request, .forbidden, "InvalidHost");
-    if (!allowedHost(host, config.port)) return jsonError(request, .forbidden, "InvalidHost");
+    if (!allowedHost(host)) return jsonError(request, .forbidden, "InvalidHost");
     const path = request.head.target[0 .. std.mem.indexOfAny(u8, request.head.target, "?#") orelse request.head.target.len];
     if (std.mem.startsWith(u8, path, "/api/")) {
         if (std.mem.eql(u8, path, "/api/health") and request.head.method == .GET) {
@@ -294,10 +299,14 @@ test mimeType {
 }
 
 test "Host and Origin must identify the same allowed server origin" {
-    try std.testing.expect(allowedHost("127.0.0.1:4545", 4545));
-    try std.testing.expect(allowedHost("localhost:4545", 4545));
-    try std.testing.expect(!allowedHost("evil.example:4545", 4545));
-    try std.testing.expect(!allowedHost("127.0.0.1:4546", 4545));
+    for ([_][]const u8{ "127.0.0.1:4545", "localhost:4545", "localhost:53129", "127.0.0.1:53129" }) |host| {
+        try std.testing.expect(allowedHost(host));
+    }
+    for ([_][]const u8{ "evil.example:4545", "localhost.evil.example:53129", "localhost", "localhost:", "localhost:0", "localhost:65536", "localhost:+4545", "localhost:abc", "localhost:53129/" }) |host| {
+        try std.testing.expect(!allowedHost(host));
+    }
+    try std.testing.expect(allowedOrigin("localhost:53129", "http://localhost:53129"));
+    try std.testing.expect(!allowedOrigin("localhost:53129", "http://localhost:4545"));
     try std.testing.expect(allowedOrigin("localhost:4545", "http://localhost:4545"));
     try std.testing.expect(!allowedOrigin("localhost:4545", "http://127.0.0.1:4545"));
     try std.testing.expect(!allowedOrigin("localhost:4545", "null"));
