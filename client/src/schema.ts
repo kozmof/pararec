@@ -118,8 +118,8 @@ export function parseSchema(value: unknown, defaultTitle = "document"): Schema {
     renderTypes: [...DEFAULT_RENDER_TYPES],
     showTitles: true,
     maxWidth: 1100,
-    outerWidthRate: { left: 35, right: 65 },
-    innerWidthRate: { left: 35, right: 65 },
+    outerWidthRate: { left: 2, right: 8 },
+    innerWidthRate: { left: 2, right: 8 },
   };
   const settings = document.config === undefined ? {} : object(document.config);
   if (settings.renderTypes !== undefined) {

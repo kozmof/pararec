@@ -372,10 +372,10 @@
 <svelte:window onkeydown={keydown} />
 <main class={styles.main} bind:this={pad}
   style:max-width={`${tree?.schema.config.maxWidth ?? 1100}px`}
-  style:--outer-left={(tree?.schema.config.outerWidthRate?.left ?? 35) + "fr"}
-  style:--outer-right={(tree?.schema.config.outerWidthRate?.right ?? 65) + "fr"}
-  style:--inner-left={(tree?.schema.config.innerWidthRate?.left ?? 35) + "fr"}
-  style:--inner-right={(tree?.schema.config.innerWidthRate?.right ?? 65) + "fr"}>
+  style:--outer-left={(tree?.schema.config.outerWidthRate?.left ?? 2) + "fr"}
+  style:--outer-right={(tree?.schema.config.outerWidthRate?.right ?? 8) + "fr"}
+  style:--inner-left={(tree?.schema.config.innerWidthRate?.left ?? 2) + "fr"}
+  style:--inner-right={(tree?.schema.config.innerWidthRate?.right ?? 8) + "fr"}>
   {#if loading}<p role="status">Loading document…</p>
   {:else if error}<p role="alert">{error}</p><button class={styles.button} onclick={load}>Retry</button>
   {:else if tree && session}

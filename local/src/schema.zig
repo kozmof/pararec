@@ -9,8 +9,8 @@ pub const Config = struct {
     renderTypes: []const []const u8 = &.{ "none", "markdown", "katex" },
     showTitles: bool = true,
     maxWidth: f64 = 1100,
-    outerWidthRate: WidthRate = .{ .left = 35, .right = 65 },
-    innerWidthRate: WidthRate = .{ .left = 35, .right = 65 },
+    outerWidthRate: WidthRate = .{ .left = 2, .right = 8 },
+    innerWidthRate: WidthRate = .{ .left = 2, .right = 8 },
 };
 pub const TextLink = struct { id: []const u8, sourceId: []const u8, start: usize, end: usize, targets: []const []const u8 };
 pub const Schema = struct {
