@@ -158,7 +158,6 @@ it("limits activation geometry and preserves shifted line elements when editing 
   expect(doc.lineText(0)).toBe("li!ne0");
 });
 
-
 it("measures the caret only after input has updated the rendered text", async () => {
   doc = new EditorDocument("abc");
   render(EditorSurface, { props: { doc, autoHeight: true, caret: { line: 0, column: 3 } } });
@@ -175,6 +174,6 @@ it("measures the caret only after input has updated the rendered text", async ()
   await tick();
   expect(doc.text()).toBe("abcx");
   expect(measuredTexts.length).toBeGreaterThan(0);
-  expect(measuredTexts.every(text => text === "abcx")).toBe(true);
+  expect(measuredTexts.every((text) => text === "abcx")).toBe(true);
   expect(sink.style.left).toContain("52px");
 });

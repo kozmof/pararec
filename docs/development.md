@@ -51,7 +51,7 @@ The production client build is written to `dist/`.
 | `client/src/lib/render/`  | Markdown parsing, KaTeX rendering, and rendered link annotations. |
 | `client/src/lib/api/`     | Document requests and autosave.                                   |
 | `local/src/`              | Zig HTTP server, schema validation, file storage, and locking.    |
-| `tests/`                  | API, browser, production, and performance checks.   |
+| `tests/`                  | API, browser, production, and performance checks.                 |
 
 ## Custom renderers
 
